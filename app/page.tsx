@@ -4939,8 +4939,7 @@ export default function Home() {
       <div className="fixed top-4 right-4 z-[100] max-w-sm space-y-2 pointer-events-none">
         <AnimatePresence>
           {errorMsg && (
-            <motion.div 
-              initial={{ opacity: 0, y: -20, scale: 0.9 }}
+            <motion.div key="error-toast" initial={{ opacity: 0, y: -20, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               className="pointer-events-auto bg-[#0d1424] border border-rose-500/40 text-rose-300 text-xs p-4 rounded-2xl flex items-start gap-3 shadow-2xl"
@@ -4953,8 +4952,7 @@ export default function Home() {
             </motion.div>
           )}
           {successMsg && (
-            <motion.div 
-              initial={{ opacity: 0, y: -20, scale: 0.9 }}
+            <motion.div key="success-toast" initial={{ opacity: 0, y: -20, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               className="pointer-events-auto bg-[#0d1424] border border-emerald-500/40 text-emerald-300 text-xs p-4 rounded-2xl flex items-start gap-3 shadow-2xl"
@@ -4972,4 +4970,5 @@ export default function Home() {
     </div>
   );
 }
+
 
