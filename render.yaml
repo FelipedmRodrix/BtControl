@@ -1,0 +1,26 @@
+# Render Blueprint Specification
+# Mais informações: https://render.com/docs/blueprint-spec
+services:
+  # 1. Aplicação Web Next.js empacotada em Docker
+  - type: web
+    name: arenabt-app
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: arenabt-postgres
+          property: connectionString
+
+databases:
+  # 2. Banco de Dados PostgreSQL Gratuito no Render
+  - name: arenabt-postgres
+    databaseName: arenabt
+    plan: free
+    region: oregon

@@ -1,0 +1,6 @@
+{
+  "name": "ArenaBT - Beach Tennis",
+  "description": "Sistema profissional de gestão de torneios e campeonatos de Beach Tennis com suporte multi-arena.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
