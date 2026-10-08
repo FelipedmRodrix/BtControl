@@ -78,7 +78,7 @@ export const arenaService = {
     const tourIds = new Set(tournamentsInArena.map(t => t.id));
 
     // 2. Identify all categories belonging to these tournaments
-    const categoriesInArena = db.categories.filter(c => tourIds.has(c.tournamentId));
+    const categoriesInArena = db.categories.filter(c => c.tournamentId !== undefined && tourIds.has(c.tournamentId));
     const categoryIds = new Set(categoriesInArena.map(c => c.id));
 
     // 3. Remove all registrations linked to these tournaments or categories
@@ -97,7 +97,7 @@ export const arenaService = {
     );
 
     // 6. Remove categories linked to these tournaments
-    db.categories = db.categories.filter(c => !tourIds.has(c.tournamentId));
+    db.categories = db.categories.filter(c => c.tournamentId === undefined || !tourIds.has(c.tournamentId));
 
     // 7. Remove tournaments linked to this arena
     db.tournaments = db.tournaments.filter(t => t.arenaId !== id);
@@ -208,3 +208,5 @@ export const arenaService = {
     return { success: true };
   }
 };
+
+
