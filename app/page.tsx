@@ -347,7 +347,7 @@ export default function Home() {
   const [regForm, setRegForm] = useState({
     tournamentId: '',
     categoryId: '',
-    athleteId: '',
+    selectedAthleteIds: [] as string[],
     status: 'PENDENTE_PAGAMENTO' as 'PENDENTE_PAGAMENTO' | 'CONFIRMADA'
   });
 
@@ -1309,7 +1309,7 @@ export default function Home() {
     setRegForm({
       tournamentId: tournaments[0]?.id || '',
       categoryId: '',
-      athleteId: '',
+      selectedAthleteIds: [],
       status: 'PENDENTE_PAGAMENTO'
     });
     setIsRegModalOpen(true);
@@ -1317,23 +1317,34 @@ export default function Home() {
 
   const handleCreateRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regForm.tournamentId || !regForm.categoryId || !regForm.athleteId) {
-      showError('Por favor preencha todos os campos.');
+    if (!regForm.tournamentId || !regForm.categoryId || regForm.selectedAthleteIds.length === 0) {
+      showError('Por favor selecione pelo menos um atleta.');
       return;
     }
     try {
-      const res = await fetch('/api/registrations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(regForm)
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Falha ao registrar inscrição.');
-      showSuccess('Atleta inscrito com sucesso!');
+      const results = await Promise.all(
+        regForm.selectedAthleteIds.map(async (athleteId) => {
+          const res = await fetch('/api/registrations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tournamentId: regForm.tournamentId,
+              categoryId: regForm.categoryId,
+              athleteId: athleteId,
+              status: regForm.status
+            })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Falha ao registrar inscrição.');
+          return data;
+        })
+      );
+      showSuccess(results.length + ' atleta(s) inscrito(s) com sucesso!');
       setIsRegModalOpen(false);
       fetchData();
-    } catch (err: any) {
-      showError(err.message || 'Erro ao realizar inscrição.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao realizar inscrição.';
+      showError(msg);
     }
   };
 
@@ -4400,17 +4411,29 @@ export default function Home() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Atleta</label>
-                <select 
-                  value={regForm.athleteId} 
-                  onChange={(e) => setRegForm({ ...regForm, athleteId: e.target.value })}
-                  className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="">Selecione o Atleta</option>
+                <label className="text-slate-300 font-semibold">Atletas</label>
+                <div className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl max-h-48 overflow-y-auto">
                   {athletes.filter(a => a.status === 'ATIVO').map(a => (
-                    <option key={a.id} value={a.id}>{a.name} ({formatCPF(a.cpf)})</option>
+                    <label key={a.id} className="flex items-center gap-2 py-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={regForm.selectedAthleteIds.includes(a.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setRegForm({ ...regForm, selectedAthleteIds: [...regForm.selectedAthleteIds, a.id] });
+                          } else {
+                            setRegForm({ ...regForm, selectedAthleteIds: regForm.selectedAthleteIds.filter(id => id !== a.id) });
+                          }
+                        }}
+                        className="w-4 h-4 accent-emerald-500 cursor-pointer"
+                      />
+                      <span className="text-slate-200">{a.name} ({formatCPF(a.cpf)})</span>
+                    </label>
                   ))}
-                </select>
+                </div>
+                {regForm.selectedAthleteIds.length > 0 && (
+                  <p className="text-xs text-emerald-400">{regForm.selectedAthleteIds.length} atleta(s) selecionado(s)</p>
+                )}
               </div>
 
               <div className="flex flex-col gap-1.5">
