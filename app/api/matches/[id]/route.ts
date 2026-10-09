@@ -9,7 +9,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const { score, winnerDuoId, isWO, court, scoreA, scoreB, winnerTeam, isDraw } = body;
+    const { score, winnerDuoId, isWO, court, scoreA, scoreB, winnerTeam, isDraw, tieBreaker } = body;
 
     let res;
     if (court !== undefined) {
@@ -17,14 +17,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     } else if (isWO) {
       res = matchService.toggleWO(id, winnerDuoId, winnerTeam);
     } else {
-      res = matchService.updateResult(id, score, winnerDuoId, scoreA, scoreB, winnerTeam, isDraw);
+      res = matchService.updateResult(id, score, winnerDuoId, scoreA, scoreB, winnerTeam, isDraw, tieBreaker);
     }
 
     if (!res.success) {
       return NextResponse.json({ error: res.error }, { status: 400 });
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, tieBreaker: (res as any).tieBreaker });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

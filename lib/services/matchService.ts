@@ -1,5 +1,5 @@
 import { readDB, writeDB, Match, Duo } from '../db/store';
-import { SUPER_8_ROUNDS_TEMPLATE, validateSuper8Schedule, validateSuper8Score, calculateSuper8Standings } from './super8Service';
+import { SUPER_8_ROUNDS_TEMPLATE, validateSuper8Schedule, validateSuper8Score, calculateSuper8Standings, resolveSuper8Tie } from './super8Service';
 
 export const matchService = {
   getAll(arenaId?: string, tournamentId?: string) {
@@ -40,7 +40,8 @@ export const matchService = {
           categoryName: category ? (category.name || `${category.type} - ${category.level}`) : 'Super 8',
           tournamentName: tournament?.name || 'Torneio Desconhecido',
           arenaId: tournament?.arenaId || '',
-          isSuper8: true
+          isSuper8: true,
+          tieBreaker: m.tieBreaker
         };
       }
 
@@ -63,8 +64,9 @@ export const matchService = {
         categoryName: category ? (category.name || `${category.type} - ${category.level}`) : 'Categoria Desconhecida',
         tournamentName: tournament?.name || 'Torneio Desconhecido',
          arenaId: tournament?.arenaId || '',
-         isSuper8: false,
-         isDraw: m.isDraw || false
+        isSuper8: false,
+        isDraw: m.isDraw || false,
+        tieBreaker: m.tieBreaker
        };
     });
 
@@ -130,8 +132,9 @@ export const matchService = {
     scoreA?: number,
     scoreB?: number,
     winnerTeam?: 'TEAM_A' | 'TEAM_B',
-    isDraw?: boolean
-  ): { success: boolean; error?: string } {
+    isDraw?: boolean,
+    tieBreaker?: string
+  ): { success: boolean; error?: string; tieBreaker?: string } {
     const db = readDB();
     const index = db.matches.findIndex(m => m.id === id);
 
@@ -143,7 +146,6 @@ export const matchService = {
 
     // Se a partida for do formato Super 8
     if (m.format === 'SUPER_8' || m.teamA) {
-      // Se scoreA e scoreB foram enviados
       let sA = scoreA;
       let sB = scoreB;
 
@@ -162,10 +164,37 @@ export const matchService = {
         if (!validation.valid) {
           return { success: false, error: validation.error };
         }
+
         db.matches[index].scoreA = sA;
         db.matches[index].scoreB = sB;
         db.matches[index].score = `${sA} x ${sB}`;
-        db.matches[index].winnerTeam = sA > sB ? 'TEAM_A' : 'TEAM_B';
+
+        if (sA === sB && validation.isTie) {
+          if (tieBreaker) {
+            db.matches[index].winnerTeam = winnerTeam || 'TEAM_A';
+            db.matches[index].tieBreaker = tieBreaker;
+          } else {
+            const tieResult = resolveSuper8Tie(
+              db.matches[index],
+              db.matches,
+              db.athletes.filter(a => {
+                const ids = [
+                  m.teamA?.player1Id, m.teamA?.player2Id,
+                  m.teamB?.player1Id, m.teamB?.player2Id
+                ];
+                return ids.includes(a.id);
+              })
+            );
+            if (tieResult) {
+              db.matches[index].winnerTeam = tieResult.winnerTeam;
+              db.matches[index].tieBreaker = tieResult.reason;
+            } else {
+              db.matches[index].winnerTeam = winnerTeam || 'TEAM_A';
+            }
+          }
+        } else {
+          db.matches[index].winnerTeam = sA > sB ? 'TEAM_A' : 'TEAM_B';
+        }
       } else {
         db.matches[index].score = score;
         if (winnerTeam) {
@@ -176,7 +205,7 @@ export const matchService = {
       db.matches[index].status = 'FINALIZADA';
       db.matches[index].updatedAt = new Date().toISOString();
       writeDB(db);
-      return { success: true };
+      return { success: true, tieBreaker: db.matches[index].tieBreaker };
     }
 
     // Partida tradicional de duplas

@@ -194,6 +194,7 @@ interface Match {
    isDraw?: boolean;
    games?: number;
    thaiBreak?: boolean;
+   tieBreaker?: string;
 }
 
 // Standard Beach Tennis Category Matrix (Rule 9 and 10)
@@ -431,14 +432,15 @@ export default function Home() {
   const [isWoModalOpen, setIsWoModalOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<any | null>(null);
   const [resultForm, setResultForm] = useState({
-    score: '6/4 6/3',
+    score: '',
     winnerDuoId: '',
     scoreA: 4,
-    scoreB: 2,
+    scoreB: 0,
     winnerTeam: 'TEAM_A' as 'TEAM_A' | 'TEAM_B',
     games: 4 as 4 | 6,
     thaiBreak: false,
-    isDraw: false
+    isDraw: false,
+    tieBreakerReason: '' as string
   });
   const [woForm, setWoForm] = useState({
     winnerDuoId: '',
@@ -1700,25 +1702,27 @@ export default function Home() {
     const matchThaiBreak = match.thaiBreak === true;
     if (isSuper8) {
       setResultForm({
-        score: match.score || `${matchGames} x 2`,
+        score: '',
         winnerDuoId: match.duo1Id || '',
-        scoreA: match.scoreA !== undefined ? match.scoreA : matchGames,
-        scoreB: match.scoreB !== undefined ? match.scoreB : 2,
+        scoreA: match.scoreA !== undefined ? match.scoreA : 0,
+        scoreB: match.scoreB !== undefined ? match.scoreB : 0,
         winnerTeam: match.winnerTeam || 'TEAM_A',
         games: matchGames,
         thaiBreak: matchThaiBreak,
-        isDraw: false
+        isDraw: false,
+        tieBreakerReason: match.tieBreaker || ''
       });
     } else {
       setResultForm({
-        score: match.score || '6/4 6/3',
+        score: match.score || '',
         winnerDuoId: match.duo1Id || '',
         scoreA: 4,
         scoreB: 2,
         winnerTeam: 'TEAM_A',
         games: matchGames,
         thaiBreak: matchThaiBreak,
-        isDraw: false
+        isDraw: false,
+        tieBreakerReason: ''
       });
     }
     setIsResultModalOpen(true);
@@ -1734,9 +1738,10 @@ export default function Home() {
         score: `${resultForm.scoreA} x ${resultForm.scoreB}`,
         scoreA: resultForm.scoreA,
         scoreB: resultForm.scoreB,
-        winnerTeam: resultForm.scoreA > resultForm.scoreB ? 'TEAM_A' : 'TEAM_B',
+        winnerTeam: resultForm.scoreA > resultForm.scoreB ? 'TEAM_A' : resultForm.scoreA < resultForm.scoreB ? 'TEAM_B' : resultForm.winnerTeam,
         isDraw: false,
-        isWO: false
+        isWO: false,
+        tieBreaker: resultForm.tieBreakerReason
       } : resultForm.isDraw ? {
         score: resultForm.score,
         winnerDuoId: '',
@@ -1759,7 +1764,9 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar resultado.');
-      showSuccess('Resultado registrado com sucesso!');
+      if (data.tieBreaker) {
+        showSuccess(`Resultado registrado! Empate resolvido: ${data.tieBreaker}`);
+      }
       setIsResultModalOpen(false);
       fetchData();
     } catch (err: any) {
@@ -5294,6 +5301,11 @@ export default function Home() {
                                         <span className="text-xs text-slate-300 font-mono flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
                                           <Check className="w-4 h-4 text-emerald-400" /> {m.status === 'WO' ? 'W.O.' : m.isDraw ? 'Empate' : 'Finalizado'} ({m.score})
                                         </span>
+                                        {m.tieBreaker && (
+                                          <span className="text-[9px] text-amber-400 font-mono bg-amber-950/30 border border-amber-500/30 px-2 py-0.5 rounded-lg" title={m.tieBreaker}>
+                                            {m.tieBreaker.length > 30 ? m.tieBreaker.substring(0, 30) + '...' : m.tieBreaker}
+                                          </span>
+                                        )}
                                         <button 
                                           onClick={() => handleLaunchResult(m)} 
                                           className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition cursor-pointer"
@@ -7403,224 +7415,98 @@ export default function Home() {
               </div>
 
               {selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || selectedMatch.teamA ? (
-                /* Super 8 Scoring: conditional on games setting */
-                <div className="space-y-3.5">
+                <div className="space-y-4">
                   <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl text-center">
                     <p className="text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                       Regra {resultForm.games === 6 ? (resultForm.thaiBreak ? 'Super 8: 6 Games + Thai Break' : 'Super 8: 6 Games') : 'Super 8: 4 Games'}
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
+                    <p className="text-[10px] text-slate-400 mt-1">
                       {resultForm.games === 6 && resultForm.thaiBreak
-                        ? 'Válido: 6-0 a 6-4, 7-5 (no 5x5), 7-6 (Thai Break de 7 pontos).'
+                        ? 'Válido: 6x0 a 6x4, 7x5 (no 5x5), 7x6 (Thai Break de 7 pontos). Empates: 0-0 a 6-6.'
                         : resultForm.games === 6
-                          ? 'Válido: 6-0 a 6-5 (adversário entre 0 e 5).'
-                          : 'Válido: 4-0 a 4-3 (adversário entre 0 e 3).'}
+                          ? 'Válido: 6x0 a 6x4 (adversário 0-4). Empates: 0-0 a 5-5.'
+                          : 'Válido: 4x0 a 4x3 (adversário 0-3). Empates: 0-0 a 3-3.'}
                     </p>
                   </div>
 
-                  <div>
-                    <label className="text-slate-300 font-semibold block mb-1.5">Clique para Lançar Placar Rápido:</label>
-                    <div className="space-y-2">
-                      <div className="bg-[#090e1a] p-2.5 rounded-xl border border-slate-800/80 space-y-1.5">
-                        <span className="text-[10px] text-emerald-400 font-bold block truncate">
-                          Vitória de {selectedMatch.duo1Name}:
-                        </span>
-                        <div className={`grid gap-1.5 ${resultForm.games === 4 ? 'grid-cols-4' : 'grid-cols-7'}`}>
-                          {resultForm.games === 4
-                            ? [0, 1, 2, 3].map(opp => (
-                                <button
-                                  key={`quick-a-${opp}`}
-                                  type="button"
-                                  onClick={() => {
-                                    setResultForm({
-                                      ...resultForm,
-                                      scoreA: 4,
-                                      scoreB: opp,
-                                      score: `4 x ${opp}`,
-                                      winnerTeam: 'TEAM_A'
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
-                                    resultForm.scoreA === 4 && resultForm.scoreB === opp && resultForm.winnerTeam === 'TEAM_A'
-                                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
-                                      : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
-                                  }`}
-                                >
-                                  4 × {opp}
-                                </button>
-                              ))
-                            : [0, 1, 2, 3, 4, 5].map(opp => (
-                                <button
-                                  key={`quick-a-${opp}`}
-                                  type="button"
-                                  onClick={() => {
-                                    setResultForm({
-                                      ...resultForm,
-                                      scoreA: 6,
-                                      scoreB: opp,
-                                      score: `6 x ${opp}`,
-                                      winnerTeam: 'TEAM_A'
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
-                                    resultForm.scoreA === 6 && resultForm.scoreB === opp && resultForm.winnerTeam === 'TEAM_A'
-                                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
-                                      : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
-                                  }`}
-                                >
-                                  6 × {opp}
-                                </button>
-                              ))}
-                          {resultForm.thaiBreak && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setResultForm({
-                                    ...resultForm,
-                                    scoreA: 7,
-                                    scoreB: 5,
-                                    score: `7 x 5`,
-                                    winnerTeam: 'TEAM_A'
-                                  });
-                                }}
-                                className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
-                                  resultForm.scoreA === 7 && resultForm.scoreB === 5 && resultForm.winnerTeam === 'TEAM_A'
-                                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
-                                    : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
-                                }`}
-                              >
-                                7 × 5
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setResultForm({
-                                    ...resultForm,
-                                    scoreA: 7,
-                                    scoreB: 6,
-                                    score: `7 x 6 (TB)`,
-                                    winnerTeam: 'TEAM_A'
-                                  });
-                                }}
-                                className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
-                                  resultForm.scoreA === 7 && resultForm.scoreB === 6 && resultForm.winnerTeam === 'TEAM_A'
-                                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
-                                    : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
-                                }`}
-                              >
-                                7 × 6 (TB)
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="bg-[#090e1a] p-2.5 rounded-xl border border-slate-800/80 space-y-1.5">
-                        <span className="text-[10px] text-amber-400 font-bold block truncate">
-                          Vitória de {selectedMatch.duo2Name}:
-                        </span>
-                        <div className={`grid gap-1.5 ${resultForm.games === 4 ? 'grid-cols-4' : 'grid-cols-7'}`}>
-                          {resultForm.games === 4
-                            ? [0, 1, 2, 3].map(opp => (
-                                <button
-                                  key={`quick-b-${opp}`}
-                                  type="button"
-                                  onClick={() => {
-                                    setResultForm({
-                                      ...resultForm,
-                                      scoreA: opp,
-                                      scoreB: 4,
-                                      score: `${opp} x 4`,
-                                      winnerTeam: 'TEAM_B'
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
-                                    resultForm.scoreB === 4 && resultForm.scoreA === opp && resultForm.winnerTeam === 'TEAM_B'
-                                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
-                                      : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
-                                  }`}
-                                >
-                                  {opp} × 4
-                                </button>
-                              ))
-                            : [0, 1, 2, 3, 4, 5].map(opp => (
-                                <button
-                                  key={`quick-b-${opp}`}
-                                  type="button"
-                                  onClick={() => {
-                                    setResultForm({
-                                      ...resultForm,
-                                      scoreA: opp,
-                                      scoreB: 6,
-                                      score: `${opp} x 6`,
-                                      winnerTeam: 'TEAM_B'
-                                    });
-                                  }}
-                                  className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
-                                    resultForm.scoreB === 6 && resultForm.scoreA === opp && resultForm.winnerTeam === 'TEAM_B'
-                                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
-                                      : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
-                                  }`}
-                                >
-                                  {opp} × 6
-                                </button>
-                              ))}
-                          {resultForm.thaiBreak && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setResultForm({
-                                    ...resultForm,
-                                    scoreA: 5,
-                                    scoreB: 7,
-                                    score: `5 x 7`,
-                                    winnerTeam: 'TEAM_B'
-                                  });
-                                }}
-                                className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
-                                  resultForm.scoreA === 5 && resultForm.scoreB === 7 && resultForm.winnerTeam === 'TEAM_B'
-                                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
-                                    : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
-                                }`}
-                              >
-                                5 × 7
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setResultForm({
-                                    ...resultForm,
-                                    scoreA: 6,
-                                    scoreB: 7,
-                                    score: `6 x 7 (TB)`,
-                                    winnerTeam: 'TEAM_B'
-                                  });
-                                }}
-                                className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
-                                  resultForm.scoreA === 6 && resultForm.scoreB === 7 && resultForm.winnerTeam === 'TEAM_B'
-                                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
-                                    : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
-                                }`}
-                              >
-                                6 × 7 (TB)
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-slate-300 font-semibold text-xs">Time A ({selectedMatch.duo1Name})</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max={resultForm.games === 6 ? (resultForm.thaiBreak ? 7 : 6) : 4}
+                        value={resultForm.scoreA}
+                        onChange={(e) => setResultForm({ ...resultForm, scoreA: parseInt(e.target.value) || 0 })}
+                        className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono text-center text-xl font-bold focus:border-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-slate-300 font-semibold text-xs">Time B ({selectedMatch.duo2Name})</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max={resultForm.games === 6 ? (resultForm.thaiBreak ? 7 : 6) : 4}
+                        value={resultForm.scoreB}
+                        onChange={(e) => setResultForm({ ...resultForm, scoreB: parseInt(e.target.value) || 0 })}
+                        className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono text-center text-xl font-bold focus:border-emerald-500 focus:outline-none"
+                      />
                     </div>
                   </div>
 
+                  {resultForm.scoreA === resultForm.scoreB && resultForm.scoreA > 0 ? (
+                    <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl">
+                      <p className="text-amber-300 font-bold text-xs mb-2 flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                        Empate detectado —resolvido pelo menor número de derrotas
+                      </p>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const res = await fetch(`/api/matches/${selectedMatch.id}/resolve-tie`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ scoreA: resultForm.scoreA, scoreB: resultForm.scoreB })
+                          });
+                          const data = await res.json();
+                          if (res.ok) {
+                            setResultForm({ ...resultForm, tieBreakerReason: data.tieBreaker, winnerTeam: data.winnerTeam });
+                          } else {
+                            showError(data.error || 'Erro ao resolver empate.');
+                          }
+                        }}
+                        className="w-full py-1.5 px-3 bg-amber-500/20 text-amber-300 font-bold rounded-lg text-xs hover:bg-amber-500/30 transition cursor-pointer"
+                      >
+                        Resolver Empate
+                      </button>
+                    </div>
+                  ) : resultForm.scoreA === resultForm.scoreB && resultForm.scoreA === 0 ? (
+                    <p className="text-xs text-slate-500 text-center">Insira os games para ambos os times.</p>
+                  ) : null}
+
+                  {resultForm.tieBreakerReason && (
+                    <div className="p-2.5 bg-emerald-950/30 border border-emerald-500/30 rounded-xl">
+                      <p className="text-emerald-300 text-xs font-semibold">Vencedor: Time {resultForm.winnerTeam === 'TEAM_A' ? 'A' : 'B'}</p>
+                      <p className="text-emerald-400 text-[10px] font-mono mt-0.5">{resultForm.tieBreakerReason}</p>
+                    </div>
+                  )}
+
                   <div className="p-3 bg-[#090e1a] border border-slate-800 rounded-xl flex items-center justify-between">
-                    <span className="text-slate-400">Placar Selecionado:</span>
-                    <span className="font-mono text-base font-black text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-3 py-1 rounded-lg">
+                    <span className="text-slate-400">Placar:</span>
+                    <span className={`font-mono text-lg font-black px-3 py-1 rounded-lg ${
+                      resultForm.scoreA > resultForm.scoreB
+                        ? 'text-emerald-400 bg-emerald-950/60 border border-emerald-500/30'
+                        : resultForm.scoreA < resultForm.scoreB
+                        ? 'text-rose-400 bg-rose-950/60 border border-rose-500/30'
+                        : resultForm.scoreA === resultForm.scoreB && resultForm.scoreA > 0
+                        ? 'text-amber-400 bg-amber-950/60 border border-amber-500/30'
+                        : 'text-slate-500 bg-slate-800/60'
+                    }`}>
                       {resultForm.scoreA} × {resultForm.scoreB}
                     </span>
                   </div>
-               </div>
+                </div>
               ) : (
                 /* Traditional Duo Scoring */
                 <>

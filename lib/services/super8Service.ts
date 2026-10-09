@@ -1,4 +1,5 @@
 import { Match, Athlete } from '../db/store';
+import { readDB } from '../db/store';
 
 export interface Super8MatchSchedule {
   round: number; // 1 to 7
@@ -187,13 +188,18 @@ export function validateSuper8Schedule(
  *   - Em 5x5: quem chegar a 7 vence (7-5)
  *   - Em 6x6: Thai Break - 7 pontos consecutivos, quem fizer 7 primeiro vence (7-6)
  */
-export function validateSuper8Score(scoreA: number, scoreB: number, games: number = 4, thaiBreak: boolean = false): { valid: boolean; error?: string } {
+export function validateSuper8Score(scoreA: number, scoreB: number, games: number = 4, thaiBreak: boolean = false): { valid: boolean; error?: string; isTie?: boolean } {
   if (isNaN(scoreA) || isNaN(scoreB)) {
     return { valid: false, error: 'Os games devem ser números válidos.' };
   }
 
+  // Allow ties (empate) - will be resolved by tiebreaker
   if (scoreA === scoreB) {
-    return { valid: false, error: 'Não há empate na partida. Um time deve fechar os games.' };
+    const validTieScores = validateTieScore(scoreA, games, thaiBreak);
+    if (validTieScores) {
+      return { valid: true, isTie: true };
+    }
+    return { valid: false, error: `Placar de empate inválido para ${games} games${thaiBreak ? ' + Thai Break' : ''}.` };
   }
 
   // Formato padrão de 4 games
@@ -248,6 +254,74 @@ export function validateSuper8Score(scoreA: number, scoreB: number, games: numbe
   }
 
   return { valid: false, error: 'Formato de games não suportado.' };
+}
+
+function validateTieScore(score: number, games: number, thaiBreak: boolean): boolean {
+  if (games === 4) {
+    return score === 0 || score === 1 || score === 2 || score === 3;
+  }
+  if (games === 6) {
+    if (thaiBreak) {
+      return score === 6 || score === 5 || score === 4 || score === 3 || score === 2 || score === 1 || score === 0;
+    }
+    return score === 0 || score === 1 || score === 2 || score === 3 || score === 4 || score === 5;
+  }
+  return false;
+}
+
+export function resolveSuper8Tie(
+  match: Match,
+  allMatches: Match[],
+  athletes: { id: string; name: string }[]
+): { winnerTeam: 'TEAM_A' | 'TEAM_B'; reason: string } | null {
+  if (!match.teamA || !match.teamB) return null;
+
+  const teamAPlayers = [match.teamA.player1Id, match.teamA.player2Id];
+  const teamBPlayers = [match.teamB.player1Id, match.teamB.player2Id];
+
+  const computeLosses = (playerIds: string[]) => {
+    let totalLosses = 0;
+    for (const pId of playerIds) {
+      const standings = calculateSuper8Standings(allMatches.filter(m => m.id !== match.id), athletes, match.games || 4);
+      const s = standings.find(st => st.athleteId === pId);
+      if (s) totalLosses += s.losses;
+    }
+    return totalLosses;
+  };
+
+  const lossesA = computeLosses(teamAPlayers);
+  const lossesB = computeLosses(teamBPlayers);
+
+  if (lossesA < lossesB) {
+    return { winnerTeam: 'TEAM_A', reason: `${lossesA} derrota(s) vs ${lossesB} derrota(s)` };
+  }
+  if (lossesB < lossesA) {
+    return { winnerTeam: 'TEAM_B', reason: `${lossesB} derrota(s) vs ${lossesA} derrota(s)` };
+  }
+
+  // Same losses - use game difference
+  const computeGameDiff = (playerIds: string[]) => {
+    const standings = calculateSuper8Standings(allMatches.filter(m => m.id !== match.id), athletes, match.games || 4);
+    let totalDiff = 0;
+    for (const pId of playerIds) {
+      const s = standings.find(st => st.athleteId === pId);
+      if (s) totalDiff += s.gameDiff;
+    }
+    return totalDiff;
+  };
+
+  const diffA = computeGameDiff(teamAPlayers);
+  const diffB = computeGameDiff(teamBPlayers);
+
+  if (diffA > diffB) {
+    return { winnerTeam: 'TEAM_A', reason: `Saldo de games: ${diffA} vs ${diffB}` };
+  }
+  if (diffB > diffA) {
+    return { winnerTeam: 'TEAM_B', reason: `Saldo de games: ${diffB} vs ${diffA}` };
+  }
+
+  // Same losses and game diff - default to Team A
+  return { winnerTeam: 'TEAM_A', reason: 'Desempate por saldo de games também empatado — Time A selecionado' };
 }
 
 export interface Super8AthleteStanding {
