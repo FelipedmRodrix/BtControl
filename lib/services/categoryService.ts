@@ -92,8 +92,10 @@ export const categoryService = {
       level: data.level,
       price: data.price !== undefined ? Number(data.price) : 100,
       maxParticipants: data.maxParticipants !== undefined ? Number(data.maxParticipants) : 16,
-      status: data.status || 'ATIVA',
-      description: data.description?.trim() || '',
+       status: data.status || 'ATIVA',
+       description: data.description?.trim() || '',
+       games: data.games !== undefined ? Number(data.games) : 4,
+       thaiBreak: data.thaiBreak === true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -151,6 +153,15 @@ export const categoryService = {
     if (data.maxParticipants !== undefined) {
       if (data.maxParticipants <= 0) return { success: false, error: 'O limite de vagas/duplas deve ser maior que zero.', code: 400 };
       db.categories[index].maxParticipants = Number(data.maxParticipants);
+    }
+
+    if (data.games !== undefined) {
+      const g = Number(data.games);
+      if (g !== 4 && g !== 6) return { success: false, error: 'Games inválido. Deve ser 4 ou 6.', code: 400 };
+      db.categories[index].games = g;
+    }
+    if (data.thaiBreak !== undefined) {
+      db.categories[index].thaiBreak = data.thaiBreak;
     }
 
     db.categories[index].updatedAt = new Date().toISOString();

@@ -23,6 +23,8 @@ export const matchService = {
 
         return {
           ...m,
+          games: m.games !== undefined ? m.games : (category?.games || 4),
+          thaiBreak: m.thaiBreak !== undefined ? m.thaiBreak : (category?.thaiBreak || false),
           duo1Name: teamAName,
           duo2Name: teamBName,
           teamA: teamA ? {
@@ -54,6 +56,8 @@ export const matchService = {
 
       return {
         ...m,
+        games: m.games !== undefined ? m.games : (category?.games || 4),
+        thaiBreak: m.thaiBreak !== undefined ? m.thaiBreak : (category?.thaiBreak || false),
         duo1Name: d1 ? `${p1_a?.name || 'Atleta A'} / ${p1_b?.name || 'Atleta B'}` : 'Dupla A',
         duo2Name: d2 ? `${p2_a?.name || 'Atleta A'} / ${p2_b?.name || 'Atleta B'}` : 'Dupla B',
         categoryName: category ? (category.name || `${category.type} - ${category.level}`) : 'Categoria Desconhecida',
@@ -124,7 +128,8 @@ export const matchService = {
     winnerDuoId?: string,
     scoreA?: number,
     scoreB?: number,
-    winnerTeam?: 'TEAM_A' | 'TEAM_B'
+    winnerTeam?: 'TEAM_A' | 'TEAM_B',
+    isDraw?: boolean
   ): { success: boolean; error?: string } {
     const db = readDB();
     const index = db.matches.findIndex(m => m.id === id);
@@ -149,8 +154,10 @@ export const matchService = {
         }
       }
 
+      const matchGames = m.games !== undefined ? m.games : 4;
+      const matchThaiBreak = m.thaiBreak === true;
       if (sA !== undefined && sB !== undefined) {
-        const validation = validateSuper8Score(sA, sB);
+        const validation = validateSuper8Score(sA, sB, matchGames, matchThaiBreak);
         if (!validation.valid) {
           return { success: false, error: validation.error };
         }
@@ -177,6 +184,12 @@ export const matchService = {
     }
 
     db.matches[index].score = score;
+    if (isDraw) {
+      db.matches[index].status = 'FINALIZADA';
+      db.matches[index].updatedAt = new Date().toISOString();
+      writeDB(db);
+      return { success: true };
+    }
     if (winnerDuoId) {
       db.matches[index].winnerDuoId = winnerDuoId;
     }
@@ -200,9 +213,10 @@ export const matchService = {
     // Se Super 8
     if (m.format === 'SUPER_8' || m.teamA) {
       const selectedWinner = winnerTeam || (winnerDuoId === 'TEAM_A' || winnerDuoId === 'teamA' ? 'TEAM_A' : 'TEAM_B');
-      db.matches[index].score = selectedWinner === 'TEAM_A' ? 'W.O. (4x0)' : 'W.O. (0x4)';
-      db.matches[index].scoreA = selectedWinner === 'TEAM_A' ? 4 : 0;
-      db.matches[index].scoreB = selectedWinner === 'TEAM_A' ? 0 : 4;
+      const woGames = db.matches[index].games !== undefined ? db.matches[index].games : 4;
+      db.matches[index].score = selectedWinner === 'TEAM_A' ? `W.O. (${woGames}x0)` : `W.O. (0x${woGames})`;
+      db.matches[index].scoreA = selectedWinner === 'TEAM_A' ? woGames : 0;
+      db.matches[index].scoreB = selectedWinner === 'TEAM_A' ? 0 : woGames;
       db.matches[index].winnerTeam = selectedWinner;
       db.matches[index].status = 'WO';
       db.matches[index].updatedAt = new Date().toISOString();
@@ -318,6 +332,8 @@ export const matchService = {
           round: tpl.round,
           matchNumber: tpl.matchNumber,
           format: 'SUPER_8',
+          games: category.games || 4,
+          thaiBreak: category.thaiBreak || false,
           teamA: {
             player1Id: p1Id,
             player2Id: p2Id,
@@ -400,6 +416,8 @@ export const matchService = {
           court: courtName,
           status: 'PENDENTE',
           format: 'STANDARD',
+          games: category.games || 4,
+          thaiBreak: category.thaiBreak || false,
           createdAt: now,
           updatedAt: now
         };

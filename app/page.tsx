@@ -124,9 +124,11 @@ interface Category {
   level: 'PRINCIPIANTE' | 'INICIANTE' | 'D' | 'C' | 'B' | 'A' | 'OPEN';
   price: number;
   maxParticipants?: number;
-  status?: 'ATIVA' | 'INATIVA';
-  description?: string;
-  createdAt: string;
+   status?: 'ATIVA' | 'INATIVA';
+   description?: string;
+   games?: number;
+   thaiBreak?: boolean;
+   createdAt: string;
   tournamentName?: string;
   arenaId?: string;
   isMaster?: boolean;
@@ -346,7 +348,9 @@ export default function Home() {
     startDate: '',
     endDate: '',
     status: 'INSCRICOES_ABERTAS' as 'INSCRICOES_ABERTAS' | 'EM_ANDAMENTO' | 'FINALIZADO',
-    isDuo: true
+    isDuo: true,
+    games: 4 as 4 | 6,
+    thaiBreak: false
   });
 
   // Interactive categories selection state inside tournament modal (Selected from system's pre-registered categories!)
@@ -357,6 +361,8 @@ export default function Home() {
     level: 'PRINCIPIANTE' | 'INICIANTE' | 'D' | 'C' | 'B' | 'A' | 'OPEN';
     price: number;
     maxParticipants: number;
+    games: number;
+    thaiBreak: boolean;
     enabled: boolean;
   }[]>([]);
 
@@ -369,8 +375,10 @@ export default function Home() {
     type: 'MASCULINO' as 'SUPER 8' | 'MISTA' | 'MASCULINO' | 'FEMININO',
     level: 'C' as 'PRINCIPIANTE' | 'INICIANTE' | 'D' | 'C' | 'B' | 'A' | 'OPEN',
     price: 100,
-    maxParticipants: 16,
-    status: 'ATIVA' as 'ATIVA' | 'INATIVA',
+     maxParticipants: 16,
+     games: 4 as 4 | 6,
+     thaiBreak: false,
+     status: 'ATIVA' as 'ATIVA' | 'INATIVA',
     description: ''
   });
 
@@ -424,7 +432,10 @@ export default function Home() {
     winnerDuoId: '',
     scoreA: 4,
     scoreB: 2,
-    winnerTeam: 'TEAM_A' as 'TEAM_A' | 'TEAM_B'
+    winnerTeam: 'TEAM_A' as 'TEAM_A' | 'TEAM_B',
+    games: 4 as 4 | 6,
+    thaiBreak: false,
+    isDraw: false
   });
   const [woForm, setWoForm] = useState({
     winnerDuoId: '',
@@ -440,6 +451,7 @@ export default function Home() {
   const [filterRegCategory, setFilterRegCategory] = useState<string>('ALL');
   const [filterRegPaymentStatus, setFilterRegPaymentStatus] = useState<string>('ALL');
   const [searchRegAthleteTerm, setSearchRegAthleteTerm] = useState<string>('');
+  const [searchRegAthleteCreate, setSearchRegAthleteCreate] = useState<string>('');
 
   // 2. Duplas
   const [selectedDuoTournamentId, setSelectedDuoTournamentId] = useState<string>('');
@@ -447,6 +459,8 @@ export default function Home() {
   const [filterDuoStatus, setFilterDuoStatus] = useState<'ALL' | 'VIGENTE' | 'EXPIRADO'>('ALL');
   const [filterDuoArenaId, setFilterDuoArenaId] = useState<string>('ALL');
   const [filterDuoCategory, setFilterDuoCategory] = useState<string>('ALL');
+  const [searchDuoPlayer1, setSearchDuoPlayer1] = useState<string>('');
+  const [searchDuoPlayer2, setSearchDuoPlayer2] = useState<string>('');
 
   // 3. Jogos / Quadras
   const [selectedMatchTournamentId, setSelectedMatchTournamentId] = useState<string>('');
@@ -1117,7 +1131,9 @@ export default function Home() {
       startDate: '',
       endDate: '',
       status: 'INSCRICOES_ABERTAS',
-      isDuo: true
+      isDuo: true,
+      games: 4,
+      thaiBreak: false
     });
 
     // Carregar as categorias pré-cadastradas no sistema para seleção no torneio
@@ -1141,6 +1157,8 @@ export default function Home() {
         level: c.level,
         price: c.price || 100,
         maxParticipants: c.maxParticipants || 16,
+        games: 4,
+        thaiBreak: false,
         enabled: false
       }));
     setTourCategories(initialCats);
@@ -1160,7 +1178,9 @@ export default function Home() {
       startDate: t.startDate,
       endDate: t.endDate,
       status: t.status,
-      isDuo: t.isDuo !== undefined ? t.isDuo : true
+      isDuo: t.isDuo !== undefined ? t.isDuo : true,
+      games: (t as any).games === 6 ? 6 : 4,
+      thaiBreak: (t as any).thaiBreak === true
     });
 
     // Mapear categorias pré-cadastradas sincronizando com as ativadas para este torneio
@@ -1184,6 +1204,8 @@ export default function Home() {
         level: std.level,
         price: matchCat ? matchCat.price : (std.price || 100),
         maxParticipants: matchCat ? (matchCat.maxParticipants || 16) : (std.maxParticipants || 16),
+        games: matchCat ? (matchCat.games || 4) : 4,
+        thaiBreak: matchCat ? !!matchCat.thaiBreak : false,
         enabled: !!matchCat
       };
     });
@@ -1201,6 +1223,8 @@ export default function Home() {
       arenaId: session?.role === 'ARENA_ADMIN' ? session.arenaId : tourForm.arenaId,
       venueId: tourForm.venueId,
       courtsUsed: Number(tourForm.courtsUsed) || 1,
+      games: tourForm.games,
+      thaiBreak: tourForm.thaiBreak,
       enabledCategories: tourCategories // Send categories matrix to API
     };
 
@@ -1264,6 +1288,8 @@ export default function Home() {
       level: 'C',
       price: 100,
       maxParticipants: 16,
+      games: 4,
+      thaiBreak: false,
       status: 'ATIVA',
       description: ''
     });
@@ -1283,6 +1309,8 @@ export default function Home() {
       level: c.level,
       price: c.price,
       maxParticipants: c.maxParticipants || 16,
+      games: c.games === 6 ? 6 : 4,
+      thaiBreak: c.thaiBreak === true,
       status: c.status || 'ATIVA',
       description: c.description || ''
     });
@@ -1302,6 +1330,8 @@ export default function Home() {
       level: c.level,
       price: c.price,
       maxParticipants: c.maxParticipants || 16,
+      games: c.games === 6 ? 6 : 4,
+      thaiBreak: c.thaiBreak === true,
       status: 'ATIVA',
       description: c.description || ''
     });
@@ -1369,9 +1399,11 @@ export default function Home() {
       tournamentId: categoryForm.tournamentId || 'GLOBAL',
       type: categoryForm.type,
       level: categoryForm.level,
-      price: Number(categoryForm.price),
-      maxParticipants: Number(categoryForm.maxParticipants),
-      status: categoryForm.status,
+       price: Number(categoryForm.price),
+       maxParticipants: Number(categoryForm.maxParticipants),
+       games: categoryForm.games,
+       thaiBreak: categoryForm.thaiBreak,
+       status: categoryForm.status,
       description: categoryForm.description.trim()
     };
 
@@ -1661,13 +1693,18 @@ export default function Home() {
   const handleLaunchResult = (match: any) => {
     setSelectedMatch(match);
     const isSuper8 = match.format === 'SUPER_8' || match.isSuper8 || !!match.teamA;
+    const matchGames = match.games !== undefined ? match.games : 4;
+    const matchThaiBreak = match.thaiBreak === true;
     if (isSuper8) {
       setResultForm({
-        score: match.score || '4 x 2',
+        score: match.score || `${matchGames} x 2`,
         winnerDuoId: match.duo1Id || '',
-        scoreA: match.scoreA !== undefined ? match.scoreA : 4,
+        scoreA: match.scoreA !== undefined ? match.scoreA : matchGames,
         scoreB: match.scoreB !== undefined ? match.scoreB : 2,
-        winnerTeam: match.winnerTeam || 'TEAM_A'
+        winnerTeam: match.winnerTeam || 'TEAM_A',
+        games: matchGames,
+        thaiBreak: matchThaiBreak,
+        isDraw: false
       });
     } else {
       setResultForm({
@@ -1675,7 +1712,10 @@ export default function Home() {
         winnerDuoId: match.duo1Id || '',
         scoreA: 4,
         scoreB: 2,
-        winnerTeam: 'TEAM_A'
+        winnerTeam: 'TEAM_A',
+        games: matchGames,
+        thaiBreak: matchThaiBreak,
+        isDraw: false
       });
     }
     setIsResultModalOpen(true);
@@ -1686,15 +1726,26 @@ export default function Home() {
     if (!selectedMatch) return;
     try {
       const isSuper8 = selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || !!selectedMatch.teamA;
+      const matchGames = selectedMatch.games !== undefined ? selectedMatch.games : 4;
       const payload = isSuper8 ? {
         score: `${resultForm.scoreA} x ${resultForm.scoreB}`,
         scoreA: resultForm.scoreA,
         scoreB: resultForm.scoreB,
         winnerTeam: resultForm.scoreA > resultForm.scoreB ? 'TEAM_A' : 'TEAM_B',
+        isDraw: false,
+        isWO: false
+      } : resultForm.isDraw ? {
+        score: resultForm.score,
+        winnerDuoId: '',
+        scoreA: resultForm.scoreA,
+        scoreB: resultForm.scoreB,
+        isDraw: true,
         isWO: false
       } : {
         score: resultForm.score,
         winnerDuoId: resultForm.winnerDuoId,
+        scoreA: resultForm.scoreA,
+        scoreB: resultForm.scoreB,
         isWO: false
       };
 
@@ -6386,6 +6437,49 @@ export default function Home() {
                   </div>
                 </div>
 
+                {/* Games & Thai Break Settings */}
+                <div className="flex flex-col gap-2 sm:col-span-2">
+                  <span className="text-slate-300 font-semibold flex items-center gap-2">
+                    <span className="text-xs text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">i</span>
+                    Configurações de Pontuação
+                  </span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-slate-300 font-semibold">Quantidade de Games</label>
+                      <select
+                        value={tourForm.games}
+                        onChange={(e) => setTourForm({ ...tourForm, games: Number(e.target.value) as 4 | 6 })}
+                        className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-semibold focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value={4}>4 Games</option>
+                        <option value={6}>6 Games</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-slate-300 font-semibold">Thai Break</label>
+                      <div className="flex items-center gap-3 pt-1">
+                        <input
+                          type="checkbox"
+                          checked={tourForm.thaiBreak}
+                          onChange={(e) => setTourForm({ ...tourForm, thaiBreak: e.target.checked })}
+                          className="w-4 h-4 accent-amber-400 cursor-pointer"
+                          disabled={tourForm.games !== 6}
+                        />
+                        <span className={`text-xs ${tourForm.games !== 6 ? 'text-slate-500' : 'text-slate-300'}`}>
+                          Ativar Thai Break (7 pts no 6x6, 7x6 no placar)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    {tourForm.games === 4
+                      ? '4 Games: um time fecha com 4 e o adversário 0-3.'
+                      : tourForm.thaiBreak
+                        ? '6 Games + Thai Break: 6-0 a 6-4, 7-5 (no 5x5), 7-6 (Thai Break de 7 pts).'
+                        : '6 Games: primeiro a 6, adversário de 0-4.'}
+                  </p>
+                </div>
+
                 {/* DYNAMIC CATEGORIES DEFINITIONS SECTOR (Loaded from pre-registered master categories) */}
                 <div className="sm:col-span-2 border-t border-slate-800/80 pt-4 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -6485,6 +6579,37 @@ export default function Home() {
                                 className="w-16 bg-[#0d1424] border border-slate-800 text-slate-200 text-xs py-1.5 px-2 rounded-lg font-mono text-center focus:outline-none focus:border-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed"
                               />
                               <span className="text-slate-400 text-[10px] select-none lowercase">{tourForm.isDuo ? 'duplas' : 'indiv.'}</span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-400 font-semibold text-[10px] uppercase">Games:</span>
+                              <select
+                                value={std.games || 4}
+                                onChange={(e) => {
+                                  const next = [...tourCategories];
+                                  next[idx].games = Number(e.target.value);
+                                  if (next[idx].games === 4) next[idx].thaiBreak = false;
+                                  setTourCategories(next);
+                                }}
+                                disabled={!std.enabled}
+                                className="w-16 bg-[#0d1424] border border-slate-800 text-slate-200 text-xs py-1 rounded-lg focus:outline-none focus:border-emerald-500 disabled:opacity-30"
+                              >
+                                <option value={4}>4G</option>
+                                <option value={6}>6G</option>
+                              </select>
+
+                              <input
+                                type="checkbox"
+                                checked={std.thaiBreak}
+                                onChange={(e) => {
+                                  const next = [...tourCategories];
+                                  next[idx].thaiBreak = e.target.checked;
+                                  setTourCategories(next);
+                                }}
+                                disabled={!std.enabled || (std.games || 4) !== 6}
+                                className="w-3.5 h-3.5 accent-amber-400 cursor-pointer disabled:opacity-30"
+                                title="Thai Break"
+                              />
                             </div>
                           </div>
                         </div>
@@ -6639,6 +6764,34 @@ export default function Home() {
                     />
                     <span className="text-[10px] text-slate-500">Capacidade sugerida de duplas/atletas</span>
                   </div>
+
+                  {/* Games & Thai Break Settings */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-slate-300 font-bold">Formato de Pontuação *</label>
+                    <select
+                      value={categoryForm.games}
+                      onChange={(e) => setCategoryForm({ ...categoryForm, games: Number(e.target.value) as 4 | 6, thaiBreak: Number(e.target.value) === 6 ? categoryForm.thaiBreak : false })}
+                      className="bg-[#090e1a] border border-slate-700 py-2.5 px-3 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 font-mono text-sm font-bold"
+                    >
+                      <option value={4}>4 Games</option>
+                      <option value={6}>6 Games</option>
+                    </select>
+                    <span className="text-[10px] text-slate-500">4G: um time fecha 4x0-3. 6G: 6x0-4 ou Thai Break (7x5, 7x6)</span>
+                  </div>
+
+                  {categoryForm.games === 6 && (
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={categoryForm.thaiBreak}
+                        onChange={(e) => setCategoryForm({ ...categoryForm, thaiBreak: e.target.checked })}
+                        className="w-4 h-4 accent-amber-400 cursor-pointer"
+                      />
+                      <label className="text-slate-300 font-semibold cursor-pointer">
+                        Ativar Thai Break (7 pts no 6x6, placar 7x6)
+                      </label>
+                    </div>
+                  )}
                 </div>
 
                 {/* Status Toggle & Descrição */}
@@ -6767,25 +6920,39 @@ export default function Home() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Atletas</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-300 font-semibold">Atletas</label>
+                  <div className="relative flex-1 max-w-xs">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Buscar atleta..."
+                      value={searchRegAthleteCreate}
+                      onChange={(e) => setSearchRegAthleteCreate(e.target.value)}
+                      className="bg-[#090e1a] border border-slate-700/80 pl-8 pr-3 py-1.5 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
                 <div className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl max-h-48 overflow-y-auto">
-                  {athletes.filter(a => a.status === 'ATIVO').map(a => (
-                    <label key={a.id} className="flex items-center gap-2 py-1 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={regForm.selectedAthleteIds.includes(a.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setRegForm({ ...regForm, selectedAthleteIds: [...regForm.selectedAthleteIds, a.id] });
-                          } else {
-                            setRegForm({ ...regForm, selectedAthleteIds: regForm.selectedAthleteIds.filter(id => id !== a.id) });
-                          }
-                        }}
-                        className="w-4 h-4 accent-emerald-500 cursor-pointer"
-                      />
-                      <span className="text-slate-200">{a.name} ({formatCPF(a.cpf)})</span>
-                    </label>
-                  ))}
+                  {athletes
+                    .filter(a => a.status === 'ATIVO' && (!searchRegAthleteCreate || a.name.toLowerCase().includes(searchRegAthleteCreate.toLowerCase()) || a.cpf.includes(searchRegAthleteCreate)))
+                    .map(a => (
+                      <label key={a.id} className="flex items-center gap-2 py-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={regForm.selectedAthleteIds.includes(a.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setRegForm({ ...regForm, selectedAthleteIds: [...regForm.selectedAthleteIds, a.id] });
+                            } else {
+                              setRegForm({ ...regForm, selectedAthleteIds: regForm.selectedAthleteIds.filter(id => id !== a.id) });
+                            }
+                          }}
+                          className="w-4 h-4 accent-emerald-500 cursor-pointer"
+                        />
+                        <span className="text-slate-200">{a.name} ({formatCPF(a.cpf)})</span>
+                      </label>
+                    ))}
                 </div>
                 {regForm.selectedAthleteIds.length > 0 && (
                   <p className="text-xs text-emerald-400">{regForm.selectedAthleteIds.length} atleta(s) selecionado(s)</p>
@@ -6865,28 +7032,48 @@ export default function Home() {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-slate-300 font-semibold">Jogador 1 (Inscrito nesta categoria)</label>
-                <select 
-                  value={duoForm.player1Id} 
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Buscar jogador 1..."
+                    value={searchDuoPlayer1}
+                    onChange={(e) => setSearchDuoPlayer1(e.target.value)}
+                    className="bg-[#090e1a] border border-slate-700/80 pl-8 pr-3 py-1.5 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 mb-1"
+                  />
+                </div>
+                <select
+                  value={duoForm.player1Id}
                   onChange={(e) => setDuoForm({ ...duoForm, player1Id: e.target.value })}
                   className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500"
                 >
                   <option value="">Selecione Jogador 1</option>
                   {registrations
-                    .filter(r => r.categoryId === duoForm.categoryId && r.status === 'CONFIRMADA')
+                    .filter(r => r.categoryId === duoForm.categoryId && r.status === 'CONFIRMADA' && r.athleteName && r.athleteName.toLowerCase().includes(searchDuoPlayer1.toLowerCase()))
                     .map(r => <option key={r.athleteId} value={r.athleteId}>{r.athleteName}</option>)}
                 </select>
               </div>
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-slate-300 font-semibold">Jogador 2 (Inscrito nesta categoria)</label>
-                <select 
-                  value={duoForm.player2Id} 
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Buscar jogador 2..."
+                    value={searchDuoPlayer2}
+                    onChange={(e) => setSearchDuoPlayer2(e.target.value)}
+                    className="bg-[#090e1a] border border-slate-700/80 pl-8 pr-3 py-1.5 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 mb-1"
+                  />
+                </div>
+                <select
+                  value={duoForm.player2Id}
                   onChange={(e) => setDuoForm({ ...duoForm, player2Id: e.target.value })}
                   className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500"
                 >
                   <option value="">Selecione Jogador 2</option>
                   {registrations
-                    .filter(r => r.categoryId === duoForm.categoryId && r.status === 'CONFIRMADA' && r.athleteId !== duoForm.player1Id)
+                    .filter(r => r.categoryId === duoForm.categoryId && r.status === 'CONFIRMADA' && r.athleteId !== duoForm.player1Id && r.athleteName && r.athleteName.toLowerCase().includes(searchDuoPlayer2.toLowerCase()))
                     .map(r => <option key={r.athleteId} value={r.athleteId}>{r.athleteName}</option>)}
                 </select>
               </div>
@@ -7213,15 +7400,19 @@ export default function Home() {
               </div>
 
               {selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || selectedMatch.teamA ? (
-                /* Super 8 Scoring: 4 games format */
+                /* Super 8 Scoring: conditional on games setting */
                 <div className="space-y-3.5">
                   <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl text-center">
                     <p className="text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                      Regra Super 8: Partida em 4 Games
+                      Regra {resultForm.games === 6 ? (resultForm.thaiBreak ? 'Super 8: 6 Games + Thai Break' : 'Super 8: 6 Games') : 'Super 8: 4 Games'}
                     </p>
                     <p className="text-[10px] text-slate-400 mt-0.5">
-                      Um dos lados deve fechar com 4 games e o adversário entre 0 e 3 games.
+                      {resultForm.games === 6 && resultForm.thaiBreak
+                        ? 'Válido: 6-0 a 6-4, 7-5 (no 5x5), 7-6 (Thai Break de 7 pontos).'
+                        : resultForm.games === 6
+                          ? 'Válido: 6-0 a 6-5 (adversário entre 0 e 5).'
+                          : 'Válido: 4-0 a 4-3 (adversário entre 0 e 3).'}
                     </p>
                   </div>
 
@@ -7232,29 +7423,94 @@ export default function Home() {
                         <span className="text-[10px] text-emerald-400 font-bold block truncate">
                           Vitória de {selectedMatch.duo1Name}:
                         </span>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {[0, 1, 2, 3].map(opp => (
-                            <button
-                              key={`quick-a-${opp}`}
-                              type="button"
-                              onClick={() => {
-                                setResultForm({
-                                  ...resultForm,
-                                  scoreA: 4,
-                                  scoreB: opp,
-                                  score: `4 x ${opp}`,
-                                  winnerTeam: 'TEAM_A'
-                                });
-                              }}
-                              className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
-                                resultForm.scoreA === 4 && resultForm.scoreB === opp && resultForm.winnerTeam === 'TEAM_A'
-                                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
-                                  : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
-                              }`}
-                            >
-                              4 × {opp}
-                            </button>
-                          ))}
+                        <div className={`grid gap-1.5 ${resultForm.games === 4 ? 'grid-cols-4' : 'grid-cols-7'}`}>
+                          {resultForm.games === 4
+                            ? [0, 1, 2, 3].map(opp => (
+                                <button
+                                  key={`quick-a-${opp}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setResultForm({
+                                      ...resultForm,
+                                      scoreA: 4,
+                                      scoreB: opp,
+                                      score: `4 x ${opp}`,
+                                      winnerTeam: 'TEAM_A'
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
+                                    resultForm.scoreA === 4 && resultForm.scoreB === opp && resultForm.winnerTeam === 'TEAM_A'
+                                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
+                                      : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
+                                  }`}
+                                >
+                                  4 × {opp}
+                                </button>
+                              ))
+                            : [0, 1, 2, 3, 4, 5].map(opp => (
+                                <button
+                                  key={`quick-a-${opp}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setResultForm({
+                                      ...resultForm,
+                                      scoreA: 6,
+                                      scoreB: opp,
+                                      score: `6 x ${opp}`,
+                                      winnerTeam: 'TEAM_A'
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
+                                    resultForm.scoreA === 6 && resultForm.scoreB === opp && resultForm.winnerTeam === 'TEAM_A'
+                                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
+                                      : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
+                                  }`}
+                                >
+                                  6 × {opp}
+                                </button>
+                              ))}
+                          {resultForm.thaiBreak && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setResultForm({
+                                    ...resultForm,
+                                    scoreA: 7,
+                                    scoreB: 5,
+                                    score: `7 x 5`,
+                                    winnerTeam: 'TEAM_A'
+                                  });
+                                }}
+                                className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
+                                  resultForm.scoreA === 7 && resultForm.scoreB === 5 && resultForm.winnerTeam === 'TEAM_A'
+                                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
+                                    : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
+                                }`}
+                              >
+                                7 × 5
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setResultForm({
+                                    ...resultForm,
+                                    scoreA: 7,
+                                    scoreB: 6,
+                                    score: `7 x 6 (TB)`,
+                                    winnerTeam: 'TEAM_A'
+                                  });
+                                }}
+                                className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
+                                  resultForm.scoreA === 7 && resultForm.scoreB === 6 && resultForm.winnerTeam === 'TEAM_A'
+                                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
+                                    : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
+                                }`}
+                              >
+                                7 × 6 (TB)
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -7262,29 +7518,94 @@ export default function Home() {
                         <span className="text-[10px] text-amber-400 font-bold block truncate">
                           Vitória de {selectedMatch.duo2Name}:
                         </span>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {[0, 1, 2, 3].map(opp => (
-                            <button
-                              key={`quick-b-${opp}`}
-                              type="button"
-                              onClick={() => {
-                                setResultForm({
-                                  ...resultForm,
-                                  scoreA: opp,
-                                  scoreB: 4,
-                                  score: `${opp} x 4`,
-                                  winnerTeam: 'TEAM_B'
-                                });
-                              }}
-                              className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
-                                resultForm.scoreB === 4 && resultForm.scoreA === opp && resultForm.winnerTeam === 'TEAM_B'
-                                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
-                                  : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
-                              }`}
-                            >
-                              {opp} × 4
-                            </button>
-                          ))}
+                        <div className={`grid gap-1.5 ${resultForm.games === 4 ? 'grid-cols-4' : 'grid-cols-7'}`}>
+                          {resultForm.games === 4
+                            ? [0, 1, 2, 3].map(opp => (
+                                <button
+                                  key={`quick-b-${opp}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setResultForm({
+                                      ...resultForm,
+                                      scoreA: opp,
+                                      scoreB: 4,
+                                      score: `${opp} x 4`,
+                                      winnerTeam: 'TEAM_B'
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
+                                    resultForm.scoreB === 4 && resultForm.scoreA === opp && resultForm.winnerTeam === 'TEAM_B'
+                                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
+                                      : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
+                                  }`}
+                                >
+                                  {opp} × 4
+                                </button>
+                              ))
+                            : [0, 1, 2, 3, 4, 5].map(opp => (
+                                <button
+                                  key={`quick-b-${opp}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setResultForm({
+                                      ...resultForm,
+                                      scoreA: opp,
+                                      scoreB: 6,
+                                      score: `${opp} x 6`,
+                                      winnerTeam: 'TEAM_B'
+                                    });
+                                  }}
+                                  className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
+                                    resultForm.scoreB === 6 && resultForm.scoreA === opp && resultForm.winnerTeam === 'TEAM_B'
+                                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
+                                      : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
+                                  }`}
+                                >
+                                  {opp} × 6
+                                </button>
+                              ))}
+                          {resultForm.thaiBreak && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setResultForm({
+                                    ...resultForm,
+                                    scoreA: 5,
+                                    scoreB: 7,
+                                    score: `5 x 7`,
+                                    winnerTeam: 'TEAM_B'
+                                  });
+                                }}
+                                className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
+                                  resultForm.scoreA === 5 && resultForm.scoreB === 7 && resultForm.winnerTeam === 'TEAM_B'
+                                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
+                                    : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
+                                }`}
+                              >
+                                5 × 7
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setResultForm({
+                                    ...resultForm,
+                                    scoreA: 6,
+                                    scoreB: 7,
+                                    score: `6 x 7 (TB)`,
+                                    winnerTeam: 'TEAM_B'
+                                  });
+                                }}
+                                className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
+                                  resultForm.scoreA === 6 && resultForm.scoreB === 7 && resultForm.winnerTeam === 'TEAM_B'
+                                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
+                                    : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
+                                }`}
+                              >
+                                6 × 7 (TB)
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -7296,7 +7617,7 @@ export default function Home() {
                       {resultForm.scoreA} × {resultForm.scoreB}
                     </span>
                   </div>
-                </div>
+               </div>
               ) : (
                 /* Traditional Duo Scoring */
                 <>
@@ -7305,17 +7626,32 @@ export default function Home() {
                     <input type="text" required placeholder="Ex: 6/4 6/3 ou 6/1 3/6 10/7" value={resultForm.score} onChange={(e) => setResultForm({ ...resultForm, score: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono text-center text-sm font-bold focus:border-emerald-500 focus:outline-none" />
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-slate-300 font-semibold">Dupla Vencedora</label>
-                    <select 
-                      value={resultForm.winnerDuoId} 
-                      onChange={(e) => setResultForm({ ...resultForm, winnerDuoId: e.target.value })}
-                      className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
-                    >
-                      <option value={selectedMatch.duo1Id}>{selectedMatch.duo1Name}</option>
-                      <option value={selectedMatch.duo2Id}>{selectedMatch.duo2Name}</option>
-                    </select>
+                  <div className="flex items-center gap-2.5 pt-1">
+                    <input
+                      type="checkbox"
+                      id="isDraw"
+                      checked={resultForm.isDraw || false}
+                      onChange={(e) => setResultForm({ ...resultForm, isDraw: e.target.checked, winnerDuoId: e.target.checked ? '' : (resultForm.winnerDuoId || selectedMatch.duo1Id) })}
+                      className="w-4 h-4 accent-slate-400 cursor-pointer"
+                    />
+                    <label htmlFor="isDraw" className="text-slate-300 font-semibold cursor-pointer">
+                      Empate (ninguém vence)
+                    </label>
                   </div>
+
+                  {!resultForm.isDraw && (
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-slate-300 font-semibold">Dupla Vencedora</label>
+                      <select
+                        value={resultForm.winnerDuoId || selectedMatch.duo1Id}
+                        onChange={(e) => setResultForm({ ...resultForm, winnerDuoId: e.target.value })}
+                        className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                      >
+                        <option value={selectedMatch.duo1Id}>{selectedMatch.duo1Name}</option>
+                        <option value={selectedMatch.duo2Id}>{selectedMatch.duo2Name}</option>
+                      </select>
+                    </div>
+                  )}
                 </>
               )}
 

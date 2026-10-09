@@ -6,6 +6,8 @@ export interface CategoryInput {
   price: number;
   maxParticipants?: number;
   enabled: boolean;
+  games?: number;
+  thaiBreak?: boolean;
 }
 
 export const tournamentService = {
@@ -22,7 +24,7 @@ export const tournamentService = {
     return db.tournaments.find(t => t.id === id) || null;
   },
 
-  create(data: Omit<Tournament, 'id' | 'createdAt' | 'updatedAt'> & { enabledCategories?: CategoryInput[] }): { success: boolean; data?: Tournament; error?: string; code?: number } {
+  create(data: Omit<Tournament, 'id' | 'createdAt' | 'updatedAt'> & { enabledCategories?: CategoryInput[]; games?: number; thaiBreak?: boolean }): { success: boolean; data?: Tournament; error?: string; code?: number } {
     const db = readDB();
 
     // 1. Validations
@@ -57,6 +59,14 @@ export const tournamentService = {
     let venueName = data.venueName;
     let courtsUsed = data.courtsUsed;
 
+    // Validate gameCount if provided
+    if (data.games !== undefined) {
+      const g = Number(data.games);
+      if (g !== 4 && g !== 6) {
+        return { success: false, error: 'A quantidade de games deve ser 4 ou 6.', code: 400 };
+      }
+    }
+
     if (venueId && db.venues) {
       const v = db.venues.find(venue => venue.id === venueId);
       if (v) {
@@ -87,6 +97,8 @@ export const tournamentService = {
       endDate: data.endDate,
       status: data.status || 'INSCRICOES_ABERTAS',
       isDuo: data.isDuo !== undefined ? data.isDuo : true,
+      games: data.games && (data.games === 4 || data.games === 6) ? data.games : 4,
+      thaiBreak: data.thaiBreak === true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -108,6 +120,8 @@ export const tournamentService = {
           price: c.price || 0,
           maxParticipants: c.maxParticipants !== undefined ? c.maxParticipants : 16,
           status: 'ATIVA',
+          games: (c as any).games !== undefined ? Number((c as any).games) : 4,
+          thaiBreak: (c as any).thaiBreak === true,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
@@ -120,7 +134,7 @@ export const tournamentService = {
     return { success: true, data: newTournament };
   },
 
-  update(id: string, data: Partial<Omit<Tournament, 'id' | 'createdAt' | 'updatedAt'>> & { enabledCategories?: CategoryInput[] }): { success: boolean; data?: Tournament; error?: string; code?: number } {
+  update(id: string, data: Partial<Omit<Tournament, 'id' | 'createdAt' | 'updatedAt'>> & { enabledCategories?: CategoryInput[]; games?: number; thaiBreak?: boolean }): { success: boolean; data?: Tournament; error?: string; code?: number } {
     const db = readDB();
     const index = db.tournaments.findIndex(t => t.id === id);
 
@@ -169,6 +183,17 @@ export const tournamentService = {
       }
     }
 
+    if (data.games !== undefined) {
+      const g = Number(data.games);
+      if (g !== 4 && g !== 6) {
+        return { success: false, error: 'A quantidade de games deve ser 4 ou 6.', code: 400 };
+      }
+      (db.tournaments[index] as any).games = g;
+    }
+    if (data.thaiBreak !== undefined) {
+      (db.tournaments[index] as any).thaiBreak = data.thaiBreak;
+    }
+
     // Date changes validations
     const start = data.startDate !== undefined ? data.startDate : db.tournaments[index].startDate;
     const end = data.endDate !== undefined ? data.endDate : db.tournaments[index].endDate;
@@ -200,6 +225,8 @@ export const tournamentService = {
           price: c.price || 0,
           maxParticipants: c.maxParticipants !== undefined ? c.maxParticipants : 16,
           status: 'ATIVA',
+          games: (c as any).games !== undefined ? Number((c as any).games) : 4,
+          thaiBreak: (c as any).thaiBreak === true,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };

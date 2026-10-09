@@ -180,28 +180,74 @@ export function validateSuper8Schedule(
 
 /**
  * Validação de placar Super 8:
- * No Super 8, as partidas utilizam formato de 4 games (ex: 4x0, 4x1, 4x2, 4x3 ou 0x4, 1x4, 2x4, 3x4).
+ * - 4 games (padrão): um time deve fechar com 4 games e o adversário entre 0 e 3.
+ * - 6 games sem Thai Break: primeiro a 6 (0-6, 1-6, 2-6, 3-6, 4-6, 5-6), sem empate.
+ * - 6 games com Thai Break: 
+ *   - Normal: 0-6 a 4-6 (primeiro a 6)
+ *   - Em 5x5: quem chegar a 7 vence (7-5)
+ *   - Em 6x6: Thai Break - 7 pontos consecutivos, quem fizer 7 primeiro vence (7-6)
  */
-export function validateSuper8Score(scoreA: number, scoreB: number): { valid: boolean; error?: string } {
+export function validateSuper8Score(scoreA: number, scoreB: number, games: number = 4, thaiBreak: boolean = false): { valid: boolean; error?: string } {
   if (isNaN(scoreA) || isNaN(scoreB)) {
     return { valid: false, error: 'Os games devem ser números válidos.' };
   }
 
   if (scoreA === scoreB) {
-    return { valid: false, error: 'No Super 8 não há empate na partida. Um time deve atingir 4 games.' };
+    return { valid: false, error: 'Não há empate na partida. Um time deve fechar os games.' };
   }
 
-  const isTeamAWinner = scoreA === 4 && scoreB >= 0 && scoreB <= 3;
-  const isTeamBWinner = scoreB === 4 && scoreA >= 0 && scoreA <= 3;
+  // Formato padrão de 4 games
+  if (games === 4) {
+    const isTeamAWinner = scoreA === 4 && scoreB >= 0 && scoreB <= 3;
+    const isTeamBWinner = scoreB === 4 && scoreA >= 0 && scoreA <= 3;
 
-  if (!isTeamAWinner && !isTeamBWinner) {
-    return {
-      valid: false,
-      error: 'Placar inválido para o Super 8. Um dos times deve fazer 4 games e o adversário entre 0 e 3 games (Ex: 4x0, 4x1, 4x2, 4x3).'
-    };
+    if (!isTeamAWinner && !isTeamBWinner) {
+      return {
+        valid: false,
+        error: 'Placar inválido. Um time deve fechar com 4 games e o adversário entre 0 e 3 games (Ex: 4x0, 4x1, 4x2, 4x3).'
+      };
+    }
+
+    return { valid: true };
   }
 
-  return { valid: true };
+  // Formato de 6 games
+  if (games === 6) {
+    if (!thaiBreak) {
+      // Sem Thai Break: primeiro a 6 games
+      const isTeamAWinner = scoreA === 6 && scoreB >= 0 && scoreB <= 4;
+      const isTeamBWinner = scoreB === 6 && scoreA >= 0 && scoreA <= 4;
+
+      if (!isTeamAWinner && !isTeamBWinner) {
+        return {
+          valid: false,
+          error: 'Placar inválido. Um time deve fechar com 6 games e o adversário entre 0 e 4 games (Ex: 6x0, 6x1, 6x2, 6x3, 6x4).'
+        };
+      }
+
+      return { valid: true };
+    }
+
+    // Com Thai Break
+    const isTeamAWinner = (scoreA === 6 && scoreB >= 0 && scoreB <= 4) || // 6-0 a 6-4
+                          (scoreA === 7 && scoreB === 5) || // 7-5 (at 5x5)
+                          (scoreA === 7 && scoreB === 6);   // 7-6 (Thai Break)
+
+    const isTeamBWinner = (scoreB === 6 && scoreA >= 0 && scoreA <= 4) ||
+                          (scoreB === 7 && scoreA === 5) ||
+                          (scoreB === 7 && scoreA === 6);
+
+    if (!isTeamAWinner && !isTeamBWinner) {
+      return {
+        valid: false,
+        error: 'Placar inválido para 6 games com Thai Break. Válido: 6x0-4, 7x5, ou 7x6 (Thai Break).'
+      };
+    }
+
+    return { valid: true };
+  }
+
+  return { valid: false, error: 'Formato de games não suportado.' };
 }
 
 export interface Super8AthleteStanding {
@@ -228,7 +274,8 @@ export interface Super8AthleteStanding {
  */
 export function calculateSuper8Standings(
   matches: (Match | any)[],
-  athletes: { id: string; name: string; [key: string]: any }[]
+  athletes: { id: string; name: string; [key: string]: any }[],
+  games: number = 4
 ): Super8AthleteStanding[] {
   const athleteMap = new Map<string, { id: string; name: string }>();
   athletes.forEach(a => athleteMap.set(a.id, a));

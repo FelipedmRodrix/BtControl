@@ -9,7 +9,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const { score, winnerDuoId, isWO, court, scoreA, scoreB, winnerTeam } = body;
+    const { score, winnerDuoId, isWO, court, scoreA, scoreB, winnerTeam, isDraw } = body;
 
     let res;
     if (court !== undefined) {
@@ -17,7 +17,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     } else if (isWO) {
       res = matchService.toggleWO(id, winnerDuoId, winnerTeam);
     } else {
-      res = matchService.updateResult(id, score, winnerDuoId, scoreA, scoreB, winnerTeam);
+      res = matchService.updateResult(id, score, winnerDuoId, scoreA, scoreB, winnerTeam, isDraw);
     }
 
     if (!res.success) {

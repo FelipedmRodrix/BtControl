@@ -80,6 +80,8 @@ export interface Tournament {
   endDate: string; // YYYY-MM-DD
   status: 'INSCRICOES_ABERTAS' | 'EM_ANDAMENTO' | 'FINALIZADO';
   isDuo: boolean; // Flag to indicate if it's a duo (true) or individual (false) tournament
+  games?: number; // Default games per match: 4 or 6
+  thaiBreak?: boolean; // Enable Thai Break for 6-game matches
   createdAt: string;
   updatedAt: string;
 }
@@ -95,6 +97,8 @@ export interface Category {
   maxParticipants: number; // Max players or duos that can register
   status?: 'ATIVA' | 'INATIVA';
   description?: string;
+  games?: number; // Games per match: 4 (default) or 6
+  thaiBreak?: boolean; // Enable Thai Break rule for 6-game matches
   createdAt: string;
   updatedAt: string;
 }
@@ -149,6 +153,8 @@ export interface Match {
   status: 'PENDENTE' | 'FINALIZADA' | 'WO';
   score?: string; // e.g. "4 x 2" or "6/4 6/2"
   winnerDuoId?: string;
+  games?: number; // Games per match from category
+  thaiBreak?: boolean; // Thai Break rule from category
   createdAt: string;
   updatedAt: string;
 }
