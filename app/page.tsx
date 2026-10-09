@@ -189,8 +189,11 @@ interface Match {
   status: 'PENDENTE' | 'FINALIZADA' | 'WO';
   score?: string;
   winnerDuo?: string;
-  winnerDuoId?: string;
-  isSuper8?: boolean;
+   winnerDuoId?: string;
+   isSuper8?: boolean;
+   isDraw?: boolean;
+   games?: number;
+   thaiBreak?: boolean;
 }
 
 // Standard Beach Tennis Category Matrix (Rule 9 and 10)
@@ -4799,7 +4802,7 @@ export default function Home() {
                                               m.status === 'WO' ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30' : 
                                               'bg-slate-800 text-slate-400 border border-slate-700'
                                             }`}>
-                                              {m.status === 'FINALIZADA' && m.score ? `${m.score}` : m.status}
+                                              {m.status === 'FINALIZADA' && m.score ? (m.isDraw ? `Empate ${m.score}` : m.score) : m.status}
                                             </span>
                                           </div>
 
@@ -5289,7 +5292,7 @@ export default function Home() {
                                     ) : (
                                       <div className="flex items-center gap-2">
                                         <span className="text-xs text-slate-300 font-mono flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
-                                          <Check className="w-4 h-4 text-emerald-400" /> {m.status === 'WO' ? 'W.O.' : 'Finalizado'} ({m.score})
+                                          <Check className="w-4 h-4 text-emerald-400" /> {m.status === 'WO' ? 'W.O.' : m.isDraw ? 'Empate' : 'Finalizado'} ({m.score})
                                         </span>
                                         <button 
                                           onClick={() => handleLaunchResult(m)} 

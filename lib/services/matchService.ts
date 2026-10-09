@@ -62,9 +62,10 @@ export const matchService = {
         duo2Name: d2 ? `${p2_a?.name || 'Atleta A'} / ${p2_b?.name || 'Atleta B'}` : 'Dupla B',
         categoryName: category ? (category.name || `${category.type} - ${category.level}`) : 'Categoria Desconhecida',
         tournamentName: tournament?.name || 'Torneio Desconhecido',
-        arenaId: tournament?.arenaId || '',
-        isSuper8: false
-      };
+         arenaId: tournament?.arenaId || '',
+         isSuper8: false,
+         isDraw: m.isDraw || false
+       };
     });
 
     if (arenaId) {
@@ -185,6 +186,8 @@ export const matchService = {
 
     db.matches[index].score = score;
     if (isDraw) {
+      db.matches[index].isDraw = true;
+      db.matches[index].winnerDuoId = undefined;
       db.matches[index].status = 'FINALIZADA';
       db.matches[index].updatedAt = new Date().toISOString();
       writeDB(db);

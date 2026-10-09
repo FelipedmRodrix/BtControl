@@ -152,9 +152,10 @@ export interface Match {
   court: string;
   status: 'PENDENTE' | 'FINALIZADA' | 'WO';
   score?: string; // e.g. "4 x 2" or "6/4 6/2"
-  winnerDuoId?: string;
-  games?: number; // Games per match from category
-  thaiBreak?: boolean; // Thai Break rule from category
+   winnerDuoId?: string;
+   games?: number; // Games per match from category
+   thaiBreak?: boolean; // Thai Break rule from category
+   isDraw?: boolean; // Draw/emate result (traditional matches only)
   createdAt: string;
   updatedAt: string;
 }
