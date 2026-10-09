@@ -1,54 +1,23 @@
+version: "3.8"
+
 services:
-  # Serviço 1: Banco de Dados Relacional (PostgreSQL)
-  db:
+  postgres:
     image: postgres:16-alpine
-    container_name: arenabt-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-arenabt_secret_2026}
-      POSTGRES_DB: ${DB_NAME:-arenabt}
+    container_name: arenabt-postgres-dev
     ports:
-      - "5432:5432"
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: arenabt
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     volumes:
-      # Volume persistente: os dados nunca são perdidos quando o container reinicia
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - arenabt-network
+      - ./lib/db/db.json:/app/lib/db/db.json
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # Serviço 2: Aplicação Full-Stack (Next.js)
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: arenabt-app
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-arenabt_secret_2026}@db:5432/${DB_NAME:-arenabt}
-      PORT: 3000
-    volumes:
-      # Volume para persistir dados locais (db.json) caso usado em modo arquivo
-      - app_data:/app/lib/db
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - arenabt-network
-
-networks:
-  arenabt-network:
-    driver: bridge
-
 volumes:
   postgres_data:
-    driver: local
-  app_data:
-    driver: local

@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { arenaService } from '@/lib/services/arenaService';
 import { authService } from '@/lib/services/authService';
 
+import { ensureDbInitialized, flushWrites } from '@/lib/db/store';
 interface Params {
   params: Promise<{ id: string }>;
 }
 
 export async function GET(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id } = await params;
     const arena = arenaService.getById(id);
     if (!arena) {
@@ -28,6 +30,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id } = await params;
     const body = await req.json();
     const { adminUsername, adminPassword, ...arenaData } = body;
@@ -35,7 +38,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // 1. Update the Arena Data
     const result = arenaService.update(id, arenaData);
     if (!result.success || !result.data) {
-      return NextResponse.json({ error: result.error }, { status: result.code || 400 });
+            await flushWrites();
+return NextResponse.json({ error: result.error }, { status: result.code || 400 });
     }
 
     const updatedArena = result.data;
@@ -69,10 +73,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id } = await params;
     const result = arenaService.delete(id);
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: result.code || 400 });
+            await flushWrites();
+return NextResponse.json({ error: result.error }, { status: result.code || 400 });
     }
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: any) {

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { categoryService } from '@/lib/services/categoryService';
 
+import { ensureDbInitialized, flushWrites } from '@/lib/db/store';
 export async function GET(req: NextRequest) {
   try {
+  await ensureDbInitialized();
     const { searchParams } = new URL(req.url);
     const arenaId = searchParams.get('arenaId') || undefined;
 
@@ -15,6 +17,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+  await ensureDbInitialized();
     const { searchParams } = new URL(req.url);
     const action = searchParams.get('action');
     const userRole = req.headers.get('x-user-role') || '';
@@ -22,7 +25,8 @@ export async function POST(req: NextRequest) {
     if (action === 'reset' || action === 'presets') {
       const resetResult = categoryService.resetToPresets(userRole);
       if (!resetResult.success) {
-        return NextResponse.json({ error: resetResult.error }, { status: resetResult.code || 403 });
+                await flushWrites();
+return NextResponse.json({ error: resetResult.error }, { status: resetResult.code || 403 });
       }
       return NextResponse.json({ success: true, count: resetResult.count }, { status: 200 });
     }

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { matchService } from '@/lib/services/matchService';
 
+import { ensureDbInitialized, flushWrites } from '@/lib/db/store';
 export async function GET(req: NextRequest) {
   try {
+  await ensureDbInitialized();
     const { searchParams } = new URL(req.url);
     const tournamentId = searchParams.get('tournamentId');
     const categoryId = searchParams.get('categoryId');

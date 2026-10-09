@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { arenaService } from '@/lib/services/arenaService';
 
+import { ensureDbInitialized, flushWrites } from '@/lib/db/store';
 export const dynamic = 'force-dynamic';
 
 interface Params {
@@ -9,6 +10,7 @@ interface Params {
 
 export async function GET(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id } = await params;
     const result = arenaService.getAthletesByArena(id);
     
@@ -24,6 +26,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id: arenaId } = await params;
     const body = await req.json();
     const { athleteId, status } = body;
@@ -31,7 +34,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     const result = arenaService.associateAthlete(arenaId, athleteId, status || 'ATIVO');
     
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: result.code || 400 });
+            await flushWrites();
+return NextResponse.json({ error: result.error }, { status: result.code || 400 });
     }
     
     return NextResponse.json(result.data, { status: 201 });
@@ -45,12 +49,14 @@ export async function POST(req: NextRequest, { params }: Params) {
 // - relationship becomes ATIVO / BLOQUEADO
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id: arenaId } = await params;
     const body = await req.json();
     const { athleteId, ativo } = body;
 
     if (athleteId === undefined || ativo === undefined) {
-      return NextResponse.json({ error: 'Parâmetros athleteId e ativo são obrigatórios.' }, { status: 400 });
+            await flushWrites();
+return NextResponse.json({ error: 'Parâmetros athleteId e ativo são obrigatórios.' }, { status: 400 });
     }
 
     const result = arenaService.updateAssociation(arenaId, athleteId, ativo);
@@ -67,12 +73,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id: arenaId } = await params;
     const { searchParams } = new URL(req.url);
     const athleteId = searchParams.get('athleteId');
 
     if (!athleteId) {
-      return NextResponse.json({ error: 'O parâmetro athleteId é obrigatório na URL.' }, { status: 400 });
+            await flushWrites();
+return NextResponse.json({ error: 'O parâmetro athleteId é obrigatório na URL.' }, { status: 400 });
     }
 
     const result = arenaService.removeAssociation(arenaId, athleteId);

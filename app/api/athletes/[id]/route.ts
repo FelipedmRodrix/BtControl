@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { athleteService } from '@/lib/services/athleteService';
 
+import { ensureDbInitialized, flushWrites } from '@/lib/db/store';
 interface Params {
   params: Promise<{ id: string }>;
 }
 
 export async function GET(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id } = await params;
     const athlete = athleteService.getById(id);
     if (!athlete) {
@@ -20,12 +22,14 @@ export async function GET(req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id } = await params;
     const body = await req.json();
     const result = athleteService.update(id, body);
     
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: result.code || 400 });
+            await flushWrites();
+return NextResponse.json({ error: result.error }, { status: result.code || 400 });
     }
     
     return NextResponse.json(result.data, { status: 200 });

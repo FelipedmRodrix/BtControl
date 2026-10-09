@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { Pool } from 'pg';
+import { PrismaClient } from '@prisma/client';
 
 export interface Athlete {
   id: string;
@@ -1474,72 +1474,88 @@ const defaultData: DBData = {
 };
 
 let memoryCache: DBData | null = null;
-let pgPool: Pool | null = null;
-let isPgInitialized = false;
+let isDbInitialized = false;
+let dbInitPromise: Promise<void> | null = null;
+let pendingWrites: Promise<any>[] = [];
 
-function getPgPool(): Pool | null {
-  if (pgPool) return pgPool;
-  const dbUrl = process.env.DATABASE_URL;
-  if (!dbUrl) return null;
+const hasDb = !!process.env.DATABASE_URL;
 
+let prisma: PrismaClient | null = null;
+if (hasDb) {
   try {
-    const isLocal = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1') || dbUrl.includes('db:5432');
-    pgPool = new Pool({
-      connectionString: dbUrl,
-      ssl: isLocal ? false : { rejectUnauthorized: false },
-      connectionTimeoutMillis: 5000,
-      idleTimeoutMillis: 30000,
-    });
-    return pgPool;
-  } catch (err) {
-    console.error('[ArenaBT] Erro ao instanciar Pool PostgreSQL:', err);
-    return null;
+    prisma = new PrismaClient({ log: ['error', 'warn'] });
+  } catch (e) {
+    console.error('[ArenaBT] Erro ao instanciar Prisma Client:', (e as any)?.message || e);
+    prisma = null;
   }
 }
 
-async function initPgStorage() {
-  const pool = getPgPool();
-  if (!pool || isPgInitialized) return;
-
+async function loadFromDb(): Promise<DBData | null> {
+  if (!prisma) return null;
   try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS arenabt_store (
-        key VARCHAR(50) PRIMARY KEY,
-        data JSONB NOT NULL,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      );
-    `);
+    const result = await prisma!.$queryRaw<{ data: any }[]>`SELECT data FROM "DbStore" WHERE key = 'main_db' LIMIT 1;`;
+    if (result && result.length > 0 && result[0]?.data) {
+      return result[0].data as DBData;
+    }
+  } catch (e) {
+    console.warn('[ArenaBT] Nao foi possivel carregar dados do PostgreSQL:', (e as any)?.message || e);
+  }
+  return null;
+}
 
-    const res = await pool.query(`SELECT data FROM arenabt_store WHERE key = 'main_db' LIMIT 1;`);
-    if (res.rows.length > 0 && res.rows[0].data) {
-      memoryCache = res.rows[0].data;
-      try {
-        const dbPath = getDbPath();
-        fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-        fs.writeFileSync(dbPath, JSON.stringify(memoryCache, null, 2), 'utf-8');
-      } catch {}
+async function upsertToDb(data: DBData): Promise<void> {
+  if (!prisma) return;
+  try {
+    await prisma!.$executeRawUnsafe(
+      'INSERT INTO "DbStore" (key, data, "updatedAt") VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, "updatedAt" = NOW();',
+      'main_db',
+      JSON.stringify(data)
+    );
+  } catch (e) {
+    console.warn('[ArenaBT] Falha ao salvar no PostgreSQL:', (e as any)?.message || e);
+  }
+}
+
+export async function ensureDbInitialized(): Promise<void> {
+  if (isDbInitialized) return;
+  if (dbInitPromise) {
+    await dbInitPromise;
+    return;
+  }
+  dbInitPromise = (async () => {
+    if (!hasDb || !prisma) {
+      isDbInitialized = true;
+      return;
+    }
+    const loaded = await loadFromDb();
+    if (loaded) {
+      memoryCache = loaded;
       console.log('[ArenaBT] Dados carregados com sucesso do PostgreSQL.');
     } else {
-      const current = memoryCache || defaultData;
-      await pool.query(
-        `INSERT INTO arenabt_store (key, data, updated_at) VALUES ('main_db', $1, NOW())
-         ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW();`,
-        [JSON.stringify(current)]
-      );
+      await upsertToDb(memoryCache || defaultData);
       console.log('[ArenaBT] Estado inicial propagado para o PostgreSQL.');
     }
-    isPgInitialized = true;
-  } catch (err) {
-    console.warn('[ArenaBT] Não foi possível sincronizar com PostgreSQL agora (usando arquivo):', (err as any)?.message || err);
+    isDbInitialized = true;
+  })();
+  await dbInitPromise;
+}
+
+export async function flushWrites(): Promise<void> {
+  if (pendingWrites.length > 0) {
+    await Promise.allSettled(pendingWrites);
+    pendingWrites = [];
   }
 }
 
-// Inicia sincronização segura em background se DATABASE_URL existir
-if (typeof process !== 'undefined' && process.env?.DATABASE_URL) {
-  initPgStorage().catch(() => {});
+if (typeof process !== 'undefined' && hasDb) {
+  ensureDbInitialized().catch(() => {});
 }
 
 export function readDB(): DBData {
+  if (memoryCache) {
+    return memoryCache;
+  }
+
   try {
     const dbPath = getDbPath();
     if (!fs.existsSync(dbPath)) {
@@ -1552,7 +1568,7 @@ export function readDB(): DBData {
     }
     const raw = fs.readFileSync(dbPath, 'utf-8');
     const parsed = JSON.parse(raw);
-    
+
     let needsUpdate = false;
 
     if (!parsed.users || !Array.isArray(parsed.users)) {
@@ -1682,19 +1698,12 @@ export function writeDB(data: DBData): void {
     try {
       fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf-8');
     } catch {
-      // Em ambientes puramente read-only, memoryCache e Postgres mantêm os dados
+      // Em ambientes puramente read-only, memoryCache e PostgreSQL mantêm os dados
     }
   }
 
-  // Sincroniza assincronamente com o PostgreSQL se DATABASE_URL estiver configurada
-  const pool = getPgPool();
-  if (pool) {
-    pool.query(
-      `INSERT INTO arenabt_store (key, data, updated_at) VALUES ('main_db', $1, NOW())
-       ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW();`,
-      [JSON.stringify(data)]
-    ).catch(err => {
-      console.warn('[ArenaBT] Falha ao sincronizar com PostgreSQL:', (err as any)?.message || err);
-    });
+  if (hasDb && prisma) {
+    const p = upsertToDb(data);
+    pendingWrites.push(p);
   }
 }

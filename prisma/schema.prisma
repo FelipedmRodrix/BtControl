@@ -1,0 +1,25 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+model DbStore {
+  key        String   @id
+  data       Json
+  updatedAt  DateTime @updatedAt
+}
+
+model ArenaUser {
+  id        String   @id
+  username  String   @unique
+  password  String?
+  role      String
+  arenaId   String?
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

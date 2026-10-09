@@ -3,12 +3,14 @@ import { resolveSuper8Tie } from '@/lib/services/super8Service';
 import { matchService } from '@/lib/services/matchService';
 import { readDB } from '@/lib/db/store';
 
+import { ensureDbInitialized, flushWrites } from '@/lib/db/store';
 interface Params {
   params: Promise<{ id: string }>;
 }
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id } = await params;
     const body = await req.json();
     const { scoreA, scoreB } = body;
@@ -17,7 +19,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     const matchIndex = db.matches.findIndex(m => m.id === id);
 
     if (matchIndex === -1) {
-      return NextResponse.json({ error: 'Partida não encontrada.' }, { status: 404 });
+            await flushWrites();
+return NextResponse.json({ error: 'Partida não encontrada.' }, { status: 404 });
     }
 
     const match = db.matches[matchIndex];

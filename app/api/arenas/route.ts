@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { arenaService } from '@/lib/services/arenaService';
 import { authService } from '@/lib/services/authService';
 
+import { ensureDbInitialized, flushWrites } from '@/lib/db/store';
 export async function GET(req: NextRequest) {
   try {
+  await ensureDbInitialized();
     const arenas = arenaService.getAll();
     
     // Enrich each arena with its administrator credentials for the SUPER_ADMIN
@@ -24,13 +26,15 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+  await ensureDbInitialized();
     const body = await req.json();
     const { adminUsername, adminPassword, ...arenaData } = body;
 
     // 1. Create the Arena
     const result = arenaService.create(arenaData);
     if (!result.success || !result.data) {
-      return NextResponse.json({ error: result.error }, { status: result.code || 400 });
+            await flushWrites();
+return NextResponse.json({ error: result.error }, { status: result.code || 400 });
     }
 
     const newArena = result.data;

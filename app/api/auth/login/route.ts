@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authService } from '@/lib/services/authService';
 
+import { ensureDbInitialized, flushWrites } from '@/lib/db/store';
 export async function POST(req: NextRequest) {
   try {
+  await ensureDbInitialized();
     const body = await req.json();
     const { username, password } = body;
 
     if (!username || !password) {
-      return NextResponse.json({ error: 'Usuário e senha são obrigatórios.' }, { status: 400 });
+            await flushWrites();
+return NextResponse.json({ error: 'Usuário e senha são obrigatórios.' }, { status: 400 });
     }
 
     const result = authService.validateLogin(username, password);

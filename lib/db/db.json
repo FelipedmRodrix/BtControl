@@ -59,10 +59,200 @@
       "status": "ATIVO",
       "createdAt": "2026-10-02T18:35:13.574Z",
       "updatedAt": "2026-10-02T18:35:13.574Z"
+    },
+    {
+      "id": "ath-bktqtc8rs",
+      "cpf": "60876116306",
+      "name": "Felipe de Melo Rodrigues",
+      "birthDate": "1993-08-20",
+      "gender": "M",
+      "phone": "85996595730",
+      "email": "informatica@marinapark.com.br",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:03:48.804Z",
+      "updatedAt": "2026-10-09T12:03:48.804Z"
+    },
+    {
+      "id": "ath-zm0bhpk79",
+      "cpf": "69081894064",
+      "name": "Jubileu da Silva",
+      "birthDate": "1993-08-20",
+      "gender": "M",
+      "phone": "85996595730",
+      "email": "informatica@marinapark.com.br",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:04:36.006Z",
+      "updatedAt": "2026-10-09T12:04:36.006Z"
+    },
+    {
+      "id": "ath-lxkaq0uqv",
+      "cpf": "24233091045",
+      "name": "Rafael Mistofóbico",
+      "birthDate": "1993-01-01",
+      "gender": "M",
+      "phone": "85996595730",
+      "email": "informatica@marinapark.com.br",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:05:22.772Z",
+      "updatedAt": "2026-10-09T18:24:50.834Z"
     }
   ],
-  "arenas": [],
-  "arenaAthletes": [],
+  "arenas": [
+    {
+      "id": "arena-zne0sbge6",
+      "name": "Super 8 Allan",
+      "owner": "Allan",
+      "email": "informatica@marinapark.com.br",
+      "phone": "85996595730",
+      "city": "Fortaleza",
+      "state": "CE",
+      "status": "ATIVA",
+      "createdAt": "2026-10-09T12:02:05.530Z",
+      "updatedAt": "2026-10-09T12:02:05.530Z"
+    },
+    {
+      "id": "arena-6a5h1o8wd",
+      "name": "Orion",
+      "owner": "Neto",
+      "email": "informatica@marinapark.com.br",
+      "phone": "8599999999",
+      "city": "Fortaleza",
+      "state": "CE",
+      "status": "ATIVA",
+      "createdAt": "2026-10-09T12:15:22.519Z",
+      "updatedAt": "2026-10-09T12:15:22.519Z"
+    }
+  ],
+  "arenaAthletes": [
+    {
+      "id": "aa-sj9cuzx47",
+      "arenaId": "arena-zne0sbge6",
+      "athleteId": "ath-joao",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:03:17.941Z",
+      "updatedAt": "2026-10-09T12:03:17.941Z"
+    },
+    {
+      "id": "aa-ijbfa6owc",
+      "arenaId": "arena-zne0sbge6",
+      "athleteId": "ath-pedro",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:03:19.583Z",
+      "updatedAt": "2026-10-09T12:03:19.583Z"
+    },
+    {
+      "id": "aa-w39ni6zkc",
+      "arenaId": "arena-zne0sbge6",
+      "athleteId": "ath-carlos",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:03:20.725Z",
+      "updatedAt": "2026-10-09T12:03:20.725Z"
+    },
+    {
+      "id": "aa-aagdamx3i",
+      "arenaId": "arena-zne0sbge6",
+      "athleteId": "ath-maria",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:03:21.183Z",
+      "updatedAt": "2026-10-09T12:03:21.183Z"
+    },
+    {
+      "id": "aa-0oltmnpow",
+      "arenaId": "arena-zne0sbge6",
+      "athleteId": "ath-lucas",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:03:22.233Z",
+      "updatedAt": "2026-10-09T12:03:22.233Z"
+    },
+    {
+      "id": "aa-o253crrw1",
+      "arenaId": "arena-zne0sbge6",
+      "athleteId": "ath-bktqtc8rs",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:05:28.604Z",
+      "updatedAt": "2026-10-09T12:05:28.604Z"
+    },
+    {
+      "id": "aa-2r06ya8r6",
+      "arenaId": "arena-zne0sbge6",
+      "athleteId": "ath-zm0bhpk79",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:05:29.392Z",
+      "updatedAt": "2026-10-09T12:05:29.392Z"
+    },
+    {
+      "id": "aa-8danawhu3",
+      "arenaId": "arena-zne0sbge6",
+      "athleteId": "ath-lxkaq0uqv",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:05:30.197Z",
+      "updatedAt": "2026-10-09T12:05:30.197Z"
+    },
+    {
+      "id": "aa-79oujlela",
+      "arenaId": "arena-6a5h1o8wd",
+      "athleteId": "ath-joao",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:44:22.358Z",
+      "updatedAt": "2026-10-09T12:44:22.358Z"
+    },
+    {
+      "id": "aa-7ogfxxguc",
+      "arenaId": "arena-6a5h1o8wd",
+      "athleteId": "ath-carlos",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:44:23.018Z",
+      "updatedAt": "2026-10-09T12:44:23.018Z"
+    },
+    {
+      "id": "aa-ufbueyrih",
+      "arenaId": "arena-6a5h1o8wd",
+      "athleteId": "ath-maria",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:44:24.024Z",
+      "updatedAt": "2026-10-09T12:44:24.024Z"
+    },
+    {
+      "id": "aa-gu80baozj",
+      "arenaId": "arena-6a5h1o8wd",
+      "athleteId": "ath-pedro",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:44:24.631Z",
+      "updatedAt": "2026-10-09T12:44:24.631Z"
+    },
+    {
+      "id": "aa-0g8bnyyda",
+      "arenaId": "arena-6a5h1o8wd",
+      "athleteId": "ath-lucas",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:44:25.287Z",
+      "updatedAt": "2026-10-09T12:44:25.287Z"
+    },
+    {
+      "id": "aa-vrwdi5sjs",
+      "arenaId": "arena-6a5h1o8wd",
+      "athleteId": "ath-bktqtc8rs",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:44:27.183Z",
+      "updatedAt": "2026-10-09T12:44:27.183Z"
+    },
+    {
+      "id": "aa-hzrjlmfuq",
+      "arenaId": "arena-6a5h1o8wd",
+      "athleteId": "ath-zm0bhpk79",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:44:28.073Z",
+      "updatedAt": "2026-10-09T12:44:28.073Z"
+    },
+    {
+      "id": "aa-yasky9h92",
+      "arenaId": "arena-6a5h1o8wd",
+      "athleteId": "ath-lxkaq0uqv",
+      "status": "ATIVO",
+      "createdAt": "2026-10-09T12:44:28.883Z",
+      "updatedAt": "2026-10-09T12:44:28.883Z"
+    }
+  ],
   "users": [
     {
       "id": "usr-admin",
@@ -73,9 +263,62 @@
       "name": "Administrador Geral",
       "createdAt": "2026-10-02T18:35:13.574Z",
       "updatedAt": "2026-10-02T18:35:13.574Z"
+    },
+    {
+      "id": "usr-pukeaw0c7",
+      "username": "allan",
+      "password": "123",
+      "role": "ARENA_ADMIN",
+      "arenaId": "arena-zne0sbge6",
+      "name": "Super 8 Allan Admin",
+      "createdAt": "2026-10-09T12:02:05.531Z",
+      "updatedAt": "2026-10-09T12:02:05.531Z"
+    },
+    {
+      "id": "usr-l6u8hvloj",
+      "username": "neto",
+      "password": "1234",
+      "role": "ARENA_ADMIN",
+      "arenaId": "arena-6a5h1o8wd",
+      "name": "Orion Admin",
+      "createdAt": "2026-10-09T12:15:22.521Z",
+      "updatedAt": "2026-10-09T12:15:22.521Z"
     }
   ],
-  "tournaments": [],
+  "tournaments": [
+    {
+      "id": "t-qw68nd3xp",
+      "name": "Super 8",
+      "arenaId": "arena-zne0sbge6",
+      "organizerId": "arena-zne0sbge6",
+      "venueId": "ven-kpptfkeak",
+      "venueName": "Toss",
+      "courtsUsed": 2,
+      "seriesName": "Super 8",
+      "startDate": "2027-01-01",
+      "endDate": "2027-02-02",
+      "status": "INSCRICOES_ABERTAS",
+      "isDuo": false,
+      "createdAt": "2026-10-09T12:06:56.649Z",
+      "updatedAt": "2026-10-09T12:06:56.649Z"
+    },
+    {
+      "id": "t-l2kcowd6j",
+      "name": "Edição 2027",
+      "arenaId": "arena-6a5h1o8wd",
+      "organizerId": "arena-6a5h1o8wd",
+      "venueId": "ven-kpptfkeak",
+      "venueName": "Toss",
+      "courtsUsed": 6,
+      "seriesName": "Orion",
+      "startDate": "2027-01-01",
+      "endDate": "2027-01-01",
+      "status": "INSCRICOES_ABERTAS",
+      "isDuo": true,
+      "createdAt": "2026-10-09T12:17:49.912Z",
+      "updatedAt": "2026-10-09T12:47:49.069Z"
+    }
+  ],
   "categories": [
     {
       "id": "cat-std-masc-open",
@@ -336,10 +579,737 @@
       "description": "Duplas Mistas Iniciantes",
       "createdAt": "2026-10-08T15:36:13.657Z",
       "updatedAt": "2026-10-08T15:36:13.657Z"
+    },
+    {
+      "id": "c-h5gyutri5",
+      "tournamentId": "GLOBAL",
+      "name": "SUPER 8 PRINCIPIANTE",
+      "type": "SUPER 8",
+      "level": "PRINCIPIANTE",
+      "price": 40,
+      "maxParticipants": 8,
+      "status": "ATIVA",
+      "description": "",
+      "createdAt": "2026-10-09T12:03:07.823Z",
+      "updatedAt": "2026-10-09T12:03:07.823Z"
+    },
+    {
+      "id": "c-3f8ay2wky",
+      "tournamentId": "t-qw68nd3xp",
+      "masterCategoryId": "c-h5gyutri5",
+      "name": "SUPER 8 PRINCIPIANTE",
+      "type": "SUPER 8",
+      "level": "PRINCIPIANTE",
+      "price": 40,
+      "maxParticipants": 8,
+      "status": "ATIVA",
+      "createdAt": "2026-10-09T12:06:56.649Z",
+      "updatedAt": "2026-10-09T12:06:56.649Z"
+    },
+    {
+      "id": "c-asm6racfn",
+      "tournamentId": "t-l2kcowd6j",
+      "masterCategoryId": "cat-std-masc-d",
+      "name": "Masculino D",
+      "type": "MASCULINO",
+      "level": "D",
+      "price": 90,
+      "maxParticipants": 16,
+      "status": "ATIVA",
+      "createdAt": "2026-10-09T12:47:49.069Z",
+      "updatedAt": "2026-10-09T12:47:49.069Z"
+    },
+    {
+      "id": "c-yaqgbemhr",
+      "tournamentId": "t-l2kcowd6j",
+      "masterCategoryId": "cat-std-masc-ini",
+      "name": "Masculino Iniciante",
+      "type": "MASCULINO",
+      "level": "INICIANTE",
+      "price": 80,
+      "maxParticipants": 16,
+      "status": "ATIVA",
+      "createdAt": "2026-10-09T12:47:49.069Z",
+      "updatedAt": "2026-10-09T12:47:49.069Z"
     }
   ],
-  "registrations": [],
-  "duos": [],
-  "matches": [],
-  "venues": []
+  "registrations": [
+    {
+      "id": "reg-8wlqt4rrk",
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "athleteId": "ath-joao",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:07:17.124Z",
+      "updatedAt": "2026-10-09T20:24:46.119Z"
+    },
+    {
+      "id": "reg-br6hr9z1l",
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "athleteId": "ath-lxkaq0uqv",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:07:17.201Z",
+      "updatedAt": "2026-10-09T20:24:57.802Z"
+    },
+    {
+      "id": "reg-piinfwjx6",
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "athleteId": "ath-maria",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:07:17.209Z",
+      "updatedAt": "2026-10-09T12:07:17.209Z"
+    },
+    {
+      "id": "reg-tdemspb8a",
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "athleteId": "ath-lucas",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:07:17.263Z",
+      "updatedAt": "2026-10-09T12:07:17.263Z"
+    },
+    {
+      "id": "reg-6oe0iy0sv",
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "athleteId": "ath-carlos",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:07:17.288Z",
+      "updatedAt": "2026-10-09T12:07:17.288Z"
+    },
+    {
+      "id": "reg-26lf094cc",
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "athleteId": "ath-pedro",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:07:17.305Z",
+      "updatedAt": "2026-10-09T12:07:17.305Z"
+    },
+    {
+      "id": "reg-m7al7i5p9",
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "athleteId": "ath-zm0bhpk79",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:07:17.317Z",
+      "updatedAt": "2026-10-09T20:25:29.364Z"
+    },
+    {
+      "id": "reg-lli452982",
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "athleteId": "ath-bktqtc8rs",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:07:18.713Z",
+      "updatedAt": "2026-10-09T12:07:18.713Z"
+    },
+    {
+      "id": "reg-apeqmq7q0",
+      "tournamentId": "t-l2kcowd6j",
+      "categoryId": "c-j6pom4a9i",
+      "athleteId": "ath-joao",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:44:55.777Z",
+      "updatedAt": "2026-10-09T12:44:55.777Z"
+    },
+    {
+      "id": "reg-fzcn3euz8",
+      "tournamentId": "t-l2kcowd6j",
+      "categoryId": "c-j6pom4a9i",
+      "athleteId": "ath-maria",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:44:55.808Z",
+      "updatedAt": "2026-10-09T12:44:55.808Z"
+    },
+    {
+      "id": "reg-ulajm2ri6",
+      "tournamentId": "t-l2kcowd6j",
+      "categoryId": "c-j6pom4a9i",
+      "athleteId": "ath-carlos",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:44:55.822Z",
+      "updatedAt": "2026-10-09T12:44:55.822Z"
+    },
+    {
+      "id": "reg-blu16bhmg",
+      "tournamentId": "t-l2kcowd6j",
+      "categoryId": "c-j6pom4a9i",
+      "athleteId": "ath-pedro",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:44:55.840Z",
+      "updatedAt": "2026-10-09T12:44:55.840Z"
+    },
+    {
+      "id": "reg-r66rjt62q",
+      "tournamentId": "t-l2kcowd6j",
+      "categoryId": "c-j6pom4a9i",
+      "athleteId": "ath-lucas",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:44:55.856Z",
+      "updatedAt": "2026-10-09T12:44:55.856Z"
+    },
+    {
+      "id": "reg-wkptk6p4k",
+      "tournamentId": "t-l2kcowd6j",
+      "categoryId": "c-j6pom4a9i",
+      "athleteId": "ath-bktqtc8rs",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:44:55.857Z",
+      "updatedAt": "2026-10-09T12:44:55.857Z"
+    },
+    {
+      "id": "reg-i92426f0j",
+      "tournamentId": "t-l2kcowd6j",
+      "categoryId": "c-j6pom4a9i",
+      "athleteId": "ath-lxkaq0uqv",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:44:55.858Z",
+      "updatedAt": "2026-10-09T12:44:55.858Z"
+    },
+    {
+      "id": "reg-qo6519gck",
+      "tournamentId": "t-l2kcowd6j",
+      "categoryId": "c-j6pom4a9i",
+      "athleteId": "ath-zm0bhpk79",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:44:55.871Z",
+      "updatedAt": "2026-10-09T12:44:55.871Z"
+    },
+    {
+      "id": "reg-riumeh10s",
+      "tournamentId": "t-l2kcowd6j",
+      "categoryId": "c-yaqgbemhr",
+      "athleteId": "ath-joao",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:48:10.031Z",
+      "updatedAt": "2026-10-09T12:48:20.567Z"
+    },
+    {
+      "id": "reg-f8digwd9w",
+      "tournamentId": "t-l2kcowd6j",
+      "categoryId": "c-yaqgbemhr",
+      "athleteId": "ath-maria",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:48:10.048Z",
+      "updatedAt": "2026-10-09T12:48:20.568Z"
+    },
+    {
+      "id": "reg-kucdpiy3i",
+      "tournamentId": "t-l2kcowd6j",
+      "categoryId": "c-yaqgbemhr",
+      "athleteId": "ath-pedro",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:48:10.061Z",
+      "updatedAt": "2026-10-09T12:48:20.569Z"
+    },
+    {
+      "id": "reg-ks216ku3f",
+      "tournamentId": "t-l2kcowd6j",
+      "categoryId": "c-yaqgbemhr",
+      "athleteId": "ath-carlos",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:48:10.080Z",
+      "updatedAt": "2026-10-09T12:48:22.432Z"
+    },
+    {
+      "id": "reg-2tez8l4nc",
+      "tournamentId": "t-l2kcowd6j",
+      "categoryId": "c-yaqgbemhr",
+      "athleteId": "ath-lucas",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:48:10.091Z",
+      "updatedAt": "2026-10-09T12:48:23.953Z"
+    }
+  ],
+  "duos": [
+    {
+      "id": "duo-4wflvlmv4",
+      "tournamentId": "t-l2kcowd6j",
+      "categoryId": "c-j6pom4a9i",
+      "player1Id": "ath-joao",
+      "player2Id": "ath-carlos",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-09T12:45:13.349Z",
+      "updatedAt": "2026-10-09T12:45:13.349Z"
+    }
+  ],
+  "matches": [
+    {
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "stage": "Rodada 1",
+      "groupName": "Super 8",
+      "round": 1,
+      "matchNumber": 1,
+      "format": "SUPER_8",
+      "teamA": {
+        "player1Id": "ath-joao",
+        "player2Id": "ath-bktqtc8rs",
+        "player1Name": "João da Silva",
+        "player2Name": "Felipe de Melo Rodrigues"
+      },
+      "teamB": {
+        "player1Id": "ath-lxkaq0uqv",
+        "player2Id": "ath-zm0bhpk79",
+        "player1Name": "Radael Mistofóbico",
+        "player2Name": "Jubileu da Silva"
+      },
+      "date": "2026-10-09",
+      "time": "14:00",
+      "court": "Quadra 1",
+      "status": "FINALIZADA",
+      "id": "mat-s8-fd3waltul",
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T14:33:34.212Z",
+      "scoreA": 2,
+      "scoreB": 4,
+      "score": "2 x 4",
+      "winnerTeam": "TEAM_B"
+    },
+    {
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "stage": "Rodada 1",
+      "groupName": "Super 8",
+      "round": 1,
+      "matchNumber": 2,
+      "format": "SUPER_8",
+      "teamA": {
+        "player1Id": "ath-maria",
+        "player2Id": "ath-pedro",
+        "player1Name": "Maria Oliveira",
+        "player2Name": "Pedro Santos"
+      },
+      "teamB": {
+        "player1Id": "ath-lucas",
+        "player2Id": "ath-carlos",
+        "player1Name": "Lucas Pereira",
+        "player2Name": "Carlos Souza"
+      },
+      "date": "2026-10-09",
+      "time": "14:00",
+      "court": "Quadra 2",
+      "status": "FINALIZADA",
+      "id": "mat-s8-w7fppigg7",
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T17:57:39.562Z",
+      "scoreA": 4,
+      "scoreB": 2,
+      "score": "4 x 2",
+      "winnerTeam": "TEAM_A"
+    },
+    {
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "stage": "Rodada 2",
+      "groupName": "Super 8",
+      "round": 2,
+      "matchNumber": 3,
+      "format": "SUPER_8",
+      "teamA": {
+        "player1Id": "ath-joao",
+        "player2Id": "ath-zm0bhpk79",
+        "player1Name": "João da Silva",
+        "player2Name": "Jubileu da Silva"
+      },
+      "teamB": {
+        "player1Id": "ath-bktqtc8rs",
+        "player2Id": "ath-pedro",
+        "player1Name": "Felipe de Melo Rodrigues",
+        "player2Name": "Pedro Santos"
+      },
+      "date": "2026-10-09",
+      "time": "14:40",
+      "court": "Quadra 1",
+      "status": "FINALIZADA",
+      "id": "mat-s8-8ifv9vpw0",
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T17:57:59.738Z",
+      "scoreA": 4,
+      "scoreB": 2,
+      "score": "4 x 2",
+      "winnerTeam": "TEAM_A"
+    },
+    {
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "stage": "Rodada 2",
+      "groupName": "Super 8",
+      "round": 2,
+      "matchNumber": 4,
+      "format": "SUPER_8",
+      "teamA": {
+        "player1Id": "ath-lxkaq0uqv",
+        "player2Id": "ath-carlos",
+        "player1Name": "Radael Mistofóbico",
+        "player2Name": "Carlos Souza"
+      },
+      "teamB": {
+        "player1Id": "ath-maria",
+        "player2Id": "ath-lucas",
+        "player1Name": "Maria Oliveira",
+        "player2Name": "Lucas Pereira"
+      },
+      "date": "2026-10-09",
+      "time": "14:40",
+      "court": "Quadra 2",
+      "status": "FINALIZADA",
+      "id": "mat-s8-dekwwoanq",
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:00:57.177Z",
+      "scoreA": 4,
+      "scoreB": 1,
+      "score": "4 x 1",
+      "winnerTeam": "TEAM_A"
+    },
+    {
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "stage": "Rodada 3",
+      "groupName": "Super 8",
+      "round": 3,
+      "matchNumber": 5,
+      "format": "SUPER_8",
+      "teamA": {
+        "player1Id": "ath-joao",
+        "player2Id": "ath-pedro",
+        "player1Name": "João da Silva",
+        "player2Name": "Pedro Santos"
+      },
+      "teamB": {
+        "player1Id": "ath-zm0bhpk79",
+        "player2Id": "ath-carlos",
+        "player1Name": "Jubileu da Silva",
+        "player2Name": "Carlos Souza"
+      },
+      "date": "2026-10-09",
+      "time": "15:20",
+      "court": "Quadra 1",
+      "status": "FINALIZADA",
+      "id": "mat-s8-8sja5u0c7",
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:11:48.426Z",
+      "scoreA": 4,
+      "scoreB": 2,
+      "score": "4 x 2",
+      "winnerTeam": "TEAM_A"
+    },
+    {
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "stage": "Rodada 3",
+      "groupName": "Super 8",
+      "round": 3,
+      "matchNumber": 6,
+      "format": "SUPER_8",
+      "teamA": {
+        "player1Id": "ath-bktqtc8rs",
+        "player2Id": "ath-lucas",
+        "player1Name": "Felipe de Melo Rodrigues",
+        "player2Name": "Lucas Pereira"
+      },
+      "teamB": {
+        "player1Id": "ath-lxkaq0uqv",
+        "player2Id": "ath-maria",
+        "player1Name": "Radael Mistofóbico",
+        "player2Name": "Maria Oliveira"
+      },
+      "date": "2026-10-09",
+      "time": "15:20",
+      "court": "Quadra 2",
+      "status": "FINALIZADA",
+      "id": "mat-s8-afvbnjzqf",
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:12:06.440Z",
+      "scoreA": 4,
+      "scoreB": 1,
+      "score": "4 x 1",
+      "winnerTeam": "TEAM_A"
+    },
+    {
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "stage": "Rodada 4",
+      "groupName": "Super 8",
+      "round": 4,
+      "matchNumber": 7,
+      "format": "SUPER_8",
+      "teamA": {
+        "player1Id": "ath-joao",
+        "player2Id": "ath-carlos",
+        "player1Name": "João da Silva",
+        "player2Name": "Carlos Souza"
+      },
+      "teamB": {
+        "player1Id": "ath-pedro",
+        "player2Id": "ath-lucas",
+        "player1Name": "Pedro Santos",
+        "player2Name": "Lucas Pereira"
+      },
+      "date": "2026-10-09",
+      "time": "16:00",
+      "court": "Quadra 1",
+      "status": "FINALIZADA",
+      "id": "mat-s8-5q5y12090",
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:12:28.682Z",
+      "scoreA": 4,
+      "scoreB": 3,
+      "score": "4 x 3",
+      "winnerTeam": "TEAM_A"
+    },
+    {
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "stage": "Rodada 4",
+      "groupName": "Super 8",
+      "round": 4,
+      "matchNumber": 8,
+      "format": "SUPER_8",
+      "teamA": {
+        "player1Id": "ath-zm0bhpk79",
+        "player2Id": "ath-maria",
+        "player1Name": "Jubileu da Silva",
+        "player2Name": "Maria Oliveira"
+      },
+      "teamB": {
+        "player1Id": "ath-bktqtc8rs",
+        "player2Id": "ath-lxkaq0uqv",
+        "player1Name": "Felipe de Melo Rodrigues",
+        "player2Name": "Radael Mistofóbico"
+      },
+      "date": "2026-10-09",
+      "time": "16:00",
+      "court": "Quadra 2",
+      "status": "FINALIZADA",
+      "id": "mat-s8-kqcl5dq0b",
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:12:42.109Z",
+      "scoreA": 4,
+      "scoreB": 2,
+      "score": "4 x 2",
+      "winnerTeam": "TEAM_A"
+    },
+    {
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "stage": "Rodada 5",
+      "groupName": "Super 8",
+      "round": 5,
+      "matchNumber": 9,
+      "format": "SUPER_8",
+      "teamA": {
+        "player1Id": "ath-joao",
+        "player2Id": "ath-lucas",
+        "player1Name": "João da Silva",
+        "player2Name": "Lucas Pereira"
+      },
+      "teamB": {
+        "player1Id": "ath-carlos",
+        "player2Id": "ath-maria",
+        "player1Name": "Carlos Souza",
+        "player2Name": "Maria Oliveira"
+      },
+      "date": "2026-10-09",
+      "time": "16:40",
+      "court": "Quadra 1",
+      "status": "FINALIZADA",
+      "id": "mat-s8-52t4jigni",
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:13:34.297Z",
+      "scoreA": 4,
+      "scoreB": 3,
+      "score": "4 x 3",
+      "winnerTeam": "TEAM_A"
+    },
+    {
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "stage": "Rodada 5",
+      "groupName": "Super 8",
+      "round": 5,
+      "matchNumber": 10,
+      "format": "SUPER_8",
+      "teamA": {
+        "player1Id": "ath-pedro",
+        "player2Id": "ath-lxkaq0uqv",
+        "player1Name": "Pedro Santos",
+        "player2Name": "Radael Mistofóbico"
+      },
+      "teamB": {
+        "player1Id": "ath-zm0bhpk79",
+        "player2Id": "ath-bktqtc8rs",
+        "player1Name": "Jubileu da Silva",
+        "player2Name": "Felipe de Melo Rodrigues"
+      },
+      "date": "2026-10-09",
+      "time": "16:40",
+      "court": "Quadra 2",
+      "status": "FINALIZADA",
+      "id": "mat-s8-3jkeejjhi",
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:13:45.618Z",
+      "scoreA": 4,
+      "scoreB": 2,
+      "score": "4 x 2",
+      "winnerTeam": "TEAM_A"
+    },
+    {
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "stage": "Rodada 6",
+      "groupName": "Super 8",
+      "round": 6,
+      "matchNumber": 11,
+      "format": "SUPER_8",
+      "teamA": {
+        "player1Id": "ath-joao",
+        "player2Id": "ath-maria",
+        "player1Name": "João da Silva",
+        "player2Name": "Maria Oliveira"
+      },
+      "teamB": {
+        "player1Id": "ath-lucas",
+        "player2Id": "ath-lxkaq0uqv",
+        "player1Name": "Lucas Pereira",
+        "player2Name": "Radael Mistofóbico"
+      },
+      "date": "2026-10-09",
+      "time": "17:20",
+      "court": "Quadra 1",
+      "status": "FINALIZADA",
+      "id": "mat-s8-qtjc20a5g",
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:13:55.610Z",
+      "scoreA": 4,
+      "scoreB": 1,
+      "score": "4 x 1",
+      "winnerTeam": "TEAM_A"
+    },
+    {
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "stage": "Rodada 6",
+      "groupName": "Super 8",
+      "round": 6,
+      "matchNumber": 12,
+      "format": "SUPER_8",
+      "teamA": {
+        "player1Id": "ath-carlos",
+        "player2Id": "ath-bktqtc8rs",
+        "player1Name": "Carlos Souza",
+        "player2Name": "Felipe de Melo Rodrigues"
+      },
+      "teamB": {
+        "player1Id": "ath-pedro",
+        "player2Id": "ath-zm0bhpk79",
+        "player1Name": "Pedro Santos",
+        "player2Name": "Jubileu da Silva"
+      },
+      "date": "2026-10-09",
+      "time": "17:20",
+      "court": "Quadra 2",
+      "status": "FINALIZADA",
+      "id": "mat-s8-c4q4ka2zr",
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:14:05.004Z",
+      "scoreA": 4,
+      "scoreB": 3,
+      "score": "4 x 3",
+      "winnerTeam": "TEAM_A"
+    },
+    {
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "stage": "Rodada 7",
+      "groupName": "Super 8",
+      "round": 7,
+      "matchNumber": 13,
+      "format": "SUPER_8",
+      "teamA": {
+        "player1Id": "ath-joao",
+        "player2Id": "ath-lxkaq0uqv",
+        "player1Name": "João da Silva",
+        "player2Name": "Radael Mistofóbico"
+      },
+      "teamB": {
+        "player1Id": "ath-maria",
+        "player2Id": "ath-bktqtc8rs",
+        "player1Name": "Maria Oliveira",
+        "player2Name": "Felipe de Melo Rodrigues"
+      },
+      "date": "2026-10-09",
+      "time": "18:00",
+      "court": "Quadra 1",
+      "status": "FINALIZADA",
+      "id": "mat-s8-cdabu5quf",
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:14:16.447Z",
+      "scoreA": 4,
+      "scoreB": 2,
+      "score": "4 x 2",
+      "winnerTeam": "TEAM_A"
+    },
+    {
+      "tournamentId": "t-qw68nd3xp",
+      "categoryId": "c-3f8ay2wky",
+      "stage": "Rodada 7",
+      "groupName": "Super 8",
+      "round": 7,
+      "matchNumber": 14,
+      "format": "SUPER_8",
+      "teamA": {
+        "player1Id": "ath-lucas",
+        "player2Id": "ath-zm0bhpk79",
+        "player1Name": "Lucas Pereira",
+        "player2Name": "Jubileu da Silva"
+      },
+      "teamB": {
+        "player1Id": "ath-carlos",
+        "player2Id": "ath-pedro",
+        "player1Name": "Carlos Souza",
+        "player2Name": "Pedro Santos"
+      },
+      "date": "2026-10-09",
+      "time": "18:00",
+      "court": "Quadra 2",
+      "status": "FINALIZADA",
+      "id": "mat-s8-gpiwrcr7j",
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:14:42.859Z",
+      "scoreA": 4,
+      "scoreB": 0,
+      "score": "4 x 0",
+      "winnerTeam": "TEAM_A"
+    }
+  ],
+  "venues": [
+    {
+      "id": "ven-kpptfkeak",
+      "name": "Toss",
+      "city": "Fortaleza",
+      "state": "CE",
+      "address": "Avenida Presidente Castelo Branco, 400",
+      "courtsCount": 10,
+      "contactPhone": "85996595730",
+      "status": "ATIVA",
+      "createdAt": "2026-10-09T12:02:23.949Z",
+      "updatedAt": "2026-10-09T12:02:23.949Z"
+    },
+    {
+      "id": "ven-ltyrqu4i7",
+      "name": "Montese",
+      "city": "Fortaleza",
+      "state": "CE",
+      "address": "Avenida Presidente Castelo Branco, 400",
+      "courtsCount": 6,
+      "contactPhone": "85996595730",
+      "status": "ATIVA",
+      "createdAt": "2026-10-09T12:15:47.892Z",
+      "updatedAt": "2026-10-09T12:15:47.892Z"
+    }
+  ]
 }

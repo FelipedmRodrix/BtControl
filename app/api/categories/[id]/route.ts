@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { categoryService } from '@/lib/services/categoryService';
 
+import { ensureDbInitialized, flushWrites } from '@/lib/db/store';
 interface Params {
   params: Promise<{ id: string }>;
 }
 
 export async function GET(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id } = await params;
     const category = categoryService.getById(id);
     if (!category) {
@@ -20,6 +22,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id } = await params;
     const body = await req.json();
     const userRole = req.headers.get('x-user-role') || '';
@@ -27,7 +30,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const result = categoryService.update(id, body, userRole);
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: result.code || 400 });
+            await flushWrites();
+return NextResponse.json({ error: result.error }, { status: result.code || 400 });
     }
 
     return NextResponse.json(result.data, { status: 200 });
@@ -38,13 +42,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id } = await params;
     const userRole = req.headers.get('x-user-role') || '';
 
     const result = categoryService.delete(id, userRole);
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: result.code || 400 });
+            await flushWrites();
+return NextResponse.json({ error: result.error }, { status: result.code || 400 });
     }
 
     return NextResponse.json({ success: true, message: 'Categoria excluída com sucesso.' }, { status: 200 });

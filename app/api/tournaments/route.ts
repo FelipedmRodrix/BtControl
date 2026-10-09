@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { tournamentService } from '@/lib/services/tournamentService';
 
+import { ensureDbInitialized, flushWrites } from '@/lib/db/store';
 export async function GET(req: NextRequest) {
   try {
+  await ensureDbInitialized();
     const { searchParams } = new URL(req.url);
     const arenaId = searchParams.get('arenaId') || undefined;
 
@@ -15,11 +17,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+  await ensureDbInitialized();
     const body = await req.json();
     const result = tournamentService.create(body);
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: result.code || 400 });
+            await flushWrites();
+return NextResponse.json({ error: result.error }, { status: result.code || 400 });
     }
 
     return NextResponse.json(result.data, { status: 201 });

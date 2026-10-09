@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { matchService } from '@/lib/services/matchService';
 
+import { ensureDbInitialized, flushWrites } from '@/lib/db/store';
 interface Params {
   params: Promise<{ id: string }>;
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id } = await params;
     const body = await req.json();
     const { score, winnerDuoId, isWO, court, scoreA, scoreB, winnerTeam, isDraw, tieBreaker } = body;
@@ -21,7 +23,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     if (!res.success) {
-      return NextResponse.json({ error: res.error }, { status: 400 });
+            await flushWrites();
+return NextResponse.json({ error: res.error }, { status: 400 });
     }
 
     return NextResponse.json({ success: true, tieBreaker: (res as any).tieBreaker });
@@ -32,11 +35,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id } = await params;
     const res = matchService.delete(id);
 
     if (!res.success) {
-      return NextResponse.json({ error: res.error }, { status: 400 });
+            await flushWrites();
+return NextResponse.json({ error: res.error }, { status: 400 });
     }
 
     return NextResponse.json({ success: true });

@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { registrationService } from '@/lib/services/registrationService';
 
+import { ensureDbInitialized, flushWrites } from '@/lib/db/store';
 interface Params {
   params: Promise<{ id: string }>;
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id } = await params;
     const res = registrationService.cancel(id);
     
     if (!res.success) {
-      return NextResponse.json({ error: res.error }, { status: 400 });
+            await flushWrites();
+return NextResponse.json({ error: res.error }, { status: 400 });
     }
 
     return NextResponse.json({ success: true });
@@ -22,13 +25,15 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
+  await ensureDbInitialized();
     const { id } = await params;
     const body = await req.json();
     const { status } = body;
 
     const res = registrationService.updateStatus(id, status);
     if (!res.success) {
-      return NextResponse.json({ error: res.error }, { status: 400 });
+            await flushWrites();
+return NextResponse.json({ error: res.error }, { status: 400 });
     }
 
     return NextResponse.json({ success: true });
