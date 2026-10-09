@@ -38,8 +38,13 @@ import {
   TrendingUp,
   Settings,
   Calendar,
-  AlertTriangle
+  AlertTriangle,
+  Clock,
+  ArrowRight,
+  Filter,
+  CheckCircle2
 } from 'lucide-react';
+import { calculateSuper8Standings, Super8AthleteStanding } from '@/lib/services/super8Service';
 
 // Type definitions
 interface Athlete {
@@ -146,17 +151,44 @@ interface Duo {
 
 interface Match {
   id: string;
+  tournamentId?: string;
+  tournamentName?: string;
+  categoryId?: string;
   categoryName: string;
   stage: string;
   groupName?: string;
-  duo1: string;
-  duo2: string;
+  round?: number;
+  matchNumber?: number;
+  format?: 'STANDARD' | 'SUPER_8';
+  teamA?: {
+    player1Id: string;
+    player2Id: string;
+    player1Name?: string;
+    player2Name?: string;
+  };
+  teamB?: {
+    player1Id: string;
+    player2Id: string;
+    player1Name?: string;
+    player2Name?: string;
+  };
+  scoreA?: number;
+  scoreB?: number;
+  winnerTeam?: 'TEAM_A' | 'TEAM_B';
+  duo1?: string;
+  duo2?: string;
+  duo1Name?: string;
+  duo2Name?: string;
+  duo1Id?: string;
+  duo2Id?: string;
   date: string;
   time: string;
   court: string;
   status: 'PENDENTE' | 'FINALIZADA' | 'WO';
   score?: string;
   winnerDuo?: string;
+  winnerDuoId?: string;
+  isSuper8?: boolean;
 }
 
 // Standard Beach Tennis Category Matrix (Rule 9 and 10)
@@ -380,16 +412,110 @@ export default function Home() {
     court: 'Quadra 1'
   });
 
+  const [filterSuper8Round, setFilterSuper8Round] = useState<'ALL' | number>('ALL');
+  const [filterMatchCategory, setFilterMatchCategory] = useState<string>('ALL');
+  const [showSuper8Standings, setShowSuper8Standings] = useState(false);
+
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
   const [isWoModalOpen, setIsWoModalOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<any | null>(null);
   const [resultForm, setResultForm] = useState({
     score: '6/4 6/3',
-    winnerDuoId: ''
+    winnerDuoId: '',
+    scoreA: 4,
+    scoreB: 2,
+    winnerTeam: 'TEAM_A' as 'TEAM_A' | 'TEAM_B'
   });
   const [woForm, setWoForm] = useState({
-    winnerDuoId: ''
+    winnerDuoId: '',
+    winnerTeam: 'TEAM_A' as 'TEAM_A' | 'TEAM_B'
   });
+
+  // Tournament Filter states across modules (Requested)
+  // 1. Inscrições
+  const [selectedRegTournamentId, setSelectedRegTournamentId] = useState<string>('');
+  const [searchRegTournamentTerm, setSearchRegTournamentTerm] = useState<string>('');
+  const [filterRegStatus, setFilterRegStatus] = useState<'ALL' | 'VIGENTE' | 'EXPIRADO'>('ALL');
+  const [filterRegArenaId, setFilterRegArenaId] = useState<string>('ALL');
+  const [filterRegCategory, setFilterRegCategory] = useState<string>('ALL');
+  const [filterRegPaymentStatus, setFilterRegPaymentStatus] = useState<string>('ALL');
+  const [searchRegAthleteTerm, setSearchRegAthleteTerm] = useState<string>('');
+
+  // 2. Duplas
+  const [selectedDuoTournamentId, setSelectedDuoTournamentId] = useState<string>('');
+  const [searchDuoTournamentTerm, setSearchDuoTournamentTerm] = useState<string>('');
+  const [filterDuoStatus, setFilterDuoStatus] = useState<'ALL' | 'VIGENTE' | 'EXPIRADO'>('ALL');
+  const [filterDuoArenaId, setFilterDuoArenaId] = useState<string>('ALL');
+  const [filterDuoCategory, setFilterDuoCategory] = useState<string>('ALL');
+
+  // 3. Jogos / Quadras
+  const [selectedMatchTournamentId, setSelectedMatchTournamentId] = useState<string>('');
+  const [searchMatchTournamentTerm, setSearchMatchTournamentTerm] = useState<string>('');
+  const [filterMatchStatus, setFilterMatchStatus] = useState<'ALL' | 'VIGENTE' | 'EXPIRADO'>('ALL');
+  const [filterMatchArenaId, setFilterMatchArenaId] = useState<string>('ALL');
+  // note: filterMatchCategory and filterSuper8Round already declared above
+
+  // 4. Resultados / WO
+  const [selectedResultTournamentId, setSelectedResultTournamentId] = useState<string>('');
+  const [searchResultTournamentTerm, setSearchResultTournamentTerm] = useState<string>('');
+  const [filterResultStatus, setFilterResultStatus] = useState<'ALL' | 'VIGENTE' | 'EXPIRADO'>('ALL');
+  const [filterResultArenaId, setFilterResultArenaId] = useState<string>('ALL');
+  const [filterResultCategory, setFilterResultCategory] = useState<string>('ALL');
+
+  // 5. Relatórios
+  const [selectedReportTournamentId, setSelectedReportTournamentId] = useState<string>('');
+  const [searchReportTournamentTerm, setSearchReportTournamentTerm] = useState<string>('');
+  const [filterReportStatus, setFilterReportStatus] = useState<'ALL' | 'VIGENTE' | 'EXPIRADO'>('ALL');
+  const [filterReportArenaId, setFilterReportArenaId] = useState<string>('ALL');
+  const [filterReportCategory, setFilterReportCategory] = useState<string>('ALL');
+
+  // Central Navigation Handler: Always resets tournament search and selection when clicking sidebar
+  const handleNavTab = (tab: 'dashboard' | 'athletes' | 'arenas' | 'venues' | 'categories' | 'tournaments' | 'registrations' | 'duos' | 'matches' | 'results' | 'reports' | 'settings') => {
+    setActiveTab(tab);
+    if (tab === 'registrations') {
+      setSelectedRegTournamentId('');
+      setSearchRegTournamentTerm('');
+      setFilterRegCategory('ALL');
+      setFilterRegStatus('ALL');
+      setFilterRegPaymentStatus('ALL');
+      setSearchRegAthleteTerm('');
+    } else if (tab === 'duos') {
+      setSelectedDuoTournamentId('');
+      setSearchDuoTournamentTerm('');
+      setFilterDuoStatus('ALL');
+      setFilterDuoArenaId('ALL');
+      setFilterDuoCategory('ALL');
+    } else if (tab === 'matches') {
+      setSelectedMatchTournamentId('');
+      setSearchMatchTournamentTerm('');
+      setFilterMatchStatus('ALL');
+      setFilterMatchArenaId('ALL');
+      setFilterMatchCategory('ALL');
+      setFilterSuper8Round('ALL');
+    } else if (tab === 'results') {
+      setSelectedResultTournamentId('');
+      setSearchResultTournamentTerm('');
+      setFilterResultStatus('ALL');
+      setFilterResultArenaId('ALL');
+      setFilterResultCategory('ALL');
+    } else if (tab === 'reports') {
+      setSelectedReportTournamentId('');
+      setSearchReportTournamentTerm('');
+      setFilterReportStatus('ALL');
+      setFilterReportArenaId('ALL');
+      setFilterReportCategory('ALL');
+    }
+  };
+
+  const isTournamentVigente = (t?: Tournament | null) => {
+    if (!t) return false;
+    if (t.status === 'FINALIZADO') {
+      return false;
+    }
+    if (!t.endDate) return true;
+    const today = new Date().toISOString().split('T')[0];
+    return t.endDate >= today;
+  };
 
   // Load session from localStorage
   useEffect(() => {
@@ -1305,9 +1431,15 @@ export default function Home() {
   };
 
   // Dynamic Registrations CRUD
-  const handleOpenRegistrationCreate = () => {
+  const handleOpenRegistrationCreate = (targetTourId?: string) => {
+    const tId = targetTourId || selectedRegTournamentId || tournaments[0]?.id || '';
+    const tour = tournaments.find(t => t.id === tId);
+    if (tour && !isTournamentVigente(tour)) {
+      showError(`Inscrições encerradas. O período vigente deste torneio expirou em ${new Date(tour.endDate).toLocaleDateString('pt-BR')}. Não é permitido inscrever atletas após o término. Gere uma nova edição deste torneio.`);
+      return;
+    }
     setRegForm({
-      tournamentId: tournaments[0]?.id || '',
+      tournamentId: tId,
       categoryId: '',
       selectedAthleteIds: [],
       status: 'PENDENTE_PAGAMENTO'
@@ -1318,9 +1450,16 @@ export default function Home() {
   const handleCreateRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!regForm.tournamentId || !regForm.categoryId || regForm.selectedAthleteIds.length === 0) {
-      showError('Por favor selecione pelo menos um atleta.');
+      showError('Por favor selecione o torneio, a categoria e pelo menos um atleta.');
       return;
     }
+
+    const targetTour = tournaments.find(t => t.id === regForm.tournamentId);
+    if (targetTour && !isTournamentVigente(targetTour)) {
+      showError(`Inscrições encerradas. O período vigente deste torneio expirou em ${new Date(targetTour.endDate).toLocaleDateString('pt-BR')}. Gere uma nova edição.`);
+      return;
+    }
+
     try {
       const results = await Promise.all(
         regForm.selectedAthleteIds.map(async (athleteId) => {
@@ -1385,9 +1524,9 @@ export default function Home() {
   };
 
   // Dynamic Duos CRUD
-  const handleOpenDuoCreate = () => {
+  const handleOpenDuoCreate = (tourId?: string) => {
     setDuoForm({
-      tournamentId: tournaments[0]?.id || '',
+      tournamentId: tourId || selectedDuoTournamentId || tournaments[0]?.id || '',
       categoryId: '',
       player1Id: '',
       player2Id: ''
@@ -1438,9 +1577,9 @@ export default function Home() {
   };
 
   // Dynamic Matches CRUD & Generator
-  const handleOpenMatchCreate = () => {
+  const handleOpenMatchCreate = (tourId?: string) => {
     setMatchForm({
-      tournamentId: tournaments[0]?.id || '',
+      tournamentId: tourId || selectedMatchTournamentId || tournaments[0]?.id || '',
       categoryId: '',
       stage: 'Fase de Grupos',
       groupName: 'Grupo Único',
@@ -1490,9 +1629,9 @@ export default function Home() {
     );
   };
 
-  const handleOpenGenMatches = () => {
+  const handleOpenGenMatches = (tourId?: string) => {
     setGenForm({
-      tournamentId: tournaments[0]?.id || '',
+      tournamentId: tourId || selectedMatchTournamentId || tournaments[0]?.id || '',
       categoryId: '',
       date: new Date().toISOString().split('T')[0],
       court: 'Quadra 1'
@@ -1521,10 +1660,24 @@ export default function Home() {
   // Persisted Scoring & WO handlers
   const handleLaunchResult = (match: any) => {
     setSelectedMatch(match);
-    setResultForm({
-      score: '6/4 6/3',
-      winnerDuoId: match.duo1Id
-    });
+    const isSuper8 = match.format === 'SUPER_8' || match.isSuper8 || !!match.teamA;
+    if (isSuper8) {
+      setResultForm({
+        score: match.score || '4 x 2',
+        winnerDuoId: match.duo1Id || '',
+        scoreA: match.scoreA !== undefined ? match.scoreA : 4,
+        scoreB: match.scoreB !== undefined ? match.scoreB : 2,
+        winnerTeam: match.winnerTeam || 'TEAM_A'
+      });
+    } else {
+      setResultForm({
+        score: match.score || '6/4 6/3',
+        winnerDuoId: match.duo1Id || '',
+        scoreA: 4,
+        scoreB: 2,
+        winnerTeam: 'TEAM_A'
+      });
+    }
     setIsResultModalOpen(true);
   };
 
@@ -1532,14 +1685,23 @@ export default function Home() {
     e.preventDefault();
     if (!selectedMatch) return;
     try {
+      const isSuper8 = selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || !!selectedMatch.teamA;
+      const payload = isSuper8 ? {
+        score: `${resultForm.scoreA} x ${resultForm.scoreB}`,
+        scoreA: resultForm.scoreA,
+        scoreB: resultForm.scoreB,
+        winnerTeam: resultForm.scoreA > resultForm.scoreB ? 'TEAM_A' : 'TEAM_B',
+        isWO: false
+      } : {
+        score: resultForm.score,
+        winnerDuoId: resultForm.winnerDuoId,
+        isWO: false
+      };
+
       const res = await fetch(`/api/matches/${selectedMatch.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          score: resultForm.score,
-          winnerDuoId: resultForm.winnerDuoId,
-          isWO: false
-        })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar resultado.');
@@ -1553,8 +1715,10 @@ export default function Home() {
 
   const handleToggleWO = (match: any) => {
     setSelectedMatch(match);
+    const isSuper8 = match.format === 'SUPER_8' || match.isSuper8 || !!match.teamA;
     setWoForm({
-      winnerDuoId: match.duo1Id
+      winnerDuoId: match.duo1Id || '',
+      winnerTeam: isSuper8 ? 'TEAM_A' : 'TEAM_A'
     });
     setIsWoModalOpen(true);
   };
@@ -1563,17 +1727,23 @@ export default function Home() {
     e.preventDefault();
     if (!selectedMatch) return;
     try {
+      const isSuper8 = selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || !!selectedMatch.teamA;
+      const payload = isSuper8 ? {
+        winnerTeam: woForm.winnerTeam,
+        isWO: true
+      } : {
+        winnerDuoId: woForm.winnerDuoId,
+        isWO: true
+      };
+
       const res = await fetch(`/api/matches/${selectedMatch.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          winnerDuoId: woForm.winnerDuoId,
-          isWO: true
-        })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar WO.');
-      showSuccess('Partida encerrada por WO.');
+      showSuccess('W.O. registrado com sucesso!');
       setIsWoModalOpen(false);
       fetchData();
     } catch (err: any) {
@@ -1863,7 +2033,7 @@ export default function Home() {
             </div>
 
             <button 
-              onClick={() => setActiveTab('tournaments')}
+              onClick={() => handleNavTab('tournaments')}
               className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'tournaments' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
             >
               <Trophy className="w-4 h-4 shrink-0 text-emerald-400" />
@@ -1871,7 +2041,7 @@ export default function Home() {
             </button>
 
             <button 
-              onClick={() => setActiveTab('registrations')}
+              onClick={() => handleNavTab('registrations')}
               className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'registrations' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
             >
               <ClipboardList className="w-4 h-4 shrink-0 text-emerald-400" />
@@ -1879,7 +2049,7 @@ export default function Home() {
             </button>
 
             <button 
-              onClick={() => setActiveTab('duos')}
+              onClick={() => handleNavTab('duos')}
               className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'duos' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
             >
               <UserCheck className="w-4 h-4 shrink-0 text-emerald-400" />
@@ -1887,7 +2057,7 @@ export default function Home() {
             </button>
 
             <button 
-              onClick={() => setActiveTab('matches')}
+              onClick={() => handleNavTab('matches')}
               className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'matches' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
             >
               <Calendar className="w-4 h-4 shrink-0 text-emerald-400" />
@@ -1895,7 +2065,7 @@ export default function Home() {
             </button>
 
             <button 
-              onClick={() => setActiveTab('results')}
+              onClick={() => handleNavTab('results')}
               className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'results' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
             >
               <Award className="w-4 h-4 shrink-0 text-amber-400" />
@@ -1903,7 +2073,7 @@ export default function Home() {
             </button>
 
             <button 
-              onClick={() => setActiveTab('reports')}
+              onClick={() => handleNavTab('reports')}
               className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'reports' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
             >
               <TrendingUp className="w-4 h-4 shrink-0 text-emerald-400" />
@@ -1911,7 +2081,7 @@ export default function Home() {
             </button>
 
             <button 
-              onClick={() => setActiveTab('settings')}
+              onClick={() => handleNavTab('settings')}
               className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'settings' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
             >
               <Settings className="w-4 h-4 shrink-0 text-slate-400" />
@@ -3017,344 +3187,2499 @@ export default function Home() {
 
               {/* VIEW 6: INSCRIÇÕES */}
               {activeTab === 'registrations' && (
-                <motion.div key="reg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                    <div>
-                      <h2 className="text-lg font-black text-white flex items-center gap-2">
-                        <ClipboardList className="w-5 h-5 text-emerald-400" />
-                        Inscrições de Atletas
-                      </h2>
-                      <p className="text-xs text-slate-400">Controle de inscrições de atletas em torneios, confirmação e pagamento.</p>
-                    </div>
-                    <button 
-                      onClick={handleOpenRegistrationCreate}
-                      className="flex items-center gap-2 py-2 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-md shadow-emerald-500/20"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Inscrever Atleta
-                    </button>
-                  </div>
+                <motion.div key="reg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
+                  {!selectedRegTournamentId ? (
+                    /* PASSO 1: TELA DE BUSCA E SELEÇÃO DE TORNEIO */
+                    <div className="space-y-5">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
+                        <div>
+                          <h2 className="text-lg font-black text-white flex items-center gap-2">
+                            <ClipboardList className="w-5 h-5 text-emerald-400" />
+                            Inscrições de Atletas · Selecionar Edição do Torneio
+                          </h2>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            Selecione a edição do torneio abaixo para visualizar a lista de atletas inscritos e cadastrar novas inscrições.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {session.role === 'SUPER_ADMIN' ? (
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1.5">
+                              <Shield className="w-3.5 h-3.5" /> Super Admin · Todas as Arenas
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                              <Building className="w-3.5 h-3.5" /> Organização · {selectedArena?.name || session.name}
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-                  <div className="bg-[#0d1424] border border-slate-800 rounded-2xl overflow-hidden shadow-md">
-                    <table className="w-full text-left border-collapse text-xs">
-                      <thead>
-                        <tr className="bg-slate-800/40 border-b border-slate-800 text-slate-400 font-bold uppercase text-[11px]">
-                          <th className="p-4">Atleta</th>
-                          <th className="p-4">Categoria</th>
-                          <th className="p-4">Torneio</th>
-                          <th className="p-4">Data Inscrição</th>
-                          <th className="p-4">Status</th>
-                          <th className="p-4 text-right">Ação</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60">
-                        {registrations.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="p-12 text-center text-slate-400">Nenhuma inscrição ativa cadastrada.</td>
-                          </tr>
-                        ) : (
-                          registrations.map(r => (
-                            <tr key={r.id} className="hover:bg-slate-800/30 transition">
-                              <td className="p-4 font-bold text-white">{r.athleteName}</td>
-                              <td className="p-4 font-semibold text-emerald-300">{r.categoryName}</td>
-                              <td className="p-4 text-slate-300">{r.tournamentName}</td>
-                              <td className="p-4 font-mono text-slate-400">{new Date(r.createdAt).toLocaleDateString('pt-BR')}</td>
-                              <td className="p-4">
-                                {r.status === 'CONFIRMADA' ? (
-                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wide">
-                                    Confirmada
-                                  </span>
-                                ) : r.status === 'PENDENTE_PAGAMENTO' ? (
-                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-500/10 text-amber-400 border border-amber-500/30 uppercase tracking-wide">
-                                    Pendente de Pagamento
+                      {/* Filtro e Busca de Torneios */}
+                      <div className="bg-[#0d1424] border border-slate-800 p-4 rounded-2xl space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                          <div className="relative md:col-span-6">
+                            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <input 
+                              type="text"
+                              placeholder="Buscar torneio por nome da edição ou série..."
+                              value={searchRegTournamentTerm}
+                              onChange={(e) => setSearchRegTournamentTerm(e.target.value)}
+                              className="w-full bg-[#090e1a] border border-slate-700/80 pl-10 pr-4 py-2.5 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                            />
+                          </div>
+
+                          {session.role === 'SUPER_ADMIN' && (
+                            <div className="md:col-span-3">
+                              <select 
+                                value={filterRegArenaId} 
+                                onChange={(e) => setFilterRegArenaId(e.target.value)}
+                                className="w-full bg-[#090e1a] border border-slate-700/80 p-2.5 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                              >
+                                <option value="ALL">Todas as Arenas ({arenas.length})</option>
+                                {arenas.map(a => (
+                                  <option key={a.id} value={a.id}>{a.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          <div className={session.role === 'SUPER_ADMIN' ? "md:col-span-3" : "md:col-span-6"}>
+                            <div className="flex rounded-xl bg-[#090e1a] p-1 border border-slate-800 text-xs">
+                              <button
+                                type="button"
+                                onClick={() => setFilterRegStatus('ALL')}
+                                className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
+                                  filterRegStatus === 'ALL'
+                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                    : 'text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                Todos ({tournaments.length})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFilterRegStatus('VIGENTE')}
+                                className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
+                                  filterRegStatus === 'VIGENTE'
+                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                    : 'text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                🟢 Vigentes ({tournaments.filter(t => isTournamentVigente(t)).length})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFilterRegStatus('EXPIRADO')}
+                                className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
+                                  filterRegStatus === 'EXPIRADO'
+                                    ? 'bg-rose-500 text-white shadow-sm'
+                                    : 'text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                🔴 Expirados ({tournaments.filter(t => !isTournamentVigente(t)).length})
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Lista de Cards de Torneios */}
+                      {(() => {
+                        const filteredTournaments = tournaments.filter(t => {
+                          const matchesSearch = 
+                            t.name.toLowerCase().includes(searchRegTournamentTerm.toLowerCase()) ||
+                            t.seriesName.toLowerCase().includes(searchRegTournamentTerm.toLowerCase());
+                          
+                          const matchesArena = 
+                            filterRegArenaId === 'ALL' || t.arenaId === filterRegArenaId;
+
+                          const vigente = isTournamentVigente(t);
+                          const matchesStatus = 
+                            filterRegStatus === 'ALL' ||
+                            (filterRegStatus === 'VIGENTE' && vigente) ||
+                            (filterRegStatus === 'EXPIRADO' && !vigente);
+
+                          return matchesSearch && matchesArena && matchesStatus;
+                        });
+
+                        if (filteredTournaments.length === 0) {
+                          return (
+                            <div className="p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
+                              <ClipboardList className="w-10 h-10 text-slate-600 mx-auto" />
+                              <p className="font-semibold text-slate-300">Nenhum torneio encontrado para seleção.</p>
+                              <p className="text-xs text-slate-500">
+                                {searchRegTournamentTerm ? 'Tente ajustar os termos da busca.' : 'Crie uma nova edição de torneio na aba Torneios.'}
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                            {filteredTournaments.map(t => {
+                              const vigente = isTournamentVigente(t);
+                              const arenaName = arenas.find(a => a.id === t.arenaId)?.name || 'Arena';
+                              const tourRegistrations = registrations.filter(r => r.tournamentId === t.id && r.status !== 'CANCELADA');
+                              const confirmedCount = tourRegistrations.filter(r => r.status === 'CONFIRMADA').length;
+                              const tourCats = categories.filter(c => c.tournamentId === t.id);
+
+                              return (
+                                <div 
+                                  key={t.id} 
+                                  className={`bg-[#0d1424] border rounded-2xl p-5 space-y-4 transition shadow-sm hover:shadow-md flex flex-col justify-between ${
+                                    vigente 
+                                      ? 'border-slate-800/80 hover:border-emerald-500/40' 
+                                      : 'border-rose-950/60 bg-[#0d1424]/80'
+                                  }`}
+                                >
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                      <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                        {t.seriesName}
+                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                          🏟️ {arenaName}
+                                        </span>
+                                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                                          t.isDuo 
+                                            ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
+                                            : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                        }`}>
+                                          {t.isDuo ? 'Duplas' : 'Super 8 Indiv.'}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <h3 className="text-base font-black text-white">{t.name}</h3>
+                                      <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1 font-mono">
+                                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                        <span>{new Date(t.startDate).toLocaleDateString('pt-BR')} até {new Date(t.endDate).toLocaleDateString('pt-BR')}</span>
+                                      </p>
+                                    </div>
+
+                                    <div>
+                                      {vigente ? (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                          🟢 Período Vigente (Inscrições Abertas)
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">
+                                          🔴 Inscrições Encerradas (Expirou em {new Date(t.endDate).toLocaleDateString('pt-BR')})
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Métricas rápidas */}
+                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
+                                        <span className="text-slate-400 block text-[10px]">Inscritos:</span>
+                                        <strong className="text-white font-mono text-sm">{tourRegistrations.length}</strong>
+                                        <span className="text-[10px] text-emerald-400 ml-1">({confirmedCount} conf.)</span>
+                                      </div>
+                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
+                                        <span className="text-slate-400 block text-[10px]">Categorias:</span>
+                                        <strong className="text-amber-300 font-mono text-sm">{tourCats.length}</strong>
+                                        <span className="text-[10px] text-slate-400 ml-1">ativas</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="pt-3 border-t border-slate-800/80 space-y-2">
+                                    <button 
+                                      type="button"
+                                      onClick={() => setSelectedRegTournamentId(t.id)}
+                                      className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                                    >
+                                      <span>Acessar Inscrições</span>
+                                      <ArrowRight className="w-3.5 h-3.5" />
+                                    </button>
+
+                                    {vigente ? (
+                                      <button 
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedRegTournamentId(t.id);
+                                          handleOpenRegistrationCreate(t.id);
+                                        }}
+                                        className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-emerald-400 font-bold rounded-xl text-xs border border-slate-800 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                                      >
+                                        <Plus className="w-3.5 h-3.5" /> Inscrever Novo Atleta
+                                      </button>
+                                    ) : (
+                                      <p className="text-[10px] text-slate-500 text-center italic py-1">
+                                        Período encerrado. Gere uma nova edição para receber inscrições.
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    /* PASSO 2: TABELA DE INSCRITOS DO TORNEIO SELECIONADO */
+                    (() => {
+                      const currentTour = tournaments.find(t => t.id === selectedRegTournamentId);
+                      const isVigente = isTournamentVigente(currentTour);
+                      const currentArenaName = arenas.find(a => a.id === currentTour?.arenaId)?.name || 'Arena';
+                      const tourCategories = categories.filter(c => c.tournamentId === selectedRegTournamentId);
+
+                      // Registrations filtered by this tournament
+                      const tourRegs = registrations.filter(r => {
+                        if (r.tournamentId !== selectedRegTournamentId) return false;
+                        if (filterRegCategory !== 'ALL' && r.categoryId !== filterRegCategory) return false;
+                        if (filterRegPaymentStatus !== 'ALL' && r.status !== filterRegPaymentStatus) return false;
+                        if (searchRegAthleteTerm && !r.athleteName.toLowerCase().includes(searchRegAthleteTerm.toLowerCase())) return false;
+                        return true;
+                      });
+
+                      return (
+                        <div className="space-y-4">
+                          {/* Banner de Identificação do Torneio Selecionado */}
+                          <div className="bg-[#0d1424] border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedRegTournamentId('');
+                                    setFilterRegCategory('ALL');
+                                    setFilterRegPaymentStatus('ALL');
+                                  }}
+                                  className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition border border-slate-700 cursor-pointer"
+                                >
+                                  <ArrowLeft className="w-3.5 h-3.5" /> Trocar de Torneio
+                                </button>
+                                <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                  {currentTour?.seriesName}
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                  🏟️ {currentArenaName}
+                                </span>
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                                  currentTour?.isDuo 
+                                    ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
+                                    : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                }`}>
+                                  {currentTour?.isDuo ? 'Duplas' : 'Super 8 Individual'}
+                                </span>
+                              </div>
+
+                              <h2 className="text-xl font-black text-white">{currentTour?.name}</h2>
+
+                              <div className="flex items-center gap-3 flex-wrap text-xs text-slate-400">
+                                <span className="font-mono flex items-center gap-1">
+                                  <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                  {currentTour?.startDate && new Date(currentTour.startDate).toLocaleDateString('pt-BR')} até {currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')}
+                                </span>
+                                {isVigente ? (
+                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                    🟢 Período Vigente (Inscrições Abertas)
                                   </span>
                                 ) : (
-                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-500/10 text-rose-400 border border-rose-500/30 uppercase tracking-wide">
-                                    Cancelada
+                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">
+                                    🔴 Inscrições Encerradas (Expirou em {currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')})
                                   </span>
                                 )}
-                              </td>
-                              <td className="p-4 text-right">
-                                <div className="flex justify-end gap-2 items-center">
-                                  {r.status === 'PENDENTE_PAGAMENTO' && (
-                                    <button 
-                                      onClick={() => handleUpdateRegistrationStatus(r.id, 'CONFIRMADA')}
-                                      className="py-1 px-2.5 bg-emerald-500 text-slate-950 font-bold rounded-lg text-[10px] hover:bg-emerald-400 transition flex items-center gap-1 shadow-sm"
-                                      title="Confirmar Pagamento e Inscrição"
-                                    >
-                                      <Check className="w-3 h-3" /> Confirmar Pagamento
-                                    </button>
-                                  )}
-                                  {r.status === 'CONFIRMADA' && (
-                                    <button 
-                                      onClick={() => handleUpdateRegistrationStatus(r.id, 'PENDENTE_PAGAMENTO')}
-                                      className="py-1 px-2 bg-slate-800 text-amber-400 hover:text-white rounded-lg text-[10px] font-bold transition flex items-center gap-1"
-                                      title="Mudar Status para Pendente de Pagamento"
-                                    >
-                                      <AlertCircle className="w-3 h-3" /> Marcar Pendente
-                                    </button>
-                                  )}
-                                  {r.status !== 'CANCELADA' && (
-                                    <button 
-                                      onClick={() => handleCancelRegistration(r.id)}
-                                      className="p-1.5 text-slate-500 hover:text-rose-400 rounded hover:bg-rose-950/20 transition"
-                                      title="Cancelar Inscrição"
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </button>
-                                  )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 flex-wrap">
+                              {/* Seletor Rápido de Torneio */}
+                              <select 
+                                value={selectedRegTournamentId} 
+                                onChange={(e) => {
+                                  setSelectedRegTournamentId(e.target.value);
+                                  setFilterRegCategory('ALL');
+                                }}
+                                className="bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-semibold"
+                              >
+                                {tournaments.map(t => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.name} {t.seriesName ? `· ${t.seriesName}` : ''} ({isTournamentVigente(t) ? '🟢' : '🔴'})
+                                  </option>
+                                ))}
+                              </select>
+
+                              {/* Botão Inscrever */}
+                              {isVigente ? (
+                                <button 
+                                  onClick={() => handleOpenRegistrationCreate(selectedRegTournamentId)}
+                                  className="flex items-center gap-2 py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-md shadow-emerald-500/20 cursor-pointer"
+                                >
+                                  <Plus className="w-3.5 h-3.5" /> Inscrever Atleta
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={() => showError(`Inscrições encerradas. O período vigente deste torneio expirou em ${currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')}. Não é mais permitido registrar inscrições nesta edição. Gere uma nova edição para receber inscrições.`)}
+                                  className="flex items-center gap-2 py-2.5 px-4 bg-slate-800 text-slate-400 font-bold rounded-xl text-xs border border-slate-700 hover:bg-slate-750 transition cursor-pointer"
+                                  title="Período expirado"
+                                >
+                                  <AlertCircle className="w-3.5 h-3.5 text-amber-400" /> Inscrições Fechadas
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Alerta de Período Expirado caso não seja vigente */}
+                          {!isVigente && (
+                            <div className="p-3.5 bg-rose-950/40 border border-rose-500/30 rounded-2xl text-rose-300 text-xs flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-2.5">
+                                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                                <span>
+                                  <strong>Atenção:</strong> O período vigente deste torneio encerrou em {currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')}. Novas inscrições estão bloqueadas. Para continuar cadastrando atletas, gere uma nova edição deste torneio.
+                                </span>
+                              </div>
+                              <button 
+                                onClick={handleOpenTournamentCreate}
+                                className="py-1 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-[11px] shrink-0 transition cursor-pointer"
+                              >
+                                Criar Nova Edição
+                              </button>
+                            </div>
+                          )}
+
+                          {/* SEGUNDO FILTRO: CATEGORIAS DO TORNEIO (Quando possui mais de 1 categoria) */}
+                          {tourCategories.length > 1 ? (
+                            <div className="bg-[#0d1424] border border-emerald-500/30 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                  <Layers className="w-4 h-4" />
                                 </div>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                                <div>
+                                  <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Filtro de Categoria</span>
+                                  <p className="text-xs text-slate-300 font-bold">Este torneio possui {tourCategories.length} categorias. Selecione a categoria que deseja visualizar:</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => setFilterRegCategory('ALL')}
+                                  className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                    filterRegCategory === 'ALL'
+                                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                      : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                  }`}
+                                >
+                                  <span>Todas as Categorias</span>
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                    {registrations.filter(r => r.tournamentId === selectedRegTournamentId && r.status !== 'CANCELADA').length}
+                                  </span>
+                                </button>
+                                {tourCategories.map(cat => {
+                                  const catCount = registrations.filter(r => r.tournamentId === selectedRegTournamentId && r.categoryId === cat.id && r.status !== 'CANCELADA').length;
+                                  return (
+                                    <button
+                                      key={cat.id}
+                                      type="button"
+                                      onClick={() => setFilterRegCategory(cat.id)}
+                                      className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                        filterRegCategory === cat.id
+                                          ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                          : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                      }`}
+                                    >
+                                      <span>{cat.type} {cat.level} {cat.name ? `(${cat.name})` : ''}</span>
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                        {catCount}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : tourCategories.length === 1 ? (
+                            <div className="bg-[#0d1424] border border-slate-800 p-3 rounded-xl flex items-center justify-between text-xs text-slate-300">
+                              <span className="flex items-center gap-2">
+                                <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                                Categoria Única: <strong className="text-white">{tourCategories[0].type} {tourCategories[0].level} {tourCategories[0].name ? `(${tourCategories[0].name})` : ''}</strong>
+                              </span>
+                              <span className="text-slate-500 text-[11px] font-mono">1 categoria configurada</span>
+                            </div>
+                          ) : null}
+
+                          {/* Barra de Filtros Interna da Tabela */}
+                          <div className="bg-[#0d1424] border border-slate-800 p-3.5 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                            <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
+                              <div className="relative flex-1 sm:flex-none">
+                                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <input 
+                                  type="text"
+                                  placeholder="Filtrar atleta..."
+                                  value={searchRegAthleteTerm}
+                                  onChange={(e) => setSearchRegAthleteTerm(e.target.value)}
+                                  className="bg-[#090e1a] border border-slate-700/80 pl-8 pr-3 py-1.5 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                                />
+                              </div>
+
+                              <select 
+                                value={filterRegCategory} 
+                                onChange={(e) => setFilterRegCategory(e.target.value)}
+                                className="bg-[#090e1a] border border-slate-700/80 py-1.5 px-3 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                              >
+                                <option value="ALL">Todas as Categorias ({tourCategories.length})</option>
+                                {tourCategories.map(c => (
+                                  <option key={c.id} value={c.id}>{c.type} {c.level} {c.name ? `(${c.name})` : ''}</option>
+                                ))}
+                              </select>
+
+                              <select 
+                                value={filterRegPaymentStatus} 
+                                onChange={(e) => setFilterRegPaymentStatus(e.target.value)}
+                                className="bg-[#090e1a] border border-slate-700/80 py-1.5 px-3 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                              >
+                                <option value="ALL">Todos os Status</option>
+                                <option value="CONFIRMADA">Confirmadas</option>
+                                <option value="PENDENTE_PAGAMENTO">Pendentes</option>
+                                <option value="CANCELADA">Canceladas</option>
+                              </select>
+                            </div>
+
+                            <span className="text-xs text-slate-400 font-medium">
+                              Inscrições nesta edição: <strong className="text-white font-mono">{tourRegs.length}</strong>
+                            </span>
+                          </div>
+
+                          {/* Tabela de Inscrições */}
+                          <div className="bg-[#0d1424] border border-slate-800 rounded-2xl overflow-hidden shadow-md">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-slate-800/40 border-b border-slate-800 text-slate-400 font-bold uppercase text-[11px]">
+                                  <th className="p-4">Atleta</th>
+                                  <th className="p-4">Categoria</th>
+                                  <th className="p-4">Data Inscrição</th>
+                                  <th className="p-4">Status</th>
+                                  <th className="p-4 text-right">Ação</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-800/60">
+                                {tourRegs.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={5} className="p-12 text-center text-slate-400 space-y-2">
+                                      <p className="font-semibold text-slate-300">Nenhuma inscrição encontrada para este torneio.</p>
+                                      {isVigente && (
+                                        <button 
+                                          type="button"
+                                          onClick={() => handleOpenRegistrationCreate(selectedRegTournamentId)}
+                                          className="text-xs text-emerald-400 hover:underline"
+                                        >
+                                          + Clique aqui para inscrever o primeiro atleta
+                                        </button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  tourRegs.map(r => (
+                                    <tr key={r.id} className="hover:bg-slate-800/30 transition">
+                                      <td className="p-4 font-bold text-white">{r.athleteName}</td>
+                                      <td className="p-4 font-semibold text-emerald-300">{r.categoryName}</td>
+                                      <td className="p-4 font-mono text-slate-400">{new Date(r.createdAt).toLocaleDateString('pt-BR')}</td>
+                                      <td className="p-4">
+                                        {r.status === 'CONFIRMADA' ? (
+                                          <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wide">
+                                            Confirmada
+                                          </span>
+                                        ) : r.status === 'PENDENTE_PAGAMENTO' ? (
+                                          <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-500/10 text-amber-400 border border-amber-500/30 uppercase tracking-wide">
+                                            Pendente de Pagamento
+                                          </span>
+                                        ) : (
+                                          <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-500/10 text-rose-400 border border-rose-500/30 uppercase tracking-wide">
+                                            Cancelada
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td className="p-4 text-right">
+                                        <div className="flex justify-end gap-2 items-center">
+                                          {r.status === 'PENDENTE_PAGAMENTO' && (
+                                            <button 
+                                              onClick={() => handleUpdateRegistrationStatus(r.id, 'CONFIRMADA')}
+                                              className="py-1 px-2.5 bg-emerald-500 text-slate-950 font-bold rounded-lg text-[10px] hover:bg-emerald-400 transition flex items-center gap-1 shadow-sm cursor-pointer"
+                                              title="Confirmar Pagamento e Inscrição"
+                                            >
+                                              <Check className="w-3 h-3" /> Confirmar Pagamento
+                                            </button>
+                                          )}
+                                          {r.status === 'CONFIRMADA' && (
+                                            <button 
+                                              onClick={() => handleUpdateRegistrationStatus(r.id, 'PENDENTE_PAGAMENTO')}
+                                              className="py-1 px-2 bg-slate-800 text-amber-400 hover:text-white rounded-lg text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
+                                              title="Mudar Status para Pendente de Pagamento"
+                                            >
+                                              <AlertCircle className="w-3 h-3" /> Marcar Pendente
+                                            </button>
+                                          )}
+                                          {r.status !== 'CANCELADA' && (
+                                            <button 
+                                              onClick={() => handleCancelRegistration(r.id)}
+                                              className="p-1.5 text-slate-500 hover:text-rose-400 rounded hover:bg-rose-950/20 transition cursor-pointer"
+                                              title="Cancelar Inscrição"
+                                            >
+                                              <X className="w-4 h-4" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  )}
                 </motion.div>
               )}
 
               {/* VIEW 7: DUPLAS */}
               {activeTab === 'duos' && (
                 <motion.div key="duos_view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
-                    <div>
-                      <h2 className="text-lg font-black text-white flex items-center gap-2">
-                        <Users className="w-5 h-5 text-emerald-400" /> Formação de Duplas
-                      </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">Duplas formadas por categoria para competições oficiais.</p>
-                    </div>
-                    <button 
-                      onClick={handleOpenDuoCreate}
-                      className="flex items-center gap-2 py-2 px-4 bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs hover:bg-emerald-400 transition shadow-md shadow-emerald-500/10 cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" /> Formar Dupla
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {duos.filter(d => tournaments.find(t => t.id === d.tournamentId)?.isDuo !== false).length === 0 ? (
-                      <div className="col-span-full p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
-                        <Users className="w-10 h-10 text-slate-600 mx-auto" />
-                        <p className="font-semibold text-slate-300">Nenhuma dupla formada no momento.</p>
-                        <p className="text-xs text-slate-500">Clique no botão acima para combinar dois atletas já inscritos na mesma categoria.</p>
+                  {!selectedDuoTournamentId ? (
+                    /* PASSO 1: TELA DE BUSCA E SELEÇÃO DE TORNEIO (DUPLAS) */
+                    <div className="space-y-5">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
+                        <div>
+                          <h2 className="text-lg font-black text-white flex items-center gap-2">
+                            <Users className="w-5 h-5 text-emerald-400" />
+                            Formação de Duplas · Selecionar Edição do Torneio
+                          </h2>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            Selecione a edição do torneio abaixo para visualizar as duplas formadas ou criar novas parcerias.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {session.role === 'SUPER_ADMIN' ? (
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1.5">
+                              <Shield className="w-3.5 h-3.5" /> Super Admin · Todas as Arenas
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                              <Building className="w-3.5 h-3.5" /> Organização · {selectedArena?.name || session.name}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    ) : (
-                      duos.filter(d => tournaments.find(t => t.id === d.tournamentId)?.isDuo !== false).map(d => (
-                        <div key={d.id} className="bg-[#0d1424] border border-slate-800/80 hover:border-slate-700/80 p-5 rounded-2xl flex justify-between items-center transition shadow-sm hover:shadow-md">
-                          <div className="space-y-1">
-                            <span className="text-[10px] font-extrabold text-emerald-300 bg-emerald-950/60 border border-emerald-500/20 px-2.5 py-0.5 rounded uppercase tracking-wider">
-                              {d.categoryName}
-                            </span>
-                            <p className="text-sm font-bold text-white mt-2 flex items-center gap-1.5">
-                              <span>{d.player1Name}</span>
-                              <span className="text-amber-400 font-extrabold">&</span>
-                              <span>{d.player2Name}</span>
-                            </p>
-                            <span className="text-[11px] text-slate-400 block">Torneio: <strong className="text-slate-300">{d.tournamentName}</strong></span>
+
+                      {/* Filtros e Busca de Torneios */}
+                      <div className="bg-[#0d1424] border border-slate-800 p-4 rounded-2xl space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                          <div className="relative md:col-span-6">
+                            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <input 
+                              type="text"
+                              placeholder="Buscar torneio por nome da edição ou série..."
+                              value={searchDuoTournamentTerm}
+                              onChange={(e) => setSearchDuoTournamentTerm(e.target.value)}
+                              className="w-full bg-[#090e1a] border border-slate-700/80 pl-10 pr-4 py-2.5 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                            />
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
-                              {d.status}
-                            </span>
-                            <button 
-                              onClick={() => handleDeleteDuo(d.id)}
-                              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/20 rounded-xl transition"
-                              title="Desfazer Dupla"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+
+                          {session.role === 'SUPER_ADMIN' && (
+                            <div className="md:col-span-3">
+                              <select 
+                                value={filterDuoArenaId} 
+                                onChange={(e) => setFilterDuoArenaId(e.target.value)}
+                                className="w-full bg-[#090e1a] border border-slate-700/80 p-2.5 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                              >
+                                <option value="ALL">Todas as Arenas ({arenas.length})</option>
+                                {arenas.map(a => (
+                                  <option key={a.id} value={a.id}>{a.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          <div className={session.role === 'SUPER_ADMIN' ? "md:col-span-3" : "md:col-span-6"}>
+                            <div className="flex rounded-xl bg-[#090e1a] p-1 border border-slate-800 text-xs">
+                              <button
+                                type="button"
+                                onClick={() => setFilterDuoStatus('ALL')}
+                                className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
+                                  filterDuoStatus === 'ALL'
+                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                    : 'text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                Todos ({tournaments.length})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFilterDuoStatus('VIGENTE')}
+                                className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
+                                  filterDuoStatus === 'VIGENTE'
+                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                    : 'text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                🟢 Vigentes
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFilterDuoStatus('EXPIRADO')}
+                                className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
+                                  filterDuoStatus === 'EXPIRADO'
+                                    ? 'bg-rose-500 text-white shadow-sm'
+                                    : 'text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                🔴 Expirados
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      ))
-                    )}
-                  </div>
+                      </div>
+
+                      {/* Lista de Cards de Torneios */}
+                      {(() => {
+                        const filteredTournaments = tournaments.filter(t => {
+                          const matchesSearch = 
+                            t.name.toLowerCase().includes(searchDuoTournamentTerm.toLowerCase()) ||
+                            t.seriesName.toLowerCase().includes(searchDuoTournamentTerm.toLowerCase());
+                          
+                          const matchesArena = 
+                            filterDuoArenaId === 'ALL' || t.arenaId === filterDuoArenaId;
+
+                          const vigente = isTournamentVigente(t);
+                          const matchesStatus = 
+                            filterDuoStatus === 'ALL' ||
+                            (filterDuoStatus === 'VIGENTE' && vigente) ||
+                            (filterDuoStatus === 'EXPIRADO' && !vigente);
+
+                          return matchesSearch && matchesArena && matchesStatus;
+                        });
+
+                        if (filteredTournaments.length === 0) {
+                          return (
+                            <div className="p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
+                              <Users className="w-10 h-10 text-slate-600 mx-auto" />
+                              <p className="font-semibold text-slate-300">Nenhum torneio encontrado para seleção de duplas.</p>
+                              <p className="text-xs text-slate-500">
+                                {searchDuoTournamentTerm ? 'Tente ajustar os termos da busca.' : 'Cadastre ou aguarde torneios serem criados.'}
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                            {filteredTournaments.map(t => {
+                              const vigente = isTournamentVigente(t);
+                              const arenaName = arenas.find(a => a.id === t.arenaId)?.name || 'Arena';
+                              const tourDuos = duos.filter(d => d.tournamentId === t.id);
+                              const tourCats = categories.filter(c => c.tournamentId === t.id);
+
+                              return (
+                                <div 
+                                  key={t.id} 
+                                  className={`bg-[#0d1424] border rounded-2xl p-5 space-y-4 transition shadow-sm hover:shadow-md flex flex-col justify-between ${
+                                    vigente 
+                                      ? 'border-slate-800/80 hover:border-emerald-500/40' 
+                                      : 'border-slate-800/50 bg-[#0d1424]/80'
+                                  }`}
+                                >
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                      <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                        {t.seriesName}
+                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                          🏟️ {arenaName}
+                                        </span>
+                                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                                          t.isDuo 
+                                            ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
+                                            : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                        }`}>
+                                          {t.isDuo ? 'Duplas' : 'Super 8 Indiv.'}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <h3 className="text-base font-black text-white">{t.name}</h3>
+                                      <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1 font-mono">
+                                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                        <span>{new Date(t.startDate).toLocaleDateString('pt-BR')} até {new Date(t.endDate).toLocaleDateString('pt-BR')}</span>
+                                      </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
+                                        <span className="text-slate-400 block text-[10px]">Duplas Formadas:</span>
+                                        <strong className="text-white font-mono text-sm">
+                                          {t.isDuo ? tourDuos.length : 'N/A (Super 8)'}
+                                        </strong>
+                                      </div>
+                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
+                                        <span className="text-slate-400 block text-[10px]">Categorias:</span>
+                                        <strong className="text-amber-300 font-mono text-sm">{tourCats.length}</strong>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="pt-3 border-t border-slate-800/80">
+                                    <button 
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedDuoTournamentId(t.id);
+                                        setFilterDuoCategory('ALL');
+                                      }}
+                                      className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                                    >
+                                      <span>Acessar Duplas</span>
+                                      <ArrowRight className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    /* PASSO 2: TELA DA EDIÇÃO SELECIONADA (DUPLAS) */
+                    (() => {
+                      const currentTour = tournaments.find(t => t.id === selectedDuoTournamentId);
+                      const isVigente = isTournamentVigente(currentTour);
+                      const currentArenaName = arenas.find(a => a.id === currentTour?.arenaId)?.name || 'Arena';
+                      const tourCategories = categories.filter(c => c.tournamentId === selectedDuoTournamentId);
+
+                      const displayedDuos = duos.filter(d => {
+                        if (d.tournamentId !== selectedDuoTournamentId) return false;
+                        if (filterDuoCategory !== 'ALL' && d.categoryId !== filterDuoCategory) return false;
+                        return true;
+                      });
+
+                      return (
+                        <div className="space-y-4">
+                          {/* Banner de Identificação do Torneio Selecionado */}
+                          <div className="bg-[#0d1424] border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedDuoTournamentId('');
+                                    setFilterDuoCategory('ALL');
+                                  }}
+                                  className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition border border-slate-700 cursor-pointer"
+                                >
+                                  <ArrowLeft className="w-3.5 h-3.5" /> Trocar de Torneio
+                                </button>
+                                <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                  {currentTour?.seriesName}
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                  🏟️ {currentArenaName}
+                                </span>
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                                  currentTour?.isDuo 
+                                    ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
+                                    : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                }`}>
+                                  {currentTour?.isDuo ? 'Duplas' : 'Super 8 Individual'}
+                                </span>
+                              </div>
+
+                              <h2 className="text-xl font-black text-white">{currentTour?.name}</h2>
+
+                              <p className="text-xs text-slate-400 flex items-center gap-2 font-mono">
+                                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                <span>{currentTour?.startDate && new Date(currentTour.startDate).toLocaleDateString('pt-BR')} até {currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')}</span>
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-3 flex-wrap">
+                              {/* Seletor Rápido de Torneio */}
+                              <select 
+                                value={selectedDuoTournamentId} 
+                                onChange={(e) => {
+                                  setSelectedDuoTournamentId(e.target.value);
+                                  setFilterDuoCategory('ALL');
+                                }}
+                                className="bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-semibold"
+                              >
+                                {tournaments.map(t => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.name} {t.seriesName ? `· ${t.seriesName}` : ''} ({isTournamentVigente(t) ? '🟢' : '🔴'})
+                                  </option>
+                                ))}
+                              </select>
+
+                              {currentTour?.isDuo !== false && (
+                                <button 
+                                  onClick={() => handleOpenDuoCreate(selectedDuoTournamentId)}
+                                  className="flex items-center gap-2 py-2.5 px-4 bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs hover:bg-emerald-400 transition shadow-md shadow-emerald-500/10 cursor-pointer"
+                                >
+                                  <Plus className="w-4 h-4" /> Formar Dupla
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* SEGUNDO FILTRO: CATEGORIAS DO TORNEIO (Quando possui mais de 1 categoria) */}
+                          {tourCategories.length > 1 ? (
+                            <div className="bg-[#0d1424] border border-emerald-500/30 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                  <Layers className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Filtro de Categoria</span>
+                                  <p className="text-xs text-slate-300 font-bold">Este torneio possui {tourCategories.length} categorias. Selecione a categoria que deseja visualizar:</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => setFilterDuoCategory('ALL')}
+                                  className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                    filterDuoCategory === 'ALL'
+                                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                      : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                  }`}
+                                >
+                                  <span>Todas as Categorias</span>
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                    {duos.filter(d => d.tournamentId === selectedDuoTournamentId).length}
+                                  </span>
+                                </button>
+                                {tourCategories.map(cat => {
+                                  const catCount = duos.filter(d => d.tournamentId === selectedDuoTournamentId && d.categoryId === cat.id).length;
+                                  return (
+                                    <button
+                                      key={cat.id}
+                                      type="button"
+                                      onClick={() => setFilterDuoCategory(cat.id)}
+                                      className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                        filterDuoCategory === cat.id
+                                          ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                          : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                      }`}
+                                    >
+                                      <span>{cat.type} {cat.level} {cat.name ? `(${cat.name})` : ''}</span>
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                        {catCount}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : tourCategories.length === 1 ? (
+                            <div className="bg-[#0d1424] border border-slate-800 p-3 rounded-xl flex items-center justify-between text-xs text-slate-300">
+                              <span className="flex items-center gap-2">
+                                <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                                Categoria Única: <strong className="text-white">{tourCategories[0].type} {tourCategories[0].level} {tourCategories[0].name ? `(${tourCategories[0].name})` : ''}</strong>
+                              </span>
+                              <span className="text-slate-500 text-[11px] font-mono">1 categoria configurada</span>
+                            </div>
+                          ) : null}
+
+                          {/* Se for Super 8, mostrar aviso esclarecedor */}
+                          {currentTour?.isDuo === false ? (
+                            <div className="p-4 bg-amber-950/30 border border-amber-500/30 rounded-2xl text-amber-300 text-xs flex items-center gap-3">
+                              <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                              <div>
+                                <strong className="block text-sm text-white">Torneio Super 8 (Individual)</strong>
+                                No formato Super 8 não existem duplas fixas cadastradas. As parcerias de duplas são formadas de maneira 100% dinâmica e temporária pelo sistema em cada uma das 7 rodadas. Para visualizar os jogos gerados com cada dupla temporária e o placar, acesse a aba <strong>Jogos / Quadras</strong>.
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {displayedDuos.length === 0 ? (
+                                <div className="col-span-full p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
+                                  <Users className="w-10 h-10 text-slate-600 mx-auto" />
+                                  <p className="font-semibold text-slate-300">Nenhuma dupla encontrada nesta categoria/torneio.</p>
+                                  <p className="text-xs text-slate-500">Clique em &quot;Formar Dupla&quot; acima para combinar dois atletas já inscritos.</p>
+                                </div>
+                              ) : (
+                                displayedDuos.map(d => (
+                                  <div key={d.id} className="bg-[#0d1424] border border-slate-800/80 hover:border-slate-700/80 p-5 rounded-2xl flex justify-between items-center transition shadow-sm hover:shadow-md">
+                                    <div className="space-y-1">
+                                      <span className="text-[10px] font-extrabold text-emerald-300 bg-emerald-950/60 border border-emerald-500/20 px-2.5 py-0.5 rounded uppercase tracking-wider">
+                                        {d.categoryName}
+                                      </span>
+                                      <p className="text-sm font-bold text-white mt-2 flex items-center gap-1.5">
+                                        <span>{d.player1Name}</span>
+                                        <span className="text-amber-400 font-extrabold">&</span>
+                                        <span>{d.player2Name}</span>
+                                      </p>
+                                      <span className="text-[11px] text-slate-400 block">Torneio: <strong className="text-slate-300">{d.tournamentName}</strong></span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+                                        {d.status}
+                                      </span>
+                                      <button 
+                                        onClick={() => handleDeleteDuo(d.id)}
+                                        className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/20 rounded-xl transition cursor-pointer"
+                                        title="Desfazer Dupla"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()
+                  )}
                 </motion.div>
               )}
 
               {/* VIEW 8: JOGOS */}
               {activeTab === 'matches' && (
                 <motion.div key="matches_view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
-                    <div>
-                      <h2 className="text-lg font-black text-white flex items-center gap-2">
-                        <Activity className="w-5 h-5 text-emerald-400" /> Grade de Jogos e Quadras
-                      </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">Grade completa de confrontos agendados por quadra e horário.</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2.5">
-                      <button 
-                        onClick={handleOpenGenMatches}
-                        className="flex items-center gap-2 py-2 px-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-xs transition shadow-md shadow-amber-500/10 cursor-pointer"
-                      >
-                        <Activity className="w-4 h-4" /> Gerar Jogos Automaticamente
-                      </button>
-                      <button 
-                        onClick={handleOpenMatchCreate}
-                        className="flex items-center gap-2 py-2 px-3.5 bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs hover:bg-emerald-400 transition shadow-md shadow-emerald-500/10 cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4" /> Agendar Jogo Manual
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    {matches.length === 0 ? (
-                      <div className="p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
-                        <Activity className="w-10 h-10 text-slate-600 mx-auto" />
-                        <p className="font-semibold text-slate-300">Nenhum jogo agendado.</p>
-                        <p className="text-xs text-slate-500">Utilize o gerador automático acima para criar os confrontos da chave ou agende manualmente.</p>
-                      </div>
-                    ) : (
-                      matches.map(m => (
-                        <div key={m.id} className="bg-[#0d1424] border border-slate-800/80 hover:border-slate-700/80 p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition shadow-sm hover:shadow-md">
-                          <div className="space-y-1.5">
-                            <span className="text-[10px] font-extrabold text-emerald-300 bg-emerald-950/60 border border-emerald-500/20 px-2.5 py-0.5 rounded uppercase tracking-wider">
-                              {m.stage} {m.groupName && `· ${m.groupName}`}
+                  {!selectedMatchTournamentId ? (
+                    /* PASSO 1: TELA DE BUSCA E SELEÇÃO DE TORNEIO (JOGOS) */
+                    <div className="space-y-5">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
+                        <div>
+                          <h2 className="text-lg font-black text-white flex items-center gap-2">
+                            <Activity className="w-5 h-5 text-emerald-400" />
+                            Grade de Jogos e Quadras · Selecionar Edição do Torneio
+                          </h2>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            Selecione a edição do torneio abaixo para visualizar a grade de confrontos, gerar jogos e gerenciar as quadras.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {session.role === 'SUPER_ADMIN' ? (
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1.5">
+                              <Shield className="w-3.5 h-3.5" /> Super Admin · Todas as Arenas
                             </span>
-                            <p className="text-sm font-bold text-white mt-1.5">
-                              {m.duo1Name} <span className="text-amber-400 font-extrabold mx-1">VS</span> {m.duo2Name}
-                            </p>
-                            <p className="text-xs text-slate-400 font-medium">{m.categoryName}</p>
-                            <p className="text-[11px] text-slate-500">Torneio: <strong className="text-slate-400">{m.tournamentName}</strong></p>
+                          ) : (
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                              <Building className="w-3.5 h-3.5" /> Organização · {selectedArena?.name || session.name}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Filtros e Busca de Torneios */}
+                      <div className="bg-[#0d1424] border border-slate-800 p-4 rounded-2xl space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                          <div className="relative md:col-span-6">
+                            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <input 
+                              type="text"
+                              placeholder="Buscar torneio por nome da edição ou série..."
+                              value={searchMatchTournamentTerm}
+                              onChange={(e) => setSearchMatchTournamentTerm(e.target.value)}
+                              className="w-full bg-[#090e1a] border border-slate-700/80 pl-10 pr-4 py-2.5 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                            />
                           </div>
-                          <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                            <div className="text-left sm:text-right text-xs text-slate-400 space-y-1.5">
-                              <div className="flex items-center sm:justify-end gap-2 flex-wrap">
-                                <button 
-                                  type="button"
-                                  onClick={() => handleOpenChangeCourt(m)}
-                                  className="flex items-center gap-1.5 py-1 px-2.5 bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/30 text-emerald-300 rounded-lg text-xs font-mono font-bold transition shadow-sm group"
-                                  title="Clique para transferir esta partida para outra quadra"
-                                >
-                                  <MapPin className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
-                                  <span>{m.court}</span>
-                                  <span className="text-[10px] text-emerald-400/80 font-sans font-medium underline ml-0.5">Trocar</span>
-                                </button>
-                                <span className="font-mono text-slate-300 font-semibold">@ {m.time}</span>
-                              </div>
-                              <div>
-                                <span className={`inline-block text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
-                                  m.status === 'FINALIZADA' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 
-                                  m.status === 'WO' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' : 
-                                  'bg-slate-800/80 text-slate-300 border border-slate-700'
-                                }`}>
-                                  {m.status} {m.score && `(${m.score})`}
-                                </span>
-                              </div>
+
+                          {session.role === 'SUPER_ADMIN' && (
+                            <div className="md:col-span-3">
+                              <select 
+                                value={filterMatchArenaId} 
+                                onChange={(e) => setFilterMatchArenaId(e.target.value)}
+                                className="w-full bg-[#090e1a] border border-slate-700/80 p-2.5 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                              >
+                                <option value="ALL">Todas as Arenas ({arenas.length})</option>
+                                {arenas.map(a => (
+                                  <option key={a.id} value={a.id}>{a.name}</option>
+                                ))}
+                              </select>
                             </div>
-                            <button 
-                              onClick={() => handleDeleteMatch(m.id)}
-                              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/20 rounded-xl transition"
-                              title="Excluir Jogo"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                          )}
+
+                          <div className={session.role === 'SUPER_ADMIN' ? "md:col-span-3" : "md:col-span-6"}>
+                            <div className="flex rounded-xl bg-[#090e1a] p-1 border border-slate-800 text-xs">
+                              <button
+                                type="button"
+                                onClick={() => setFilterMatchStatus('ALL')}
+                                className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
+                                  filterMatchStatus === 'ALL'
+                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                    : 'text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                Todos ({tournaments.length})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFilterMatchStatus('VIGENTE')}
+                                className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
+                                  filterMatchStatus === 'VIGENTE'
+                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                    : 'text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                🟢 Vigentes
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFilterMatchStatus('EXPIRADO')}
+                                className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
+                                  filterMatchStatus === 'EXPIRADO'
+                                    ? 'bg-rose-500 text-white shadow-sm'
+                                    : 'text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                🔴 Expirados
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      ))
+                      </div>
+
+                      {/* Lista de Cards de Torneios */}
+                      {(() => {
+                        const filteredTournaments = tournaments.filter(t => {
+                          const matchesSearch = 
+                            t.name.toLowerCase().includes(searchMatchTournamentTerm.toLowerCase()) ||
+                            t.seriesName.toLowerCase().includes(searchMatchTournamentTerm.toLowerCase());
+                          
+                          const matchesArena = 
+                            filterMatchArenaId === 'ALL' || t.arenaId === filterMatchArenaId;
+
+                          const vigente = isTournamentVigente(t);
+                          const matchesStatus = 
+                            filterMatchStatus === 'ALL' ||
+                            (filterMatchStatus === 'VIGENTE' && vigente) ||
+                            (filterMatchStatus === 'EXPIRADO' && !vigente);
+
+                          return matchesSearch && matchesArena && matchesStatus;
+                        });
+
+                        if (filteredTournaments.length === 0) {
+                          return (
+                            <div className="p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
+                              <Activity className="w-10 h-10 text-slate-600 mx-auto" />
+                              <p className="font-semibold text-slate-300">Nenhum torneio encontrado para jogos.</p>
+                              <p className="text-xs text-slate-500">
+                                {searchMatchTournamentTerm ? 'Tente ajustar os termos da busca.' : 'Aguarde torneios serem criados.'}
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                            {filteredTournaments.map(t => {
+                              const vigente = isTournamentVigente(t);
+                              const arenaName = arenas.find(a => a.id === t.arenaId)?.name || 'Arena';
+                              const tourMatches = matches.filter(m => m.tournamentId === t.id);
+                              const tourCats = categories.filter(c => c.tournamentId === t.id);
+
+                              return (
+                                <div 
+                                  key={t.id} 
+                                  className={`bg-[#0d1424] border rounded-2xl p-5 space-y-4 transition shadow-sm hover:shadow-md flex flex-col justify-between ${
+                                    vigente 
+                                      ? 'border-slate-800/80 hover:border-emerald-500/40' 
+                                      : 'border-slate-800/50 bg-[#0d1424]/80'
+                                  }`}
+                                >
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                      <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                        {t.seriesName}
+                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                          🏟️ {arenaName}
+                                        </span>
+                                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                                          t.isDuo 
+                                            ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
+                                            : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                        }`}>
+                                          {t.isDuo ? 'Duplas' : 'Super 8 Indiv.'}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <h3 className="text-base font-black text-white">{t.name}</h3>
+                                      <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1 font-mono">
+                                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                        <span>{new Date(t.startDate).toLocaleDateString('pt-BR')} até {new Date(t.endDate).toLocaleDateString('pt-BR')}</span>
+                                      </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
+                                        <span className="text-slate-400 block text-[10px]">Partidas Geradas:</span>
+                                        <strong className="text-white font-mono text-sm">
+                                          {tourMatches.length}
+                                        </strong>
+                                      </div>
+                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
+                                        <span className="text-slate-400 block text-[10px]">Categorias:</span>
+                                        <strong className="text-amber-300 font-mono text-sm">{tourCats.length}</strong>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="pt-3 border-t border-slate-800/80">
+                                    <button 
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedMatchTournamentId(t.id);
+                                        setFilterMatchCategory('ALL');
+                                        setFilterSuper8Round('ALL');
+                                      }}
+                                      className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                                    >
+                                      <span>Acessar Jogos / Quadras</span>
+                                      <ArrowRight className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    /* PASSO 2: TELA DA EDIÇÃO SELECIONADA (JOGOS) */
+                    (() => {
+                      const currentTour = tournaments.find(t => t.id === selectedMatchTournamentId);
+                      const isVigente = isTournamentVigente(currentTour);
+                      const currentArenaName = arenas.find(a => a.id === currentTour?.arenaId)?.name || 'Arena';
+                      const tourCategories = categories.filter(c => c.tournamentId === selectedMatchTournamentId);
+
+                      return (
+                        <div className="space-y-4">
+                          {/* Banner de Identificação do Torneio Selecionado */}
+                          <div className="bg-[#0d1424] border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedMatchTournamentId('');
+                                    setFilterMatchCategory('ALL');
+                                    setFilterSuper8Round('ALL');
+                                  }}
+                                  className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition border border-slate-700 cursor-pointer"
+                                >
+                                  <ArrowLeft className="w-3.5 h-3.5" /> Trocar de Torneio
+                                </button>
+                                <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                  {currentTour?.seriesName}
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                  🏟️ {currentArenaName}
+                                </span>
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                                  currentTour?.isDuo 
+                                    ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
+                                    : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                }`}>
+                                  {currentTour?.isDuo ? 'Duplas' : 'Super 8 Individual'}
+                                </span>
+                              </div>
+
+                              <h2 className="text-xl font-black text-white">{currentTour?.name}</h2>
+
+                              <p className="text-xs text-slate-400 flex items-center gap-2 font-mono">
+                                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                <span>{currentTour?.startDate && new Date(currentTour.startDate).toLocaleDateString('pt-BR')} até {currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')}</span>
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                              {/* Seletor Rápido de Torneio */}
+                              <select 
+                                value={selectedMatchTournamentId} 
+                                onChange={(e) => {
+                                  setSelectedMatchTournamentId(e.target.value);
+                                  setFilterMatchCategory('ALL');
+                                  setFilterSuper8Round('ALL');
+                                }}
+                                className="bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-semibold"
+                              >
+                                {tournaments.map(t => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.name} {t.seriesName ? `· ${t.seriesName}` : ''} ({isTournamentVigente(t) ? '🟢' : '🔴'})
+                                  </option>
+                                ))}
+                              </select>
+
+                              <button 
+                                onClick={() => handleOpenGenMatches(selectedMatchTournamentId)}
+                                className="flex items-center gap-2 py-2 px-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-xs transition shadow-md shadow-amber-500/10 cursor-pointer"
+                              >
+                                <Activity className="w-4 h-4" /> Gerar Jogos Automaticamente
+                              </button>
+
+                              <button 
+                                onClick={() => handleOpenMatchCreate(selectedMatchTournamentId)}
+                                className="flex items-center gap-2 py-2 px-3.5 bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs hover:bg-emerald-400 transition shadow-md shadow-emerald-500/10 cursor-pointer"
+                              >
+                                <Plus className="w-4 h-4" /> Agendar Jogo Manual
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* SEGUNDO FILTRO: CATEGORIAS DO TORNEIO (Quando possui mais de 1 categoria) */}
+                          {tourCategories.length > 1 ? (
+                            <div className="bg-[#0d1424] border border-emerald-500/30 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                  <Layers className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Filtro de Categoria</span>
+                                  <p className="text-xs text-slate-300 font-bold">Este torneio possui {tourCategories.length} categorias. Selecione a categoria que deseja visualizar:</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setFilterMatchCategory('ALL');
+                                    setFilterSuper8Round('ALL');
+                                  }}
+                                  className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                    filterMatchCategory === 'ALL'
+                                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                      : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                  }`}
+                                >
+                                  <span>Todas as Categorias</span>
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                    {matches.filter(m => m.tournamentId === selectedMatchTournamentId).length}
+                                  </span>
+                                </button>
+                                {tourCategories.map(cat => {
+                                  const catCount = matches.filter(m => m.tournamentId === selectedMatchTournamentId && m.categoryId === cat.id).length;
+                                  return (
+                                    <button
+                                      key={cat.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setFilterMatchCategory(cat.id);
+                                        setFilterSuper8Round('ALL');
+                                      }}
+                                      className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                        filterMatchCategory === cat.id
+                                          ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                          : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                      }`}
+                                    >
+                                      <span>{cat.type} {cat.level} {cat.name ? `(${cat.name})` : ''}</span>
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                        {catCount}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : tourCategories.length === 1 ? (
+                            <div className="bg-[#0d1424] border border-slate-800 p-3 rounded-xl flex items-center justify-between text-xs text-slate-300">
+                              <span className="flex items-center gap-2">
+                                <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                                Categoria Única: <strong className="text-white">{tourCategories[0].type} {tourCategories[0].level} {tourCategories[0].name ? `(${tourCategories[0].name})` : ''}</strong>
+                              </span>
+                              <span className="text-slate-500 text-[11px] font-mono">1 categoria configurada</span>
+                            </div>
+                          ) : null}
+
+                          {/* Toolbar de Rodadas Super 8 & Classificação */}
+                          <div className="bg-[#0d1424] border border-slate-800 rounded-2xl p-4 space-y-3">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                              <div className="flex items-center gap-2.5 flex-wrap">
+                                <button 
+                                  type="button"
+                                  onClick={() => setShowSuper8Standings(!showSuper8Standings)}
+                                  className={`flex items-center gap-1.5 py-2 px-3.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
+                                    showSuper8Standings
+                                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
+                                      : 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
+                                  }`}
+                                >
+                                  <Award className="w-3.5 h-3.5" />
+                                  <span>Classificação Individual Super 8</span>
+                                </button>
+                              </div>
+
+                              <span className="text-xs text-slate-400">
+                                Total de Jogos: <strong className="text-white font-mono">{
+                                  matches.filter(m => m.tournamentId === selectedMatchTournamentId && (filterMatchCategory === 'ALL' || m.categoryId === filterMatchCategory)).length
+                                }</strong>
+                              </span>
+                            </div>
+
+                    {/* Filter by Round for Super 8 */}
+                    {matches.some(m => m.format === 'SUPER_8' || m.isSuper8 || m.round) && (
+                      <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 overflow-x-auto pb-1">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider shrink-0 mr-1">Filtrar Rodada:</span>
+                        {(['ALL', 1, 2, 3, 4, 5, 6, 7] as const).map(rnd => (
+                          <button
+                            key={`btn-rnd-${rnd}`}
+                            type="button"
+                            onClick={() => setFilterSuper8Round(rnd)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition border shrink-0 cursor-pointer ${
+                              filterSuper8Round === rnd
+                                ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
+                                : 'bg-[#090e1a] text-slate-400 border-slate-800 hover:text-white'
+                            }`}
+                          >
+                            {rnd === 'ALL' ? 'Todas' : `R${rnd}`}
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
-                </motion.div>
-              )}
+
+                  {/* Super 8 Live Individual Standings Table */}
+                  <AnimatePresence>
+                    {showSuper8Standings && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="bg-[#0d1424] border border-amber-500/40 rounded-2xl p-5 space-y-4 shadow-xl overflow-hidden"
+                      >
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800/80 pb-3">
+                          <div>
+                            <h3 className="text-base font-black text-white flex items-center gap-2">
+                              <Award className="w-5 h-5 text-amber-400" />
+                              Classificação Individual Oficial · Formato Super 8
+                            </h3>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              Pontuação atribuída individualmente a cada um dos 8 atletas pelas partidas de 4 games disputadas.
+                            </p>
+                          </div>
+                          <span className="text-[10px] px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono font-bold">
+                            Critérios: Vitórias &gt; Saldo Games &gt; Games Pró
+                          </span>
+                        </div>
+
+                        {(() => {
+                          const s8Matches = matches.filter(m => {
+                            if (selectedMatchTournamentId && m.tournamentId !== selectedMatchTournamentId) return false;
+                            if (filterMatchCategory !== 'ALL' && m.categoryId !== filterMatchCategory) return false;
+                            return m.format === 'SUPER_8' || m.isSuper8 || !!m.teamA;
+                          });
+
+                          // Encontrar atletas participantes desses jogos ou inscritos
+                          const s8AthleteIds = new Set<string>();
+                          s8Matches.forEach(m => {
+                            if (m.teamA) {
+                              s8AthleteIds.add(m.teamA.player1Id);
+                              s8AthleteIds.add(m.teamA.player2Id);
+                            }
+                            if (m.teamB) {
+                              s8AthleteIds.add(m.teamB.player1Id);
+                              s8AthleteIds.add(m.teamB.player2Id);
+                            }
+                          });
+
+                          const s8Athletes = athletes.filter(a => s8AthleteIds.has(a.id));
+                          const standings = calculateSuper8Standings(s8Matches as any, s8Athletes);
+
+                          return standings.length === 0 ? (
+                            <div className="p-8 text-center text-slate-400 text-xs">
+                              Nenhuma partida do Super 8 com resultado finalizado ainda. Lance os placares das partidas abaixo.
+                            </div>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left text-xs border-collapse">
+                                <thead>
+                                  <tr className="bg-slate-800/60 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-800">
+                                    <th className="p-3">Posição</th>
+                                    <th className="p-3">Atleta</th>
+                                    <th className="p-3 text-center">Partidas (J)</th>
+                                    <th className="p-3 text-center text-emerald-400">Vitórias (V)</th>
+                                    <th className="p-3 text-center text-rose-400">Derrotas (D)</th>
+                                    <th className="p-3 text-center">Games Pró (GP)</th>
+                                    <th className="p-3 text-center">Games Contra (GC)</th>
+                                    <th className="p-3 text-center text-amber-400">Saldo (SG)</th>
+                                    <th className="p-3 text-right">Aprov. (%)</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800/60">
+                                  {standings.map((st) => (
+                                    <tr key={st.athleteId} className="hover:bg-slate-800/40 transition">
+                                      <td className="p-3 font-mono font-bold text-sm">
+                                        {st.rank === 1 ? '🥇 1º' : st.rank === 2 ? '🥈 2º' : st.rank === 3 ? '🥉 3º' : `${st.rank}º`}
+                                      </td>
+                                      <td className="p-3 font-bold text-white text-sm">
+                                        {st.athleteName}
+                                      </td>
+                                      <td className="p-3 text-center font-mono text-slate-300">{st.played} / 7</td>
+                                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{st.wins}</td>
+                                      <td className="p-3 text-center font-mono text-slate-400">{st.losses}</td>
+                                      <td className="p-3 text-center font-mono text-slate-300">{st.gamesFor}</td>
+                                      <td className="p-3 text-center font-mono text-slate-400">{st.gamesAgainst}</td>
+                                      <td className="p-3 text-center font-mono font-black text-amber-300">
+                                        {st.gameDiff > 0 ? `+${st.gameDiff}` : st.gameDiff}
+                                      </td>
+                                      <td className="p-3 text-right font-mono font-bold text-emerald-400">
+                                        {st.winRate}%
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          );
+                        })()}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Matches List */}
+                  <div className="space-y-4">
+                    {(() => {
+                      const displayedMatches = matches.filter(m => {
+                        if (m.tournamentId !== selectedMatchTournamentId) return false;
+                        if (filterMatchCategory !== 'ALL' && m.categoryId !== filterMatchCategory) return false;
+                        if (filterSuper8Round !== 'ALL' && m.round !== filterSuper8Round) return false;
+                        return true;
+                      });
+
+                      if (displayedMatches.length === 0) {
+                        return (
+                          <div className="p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
+                            <Activity className="w-10 h-10 text-slate-600 mx-auto" />
+                            <p className="font-semibold text-slate-300">Nenhum jogo encontrado com os filtros selecionados.</p>
+                            <p className="text-xs text-slate-500">Utilize o gerador automático acima para criar os confrontos da chave ou agende manualmente.</p>
+                          </div>
+                        );
+                      }
+
+                      // Check if Super 8 matches
+                      const isSuper8List = displayedMatches.some(m => m.format === 'SUPER_8' || m.isSuper8 || m.round);
+
+                      if (isSuper8List) {
+                        // Group by round (1..7)
+                        const roundsMap = new Map<number, typeof displayedMatches>();
+                        displayedMatches.forEach(m => {
+                          const r = m.round || 1;
+                          if (!roundsMap.has(r)) roundsMap.set(r, []);
+                          roundsMap.get(r)!.push(m);
+                        });
+
+                        const sortedRounds = Array.from(roundsMap.keys()).sort((a, b) => a - b);
+
+                        return (
+                          <div className="space-y-6">
+                            {sortedRounds.map(rnd => {
+                              const rndMatches = roundsMap.get(rnd) || [];
+                              return (
+                                <div key={`round-group-${rnd}`} className="bg-[#090e1a]/80 border border-slate-800/90 rounded-2xl p-4 sm:p-5 space-y-3.5">
+                                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono text-xs font-black uppercase text-amber-300 bg-amber-500/15 border border-amber-500/30 px-3 py-1 rounded-xl">
+                                        Rodada {rnd}
+                                      </span>
+                                      <span className="text-[11px] text-slate-400 font-medium">
+                                        Super 8 · 2 Partidas ({rndMatches.length} exibidas)
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] text-slate-500 font-mono">
+                                      Parcerias temporárias 1-7
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    {rndMatches.map(m => (
+                                      <div key={m.id} className="bg-[#0d1424] border border-slate-800/90 hover:border-slate-700 p-4 rounded-xl flex flex-col justify-between gap-3 transition shadow-sm">
+                                        <div>
+                                          <div className="flex items-center justify-between gap-2 mb-2">
+                                            <span className="text-[10px] font-bold text-amber-400 font-mono">
+                                              Jogo {m.matchNumber || m.stage}
+                                            </span>
+                                            <div className="flex items-center gap-1.5">
+                                              <button 
+                                                type="button"
+                                                onClick={() => handleOpenChangeCourt(m)}
+                                                className="text-[10px] text-emerald-400 font-mono bg-emerald-950/40 border border-emerald-500/20 px-2 py-0.5 rounded hover:bg-emerald-900/40 transition flex items-center gap-1"
+                                                title="Trocar quadra"
+                                              >
+                                                <MapPin className="w-3 h-3" /> {m.court}
+                                              </button>
+                                              <span className="text-[10px] font-mono text-slate-400">@ {m.time}</span>
+                                            </div>
+                                          </div>
+
+                                          {/* Matchup Team A vs Team B */}
+                                          <div className="bg-[#090e1a] p-3 rounded-xl border border-slate-800/80 space-y-2">
+                                            <div className="flex justify-between items-center text-xs">
+                                              <span className="font-bold text-white truncate">
+                                                {m.teamA ? `${m.teamA.player1Name} + ${m.teamA.player2Name}` : m.duo1Name}
+                                              </span>
+                                              <span className="font-mono text-sm font-black text-emerald-400 px-2 py-0.5 bg-slate-900 rounded">
+                                                {m.scoreA !== undefined ? m.scoreA : (m.score?.split('x')[0] || '-')}
+                                              </span>
+                                            </div>
+
+                                            <div className="flex items-center justify-center my-0.5">
+                                              <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">VS</span>
+                                            </div>
+
+                                            <div className="flex justify-between items-center text-xs">
+                                              <span className="font-bold text-white truncate">
+                                                {m.teamB ? `${m.teamB.player1Name} + ${m.teamB.player2Name}` : m.duo2Name}
+                                              </span>
+                                              <span className="font-mono text-sm font-black text-amber-400 px-2 py-0.5 bg-slate-900 rounded">
+                                                {m.scoreB !== undefined ? m.scoreB : (m.score?.split('x')[1] || '-')}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* Card Actions */}
+                                        <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
+                                          <div>
+                                            <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                              m.status === 'FINALIZADA' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 
+                                              m.status === 'WO' ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30' : 
+                                              'bg-slate-800 text-slate-400 border border-slate-700'
+                                            }`}>
+                                              {m.status === 'FINALIZADA' && m.score ? `${m.score}` : m.status}
+                                            </span>
+                                          </div>
+
+                                          <div className="flex items-center gap-1.5">
+                                            <button 
+                                              onClick={() => handleLaunchResult(m)} 
+                                              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-2.5 py-1 rounded-lg text-xs transition shadow-sm cursor-pointer"
+                                            >
+                                              {m.status === 'FINALIZADA' ? 'Alterar' : 'Placar'}
+                                            </button>
+                                            <button 
+                                              onClick={() => handleToggleWO(m)} 
+                                              className="bg-slate-800 hover:bg-rose-950/40 text-slate-300 hover:text-rose-400 font-bold px-2 py-1 rounded-lg text-xs border border-slate-700 transition cursor-pointer"
+                                            >
+                                              W.O.
+                                            </button>
+                                            <button 
+                                              onClick={() => handleDeleteMatch(m.id)}
+                                              className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg transition"
+                                              title="Excluir partida"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      }
+
+                      // Traditional rendering
+                      return (
+                        <div className="space-y-3">
+                          {displayedMatches.map(m => (
+                            <div key={m.id} className="bg-[#0d1424] border border-slate-800/80 hover:border-slate-700/80 p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition shadow-sm hover:shadow-md">
+                              <div className="space-y-1.5">
+                                <span className="text-[10px] font-extrabold text-emerald-300 bg-emerald-950/60 border border-emerald-500/20 px-2.5 py-0.5 rounded uppercase tracking-wider">
+                                  {m.stage} {m.groupName && `· ${m.groupName}`}
+                                </span>
+                                <p className="text-sm font-bold text-white mt-1.5">
+                                  {m.duo1Name} <span className="text-amber-400 font-extrabold mx-1">VS</span> {m.duo2Name}
+                                </p>
+                                <p className="text-xs text-slate-400 font-medium">{m.categoryName}</p>
+                                <p className="text-[11px] text-slate-500">Torneio: <strong className="text-slate-400">{m.tournamentName}</strong></p>
+                              </div>
+                              <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                                <div className="text-left sm:text-right text-xs text-slate-400 space-y-1.5">
+                                  <div className="flex items-center sm:justify-end gap-2 flex-wrap">
+                                    <button 
+                                      type="button"
+                                      onClick={() => handleOpenChangeCourt(m)}
+                                      className="flex items-center gap-1.5 py-1 px-2.5 bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/30 text-emerald-300 rounded-lg text-xs font-mono font-bold transition shadow-sm group"
+                                      title="Clique para transferir esta partida para outra quadra"
+                                    >
+                                      <MapPin className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
+                                      <span>{m.court}</span>
+                                      <span className="text-[10px] text-emerald-400/80 font-sans font-medium underline ml-0.5">Trocar</span>
+                                    </button>
+                                    <span className="font-mono text-slate-300 font-semibold">@ {m.time}</span>
+                                  </div>
+                                  <div>
+                                    <span className={`inline-block text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                                      m.status === 'FINALIZADA' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 
+                                      m.status === 'WO' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' : 
+                                      'bg-slate-800/80 text-slate-300 border border-slate-700'
+                                    }`}>
+                                      {m.status} {m.score && `(${m.score})`}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <button 
+                                    onClick={() => handleLaunchResult(m)} 
+                                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-2.5 py-1 rounded-lg text-xs transition shadow-sm cursor-pointer"
+                                  >
+                                    Placar
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteMatch(m.id)}
+                                    className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/20 rounded-xl transition"
+                                    title="Excluir Jogo"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                      })()}
+                    </div>
+                  </div>
+                );
+              })()
+            )}
+          </motion.div>
+        )}
 
               {/* VIEW 9: RESULTADOS & WO */}
               {activeTab === 'results' && (
                 <motion.div key="results_view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
-                  <div className="bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
-                    <h2 className="text-lg font-black text-white flex items-center gap-2">
-                      <Trophy className="w-5 h-5 text-amber-400" /> Lançamento de Resultados & W.O.
-                    </h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Lançamento oficial de placares. Registro de ausências (W.O.) mantendo auditoria completa.</p>
-                  </div>
-
-                  <div className="bg-[#0d1424] border border-slate-800/80 rounded-2xl p-6 space-y-4">
-                    {matches.length === 0 ? (
-                      <div className="p-12 text-center text-slate-400 border border-slate-800/60 rounded-xl bg-slate-900/20">
-                        Nenhum jogo cadastrado para registrar placar.
+                  {!selectedResultTournamentId ? (
+                    /* PASSO 1: TELA DE BUSCA E SELEÇÃO DE TORNEIO (RESULTADOS) */
+                    <div className="space-y-5">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
+                        <div>
+                          <h2 className="text-lg font-black text-white flex items-center gap-2">
+                            <Trophy className="w-5 h-5 text-amber-400" />
+                            Lançamento de Resultados & W.O. · Selecionar Edição do Torneio
+                          </h2>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            Selecione a edição do torneio abaixo para registrar placares oficiais e lançar ausências (W.O.).
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {session.role === 'SUPER_ADMIN' ? (
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1.5">
+                              <Shield className="w-3.5 h-3.5" /> Super Admin · Todas as Arenas
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                              <Building className="w-3.5 h-3.5" /> Organização · {selectedArena?.name || session.name}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    ) : (
-                      matches.map(m => (
-                        <div key={m.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-[#090e1a] border border-slate-800/80 rounded-xl gap-4 hover:border-slate-700/80 transition">
-                          <div>
-                            <p className="text-xs font-bold text-slate-400">{m.categoryName} · {m.stage}</p>
-                            <p className="text-sm font-bold text-white mt-1">
-                              {m.duo1Name} <span className="text-amber-400 font-extrabold mx-1">vs</span> {m.duo2Name}
-                            </p>
-                            {m.score && (
-                              <p className="text-xs font-mono font-bold text-emerald-400 mt-1.5 flex items-center gap-1.5">
-                                <span className="text-slate-400 font-sans font-medium text-[11px]">Placar Oficial:</span> {m.score}
-                              </p>
-                            )}
+
+                      {/* Filtros e Busca de Torneios */}
+                      <div className="bg-[#0d1424] border border-slate-800 p-4 rounded-2xl space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                          <div className="relative md:col-span-6">
+                            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <input 
+                              type="text"
+                              placeholder="Buscar torneio por nome da edição ou série..."
+                              value={searchResultTournamentTerm}
+                              onChange={(e) => setSearchResultTournamentTerm(e.target.value)}
+                              className="w-full bg-[#090e1a] border border-slate-700/80 pl-10 pr-4 py-2.5 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                            />
                           </div>
-                          <div className="flex gap-2 w-full sm:w-auto justify-end">
-                            {m.status === 'PENDENTE' ? (
-                              <>
-                                <button 
-                                  onClick={() => handleLaunchResult(m)} 
-                                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-3.5 py-1.5 rounded-xl text-xs transition shadow-sm"
+
+                          {session.role === 'SUPER_ADMIN' && (
+                            <div className="md:col-span-3">
+                              <select 
+                                value={filterResultArenaId} 
+                                onChange={(e) => setFilterResultArenaId(e.target.value)}
+                                className="w-full bg-[#090e1a] border border-slate-700/80 p-2.5 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                              >
+                                <option value="ALL">Todas as Arenas ({arenas.length})</option>
+                                {arenas.map(a => (
+                                  <option key={a.id} value={a.id}>{a.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          <div className={session.role === 'SUPER_ADMIN' ? "md:col-span-3" : "md:col-span-6"}>
+                            <div className="flex rounded-xl bg-[#090e1a] p-1 border border-slate-800 text-xs">
+                              <button
+                                type="button"
+                                onClick={() => setFilterResultStatus('ALL')}
+                                className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
+                                  filterResultStatus === 'ALL'
+                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                    : 'text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                Todos ({tournaments.length})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFilterResultStatus('VIGENTE')}
+                                className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
+                                  filterResultStatus === 'VIGENTE'
+                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                    : 'text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                🟢 Vigentes
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFilterResultStatus('EXPIRADO')}
+                                className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
+                                  filterResultStatus === 'EXPIRADO'
+                                    ? 'bg-rose-500 text-white shadow-sm'
+                                    : 'text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                🔴 Expirados
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Lista de Cards de Torneios */}
+                      {(() => {
+                        const filteredTournaments = tournaments.filter(t => {
+                          const matchesSearch = 
+                            t.name.toLowerCase().includes(searchResultTournamentTerm.toLowerCase()) ||
+                            t.seriesName.toLowerCase().includes(searchResultTournamentTerm.toLowerCase());
+                          
+                          const matchesArena = 
+                            filterResultArenaId === 'ALL' || t.arenaId === filterResultArenaId;
+
+                          const vigente = isTournamentVigente(t);
+                          const matchesStatus = 
+                            filterResultStatus === 'ALL' ||
+                            (filterResultStatus === 'VIGENTE' && vigente) ||
+                            (filterResultStatus === 'EXPIRADO' && !vigente);
+
+                          return matchesSearch && matchesArena && matchesStatus;
+                        });
+
+                        if (filteredTournaments.length === 0) {
+                          return (
+                            <div className="p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
+                              <Trophy className="w-10 h-10 text-slate-600 mx-auto" />
+                              <p className="font-semibold text-slate-300">Nenhum torneio encontrado para lançamento de resultados.</p>
+                              <p className="text-xs text-slate-500">
+                                {searchResultTournamentTerm ? 'Tente ajustar os termos da busca.' : 'Gere jogos primeiro na aba Jogos / Quadras.'}
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                            {filteredTournaments.map(t => {
+                              const vigente = isTournamentVigente(t);
+                              const arenaName = arenas.find(a => a.id === t.arenaId)?.name || 'Arena';
+                              const tourMatches = matches.filter(m => m.tournamentId === t.id);
+                              const finalizedCount = tourMatches.filter(m => m.status === 'FINALIZADA' || m.status === 'WO').length;
+                              const tourCats = categories.filter(c => c.tournamentId === t.id);
+
+                              return (
+                                <div 
+                                  key={t.id} 
+                                  className={`bg-[#0d1424] border rounded-2xl p-5 space-y-4 transition shadow-sm hover:shadow-md flex flex-col justify-between ${
+                                    vigente 
+                                      ? 'border-slate-800/80 hover:border-emerald-500/40' 
+                                      : 'border-slate-800/50 bg-[#0d1424]/80'
+                                  }`}
                                 >
-                                  Lançar Placar
-                                </button>
-                                <button 
-                                  onClick={() => handleToggleWO(m)} 
-                                  className="bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 font-bold px-3.5 py-1.5 rounded-xl text-xs border border-rose-800/40 transition"
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                      <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                        {t.seriesName}
+                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                          🏟️ {arenaName}
+                                        </span>
+                                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                                          t.isDuo 
+                                            ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
+                                            : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                        }`}>
+                                          {t.isDuo ? 'Duplas' : 'Super 8 Indiv.'}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <h3 className="text-base font-black text-white">{t.name}</h3>
+                                      <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1 font-mono">
+                                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                        <span>{new Date(t.startDate).toLocaleDateString('pt-BR')} até {new Date(t.endDate).toLocaleDateString('pt-BR')}</span>
+                                      </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
+                                        <span className="text-slate-400 block text-[10px]">Concluídos / Total:</span>
+                                        <strong className="text-white font-mono text-sm">
+                                          {finalizedCount} / {tourMatches.length}
+                                        </strong>
+                                      </div>
+                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
+                                        <span className="text-slate-400 block text-[10px]">Categorias:</span>
+                                        <strong className="text-amber-300 font-mono text-sm">{tourCats.length}</strong>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="pt-3 border-t border-slate-800/80">
+                                    <button 
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedResultTournamentId(t.id);
+                                        setFilterResultCategory('ALL');
+                                      }}
+                                      className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                                    >
+                                      <span>Acessar Resultados / WO</span>
+                                      <ArrowRight className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    /* PASSO 2: TELA DA EDIÇÃO SELECIONADA (RESULTADOS) */
+                    (() => {
+                      const currentTour = tournaments.find(t => t.id === selectedResultTournamentId);
+                      const currentArenaName = arenas.find(a => a.id === currentTour?.arenaId)?.name || 'Arena';
+                      const tourCategories = categories.filter(c => c.tournamentId === selectedResultTournamentId);
+
+                      const displayedResults = matches.filter(m => {
+                        if (m.tournamentId !== selectedResultTournamentId) return false;
+                        if (filterResultCategory !== 'ALL' && m.categoryId !== filterResultCategory) return false;
+                        return true;
+                      });
+
+                      return (
+                        <div className="space-y-4">
+                          {/* Banner de Identificação do Torneio Selecionado */}
+                          <div className="bg-[#0d1424] border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedResultTournamentId('');
+                                    setFilterResultCategory('ALL');
+                                  }}
+                                  className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition border border-slate-700 cursor-pointer"
                                 >
-                                  Lançar WO
+                                  <ArrowLeft className="w-3.5 h-3.5" /> Trocar de Torneio
                                 </button>
-                              </>
-                            ) : (
-                              <span className="text-xs text-slate-300 font-mono flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
-                                <Check className="w-4 h-4 text-emerald-400" /> Finalizado ({m.status})
+                                <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                  {currentTour?.seriesName}
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                  🏟️ {currentArenaName}
+                                </span>
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                                  currentTour?.isDuo 
+                                    ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
+                                    : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                }`}>
+                                  {currentTour?.isDuo ? 'Duplas' : 'Super 8 Individual'}
+                                </span>
+                              </div>
+
+                              <h2 className="text-xl font-black text-white">{currentTour?.name}</h2>
+
+                              <p className="text-xs text-slate-400 flex items-center gap-2 font-mono">
+                                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                <span>{currentTour?.startDate && new Date(currentTour.startDate).toLocaleDateString('pt-BR')} até {currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')}</span>
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-3 flex-wrap">
+                              {/* Seletor Rápido de Torneio */}
+                              <select 
+                                value={selectedResultTournamentId} 
+                                onChange={(e) => {
+                                  setSelectedResultTournamentId(e.target.value);
+                                  setFilterResultCategory('ALL');
+                                }}
+                                className="bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-semibold"
+                              >
+                                {tournaments.map(t => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.name} {t.seriesName ? `· ${t.seriesName}` : ''} ({isTournamentVigente(t) ? '🟢' : '🔴'})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* SEGUNDO FILTRO: CATEGORIAS DO TORNEIO (Quando possui mais de 1 categoria) */}
+                          {tourCategories.length > 1 ? (
+                            <div className="bg-[#0d1424] border border-emerald-500/30 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                  <Layers className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Filtro de Categoria</span>
+                                  <p className="text-xs text-slate-300 font-bold">Este torneio possui {tourCategories.length} categorias. Selecione a categoria que deseja visualizar:</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => setFilterResultCategory('ALL')}
+                                  className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                    filterResultCategory === 'ALL'
+                                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                      : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                  }`}
+                                >
+                                  <span>Todas as Categorias</span>
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                    {matches.filter(m => m.tournamentId === selectedResultTournamentId).length}
+                                  </span>
+                                </button>
+                                {tourCategories.map(cat => {
+                                  const catCount = matches.filter(m => m.tournamentId === selectedResultTournamentId && m.categoryId === cat.id).length;
+                                  return (
+                                    <button
+                                      key={cat.id}
+                                      type="button"
+                                      onClick={() => setFilterResultCategory(cat.id)}
+                                      className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                        filterResultCategory === cat.id
+                                          ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                          : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                      }`}
+                                    >
+                                      <span>{cat.type} {cat.level} {cat.name ? `(${cat.name})` : ''}</span>
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                        {catCount}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ) : tourCategories.length === 1 ? (
+                            <div className="bg-[#0d1424] border border-slate-800 p-3 rounded-xl flex items-center justify-between text-xs text-slate-300">
+                              <span className="flex items-center gap-2">
+                                <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                                Categoria Única: <strong className="text-white">{tourCategories[0].type} {tourCategories[0].level} {tourCategories[0].name ? `(${tourCategories[0].name})` : ''}</strong>
                               </span>
+                              <span className="text-slate-500 text-[11px] font-mono">1 categoria configurada</span>
+                            </div>
+                          ) : null}
+
+                          <div className="bg-[#0d1424] border border-slate-800/80 rounded-2xl p-6 space-y-4">
+                            {displayedResults.length === 0 ? (
+                              <div className="p-12 text-center text-slate-400 border border-slate-800/60 rounded-xl bg-slate-900/20">
+                                Nenhum jogo encontrado para registrar placar no torneio/categoria selecionada.
+                              </div>
+                            ) : (
+                              displayedResults.map(m => (
+                                <div key={m.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-[#090e1a] border border-slate-800/80 rounded-xl gap-4 hover:border-slate-700/80 transition">
+                                  <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <p className="text-xs font-bold text-slate-400">{m.categoryName} · {m.stage}</p>
+                                      {m.round && (
+                                        <span className="text-[10px] font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                                          Rodada {m.round} · Jogo {m.matchNumber}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-sm font-bold text-white mt-1">
+                                      {m.teamA ? `${m.teamA.player1Name} + ${m.teamA.player2Name}` : m.duo1Name} 
+                                      <span className="text-amber-400 font-extrabold mx-2">vs</span> 
+                                      {m.teamB ? `${m.teamB.player1Name} + ${m.teamB.player2Name}` : m.duo2Name}
+                                    </p>
+                                    {m.score && (
+                                      <p className="text-xs font-mono font-bold text-emerald-400 mt-1.5 flex items-center gap-1.5">
+                                        <span className="text-slate-400 font-sans font-medium text-[11px]">Placar Oficial:</span> {m.score}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="flex gap-2 w-full sm:w-auto justify-end">
+                                    {m.status === 'PENDENTE' ? (
+                                      <>
+                                        <button 
+                                          onClick={() => handleLaunchResult(m)} 
+                                          className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-3.5 py-1.5 rounded-xl text-xs transition shadow-sm cursor-pointer"
+                                        >
+                                          Lançar Placar
+                                        </button>
+                                        <button 
+                                          onClick={() => handleToggleWO(m)} 
+                                          className="bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 font-bold px-3.5 py-1.5 rounded-xl text-xs border border-rose-800/40 transition cursor-pointer"
+                                        >
+                                          Lançar WO
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs text-slate-300 font-mono flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
+                                          <Check className="w-4 h-4 text-emerald-400" /> {m.status === 'WO' ? 'W.O.' : 'Finalizado'} ({m.score})
+                                        </span>
+                                        <button 
+                                          onClick={() => handleLaunchResult(m)} 
+                                          className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition cursor-pointer"
+                                        >
+                                          Editar
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))
                             )}
                           </div>
                         </div>
-                      ))
-                    )}
-                  </div>
+                      );
+                    })()
+                  )}
                 </motion.div>
               )}
 
               {/* VIEW 10: RELATÓRIOS & LEADERBOARDS */}
               {activeTab === 'reports' && (
                 <motion.div key="reports_view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-                  <div className="bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
-                    <h2 className="text-lg font-black text-white flex items-center gap-2">
-                      <Award className="w-5 h-5 text-amber-400" /> Classificação & Liderança de Categorias
-                    </h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Métricas oficiais em tempo real de vitórias e líderes com base nos jogos registrados.</p>
-                  </div>
+                  {!selectedReportTournamentId ? (
+                    /* PASSO 1: TELA DE BUSCA E SELEÇÃO DE TORNEIO (RELATÓRIOS) */
+                    <div className="space-y-5">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
+                        <div>
+                          <h2 className="text-lg font-black text-white flex items-center gap-2">
+                            <TrendingUp className="w-5 h-5 text-emerald-400" />
+                            Relatórios & Classificação · Selecionar Edição do Torneio
+                          </h2>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            Selecione a edição do torneio abaixo para visualizar relatórios detalhados, líderes e classificação geral.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {session.role === 'SUPER_ADMIN' ? (
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1.5">
+                              <Shield className="w-3.5 h-3.5" /> Super Admin · Todas as Arenas
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                              <Building className="w-3.5 h-3.5" /> Organização · {selectedArena?.name || session.name}
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {tournaments.map(t => {
-                      // Filter categories of this tournament
-                      const tourCats = categories.filter(c => c.tournamentId === t.id);
-
-                      return (
-                        <div key={t.id} className="bg-[#0d1424] border border-slate-800/80 p-5 rounded-3xl space-y-4 shadow-sm">
-                          <div className="border-b border-slate-800/80 pb-3">
-                            <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">{t.seriesName}</span>
-                            <h3 className="font-black text-white text-base mt-0.5">{t.name}</h3>
+                      {/* Filtros e Busca de Torneios */}
+                      <div className="bg-[#0d1424] border border-slate-800 p-4 rounded-2xl space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                          <div className="relative md:col-span-6">
+                            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <input 
+                              type="text"
+                              placeholder="Buscar torneio por nome da edição ou série..."
+                              value={searchReportTournamentTerm}
+                              onChange={(e) => setSearchReportTournamentTerm(e.target.value)}
+                              className="w-full bg-[#090e1a] border border-slate-700/80 pl-10 pr-4 py-2.5 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                            />
                           </div>
 
-                          <div className="space-y-4">
-                            {tourCats.length === 0 ? (
-                              <p className="text-xs text-slate-400">Nenhuma categoria habilitada.</p>
+                          {session.role === 'SUPER_ADMIN' && (
+                            <div className="md:col-span-3">
+                              <select 
+                                value={filterReportArenaId} 
+                                onChange={(e) => setFilterReportArenaId(e.target.value)}
+                                className="w-full bg-[#090e1a] border border-slate-700/80 p-2.5 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                              >
+                                <option value="ALL">Todas as Arenas ({arenas.length})</option>
+                                {arenas.map(a => (
+                                  <option key={a.id} value={a.id}>{a.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          <div className={session.role === 'SUPER_ADMIN' ? "md:col-span-3" : "md:col-span-6"}>
+                            <div className="flex rounded-xl bg-[#090e1a] p-1 border border-slate-800 text-xs">
+                              <button
+                                type="button"
+                                onClick={() => setFilterReportStatus('ALL')}
+                                className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
+                                  filterReportStatus === 'ALL'
+                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                    : 'text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                Todos ({tournaments.length})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFilterReportStatus('VIGENTE')}
+                                className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
+                                  filterReportStatus === 'VIGENTE'
+                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                    : 'text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                🟢 Vigentes
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFilterReportStatus('EXPIRADO')}
+                                className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
+                                  filterReportStatus === 'EXPIRADO'
+                                    ? 'bg-rose-500 text-white shadow-sm'
+                                    : 'text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                🔴 Expirados
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Lista de Cards de Torneios */}
+                      {(() => {
+                        const filteredTournaments = tournaments.filter(t => {
+                          const matchesSearch = 
+                            t.name.toLowerCase().includes(searchReportTournamentTerm.toLowerCase()) ||
+                            t.seriesName.toLowerCase().includes(searchReportTournamentTerm.toLowerCase());
+                          
+                          const matchesArena = 
+                            filterReportArenaId === 'ALL' || t.arenaId === filterReportArenaId;
+
+                          const vigente = isTournamentVigente(t);
+                          const matchesStatus = 
+                            filterReportStatus === 'ALL' ||
+                            (filterReportStatus === 'VIGENTE' && vigente) ||
+                            (filterReportStatus === 'EXPIRADO' && !vigente);
+
+                          return matchesSearch && matchesArena && matchesStatus;
+                        });
+
+                        if (filteredTournaments.length === 0) {
+                          return (
+                            <div className="p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
+                              <Award className="w-10 h-10 text-slate-600 mx-auto" />
+                              <p className="font-semibold text-slate-300">Nenhum torneio encontrado para relatórios.</p>
+                              <p className="text-xs text-slate-500">
+                                {searchReportTournamentTerm ? 'Tente ajustar os termos da busca.' : 'Aguarde torneios serem cadastrados.'}
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                            {filteredTournaments.map(t => {
+                              const vigente = isTournamentVigente(t);
+                              const arenaName = arenas.find(a => a.id === t.arenaId)?.name || 'Arena';
+                              const tourMatches = matches.filter(m => m.tournamentId === t.id);
+                              const tourCats = categories.filter(c => c.tournamentId === t.id);
+
+                              return (
+                                <div 
+                                  key={t.id} 
+                                  className={`bg-[#0d1424] border rounded-2xl p-5 space-y-4 transition shadow-sm hover:shadow-md flex flex-col justify-between ${
+                                    vigente 
+                                      ? 'border-slate-800/80 hover:border-emerald-500/40' 
+                                      : 'border-slate-800/50 bg-[#0d1424]/80'
+                                  }`}
+                                >
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                      <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                        {t.seriesName}
+                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                          🏟️ {arenaName}
+                                        </span>
+                                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                                          t.isDuo 
+                                            ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
+                                            : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                        }`}>
+                                          {t.isDuo ? 'Duplas' : 'Super 8 Indiv.'}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <h3 className="text-base font-black text-white">{t.name}</h3>
+                                      <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1 font-mono">
+                                        <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                        <span>{new Date(t.startDate).toLocaleDateString('pt-BR')} até {new Date(t.endDate).toLocaleDateString('pt-BR')}</span>
+                                      </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
+                                        <span className="text-slate-400 block text-[10px]">Partidas:</span>
+                                        <strong className="text-white font-mono text-sm">
+                                          {tourMatches.length}
+                                        </strong>
+                                      </div>
+                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
+                                        <span className="text-slate-400 block text-[10px]">Categorias:</span>
+                                        <strong className="text-amber-300 font-mono text-sm">{tourCats.length}</strong>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="pt-3 border-t border-slate-800/80">
+                                    <button 
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedReportTournamentId(t.id);
+                                        setFilterReportCategory('ALL');
+                                      }}
+                                      className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                                    >
+                                      <span>Acessar Relatório</span>
+                                      <ArrowRight className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    /* PASSO 2: TELA DA EDIÇÃO SELECIONADA (RELATÓRIOS) */
+                    (() => {
+                      const currentTour = tournaments.find(t => t.id === selectedReportTournamentId);
+                      const currentArenaName = arenas.find(a => a.id === currentTour?.arenaId)?.name || 'Arena';
+                      const tourCategories = categories.filter(c => c.tournamentId === selectedReportTournamentId);
+
+                      const displayedCategories = tourCategories.filter(c => {
+                        if (filterReportCategory !== 'ALL' && c.id !== filterReportCategory) return false;
+                        return true;
+                      });
+
+                      return (
+                        <div className="space-y-5">
+                          {/* Banner de Identificação do Torneio Selecionado */}
+                          <div className="bg-[#0d1424] border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedReportTournamentId('');
+                                    setFilterReportCategory('ALL');
+                                  }}
+                                  className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition border border-slate-700 cursor-pointer"
+                                >
+                                  <ArrowLeft className="w-3.5 h-3.5" /> Trocar de Torneio
+                                </button>
+                                <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                  {currentTour?.seriesName}
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                  🏟️ {currentArenaName}
+                                </span>
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                                  currentTour?.isDuo 
+                                    ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
+                                    : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                }`}>
+                                  {currentTour?.isDuo ? 'Duplas' : 'Super 8 Individual'}
+                                </span>
+                              </div>
+
+                              <h2 className="text-xl font-black text-white">{currentTour?.name}</h2>
+
+                              <p className="text-xs text-slate-400 flex items-center gap-2 font-mono">
+                                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                                <span>{currentTour?.startDate && new Date(currentTour.startDate).toLocaleDateString('pt-BR')} até {currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')}</span>
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-3 flex-wrap">
+                              {/* Seletor Rápido de Torneio */}
+                              <select 
+                                value={selectedReportTournamentId} 
+                                onChange={(e) => {
+                                  setSelectedReportTournamentId(e.target.value);
+                                  setFilterReportCategory('ALL');
+                                }}
+                                className="bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-semibold"
+                              >
+                                {tournaments.map(t => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.name} {t.seriesName ? `· ${t.seriesName}` : ''} ({isTournamentVigente(t) ? '🟢' : '🔴'})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* SEGUNDO FILTRO: CATEGORIAS DO TORNEIO (Quando possui mais de 1 categoria) */}
+                          {tourCategories.length > 1 ? (
+                            <div className="bg-[#0d1424] border border-emerald-500/30 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                  <Layers className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Filtro de Categoria</span>
+                                  <p className="text-xs text-slate-300 font-bold">Este torneio possui {tourCategories.length} categorias. Selecione a categoria que deseja visualizar:</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => setFilterReportCategory('ALL')}
+                                  className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                    filterReportCategory === 'ALL'
+                                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                      : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                  }`}
+                                >
+                                  <span>Todas as Categorias</span>
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                    {tourCategories.length}
+                                  </span>
+                                </button>
+                                {tourCategories.map(cat => (
+                                  <button
+                                    key={cat.id}
+                                    type="button"
+                                    onClick={() => setFilterReportCategory(cat.id)}
+                                    className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                                      filterReportCategory === cat.id
+                                        ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                                        : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                    }`}
+                                  >
+                                    <span>{cat.type} {cat.level} {cat.name ? `(${cat.name})` : ''}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ) : tourCategories.length === 1 ? (
+                            <div className="bg-[#0d1424] border border-slate-800 p-3 rounded-xl flex items-center justify-between text-xs text-slate-300">
+                              <span className="flex items-center gap-2">
+                                <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                                Categoria Única: <strong className="text-white">{tourCategories[0].type} {tourCategories[0].level} {tourCategories[0].name ? `(${tourCategories[0].name})` : ''}</strong>
+                              </span>
+                              <span className="text-slate-500 text-[11px] font-mono">1 categoria configurada</span>
+                            </div>
+                          ) : null}
+
+                          {/* Leaderboard dos Relatórios por Categoria */}
+                          <div className="space-y-6">
+                            {displayedCategories.length === 0 ? (
+                              <div className="p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl">
+                                Nenhuma categoria encontrada para o torneio selecionado.
+                              </div>
                             ) : (
-                              tourCats.map(cat => {
-                                // Find duos for this category
-                                const catDuos = duos.filter(d => d.categoryId === cat.id);
-                                
-                                // Calculate wins per duo
+                              displayedCategories.map(cat => {
+                                const isSuper8Cat = cat.type === 'SUPER 8' || currentTour?.isDuo === false;
+
+                                if (isSuper8Cat) {
+                                  const catMatches = matches.filter(m => m.categoryId === cat.id && m.tournamentId === currentTour?.id);
+                                  const catRegistrations = registrations.filter(r => r.categoryId === cat.id && r.tournamentId === currentTour?.id && r.status !== 'CANCELADA');
+                                  const regAthleteIds = new Set(catRegistrations.map(r => r.athleteId));
+                                  const catAthletes = athletes.filter(a => regAthleteIds.has(a.id));
+                                  const s8Standings = calculateSuper8Standings(catMatches as any, catAthletes);
+
+                                  return (
+                                    <div key={cat.id} className="bg-[#0d1424] border border-amber-500/30 rounded-3xl p-5 space-y-4 shadow-sm">
+                                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800/80 pb-3">
+                                        <div>
+                                          <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Super 8 · Classificação Individual Oficial</span>
+                                          <h3 className="font-black text-white text-base mt-0.5">{cat.name || `${cat.type} ${cat.level}`}</h3>
+                                        </div>
+                                        <span className="text-[10px] px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono font-bold">
+                                          8 Atletas · 7 Rodadas · Partidas de 4 Games
+                                        </span>
+                                      </div>
+
+                                      {s8Standings.length === 0 ? (
+                                        <p className="text-xs text-slate-500 text-center py-6">Nenhum atleta inscrito ou jogos disputados nesta categoria.</p>
+                                      ) : (
+                                        <div className="overflow-x-auto">
+                                          <table className="w-full text-left text-xs">
+                                            <thead>
+                                              <tr className="border-b border-slate-800 text-[10px] text-slate-400 uppercase font-mono">
+                                                <th className="pb-2.5 pl-2">Posição</th>
+                                                <th className="pb-2.5">Atleta</th>
+                                                <th className="pb-2.5 text-center">Partidas</th>
+                                                <th className="pb-2.5 text-center text-emerald-400 font-bold">Vitórias</th>
+                                                <th className="pb-2.5 text-center text-rose-400">Derrotas</th>
+                                                <th className="pb-2.5 text-center">G. Feitos</th>
+                                                <th className="pb-2.5 text-center">G. Sofridos</th>
+                                                <th className="pb-2.5 text-center font-bold text-amber-300">Saldo Games</th>
+                                                <th className="pb-2.5 text-right pr-2">Aproveitamento</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
+                                              {s8Standings.map((item, index) => (
+                                                <tr key={item.athleteId} className={`hover:bg-slate-800/40 transition ${index === 0 ? 'bg-amber-500/5 font-bold text-white' : 'text-slate-300'}`}>
+                                                  <td className="py-2.5 pl-2 font-bold text-amber-400">
+                                                    {index === 0 ? '🥇 1º Lugar' : index === 1 ? '🥈 2º Lugar' : index === 2 ? '🥉 3º Lugar' : `${index + 1}º`}
+                                                  </td>
+                                                  <td className="py-2.5 font-sans font-bold text-white">
+                                                    {item.athleteName}
+                                                  </td>
+                                                  <td className="py-2.5 text-center text-slate-300">{item.played}</td>
+                                                  <td className="py-2.5 text-center text-emerald-400 font-bold">{item.wins}</td>
+                                                  <td className="py-2.5 text-center text-slate-400">{item.losses}</td>
+                                                  <td className="py-2.5 text-center text-slate-300">{item.gamesFor}</td>
+                                                  <td className="py-2.5 text-center text-slate-400">{item.gamesAgainst}</td>
+                                                  <td className={`py-2.5 text-center font-bold ${item.gameDiff > 0 ? 'text-emerald-400' : item.gameDiff < 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                                                    {item.gameDiff > 0 ? `+${item.gameDiff}` : item.gameDiff}
+                                                  </td>
+                                                  <td className="py-2.5 text-right pr-2 text-amber-300 font-bold">
+                                                    {item.winRate}%
+                                                  </td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+
+                                // Traditional Duos leaderboard
+                                const catDuos = duos.filter(d => d.categoryId === cat.id && d.tournamentId === currentTour?.id);
                                 const leaderboard = catDuos.map(duo => {
                                   const wins = matches.filter(m => 
                                     m.categoryId === cat.id && 
+                                    m.tournamentId === currentTour?.id &&
                                     (m.status === 'FINALIZADA' || m.status === 'WO') && 
                                     m.winnerDuoId === duo.id
                                   ).length;
                                   
                                   const totalPlayed = matches.filter(m => 
                                     m.categoryId === cat.id && 
+                                    m.tournamentId === currentTour?.id &&
                                     (m.status === 'FINALIZADA' || m.status === 'WO') && 
                                     (m.duo1Id === duo.id || m.duo2Id === duo.id)
                                   ).length;
@@ -3363,24 +5688,31 @@ export default function Home() {
                                 }).sort((a, b) => b.wins - a.wins);
 
                                 return (
-                                  <div key={cat.id} className="bg-[#090e1a] p-3.5 rounded-xl space-y-2.5 border border-slate-800/70">
-                                    <p className="text-[11px] font-extrabold text-emerald-400 uppercase tracking-wide">{cat.type} {cat.level}</p>
-                                    
-                                    <div className="space-y-2">
-                                      {leaderboard.length === 0 ? (
-                                        <p className="text-[10px] text-slate-500">Nenhuma dupla formada.</p>
-                                      ) : (
-                                        leaderboard.map((item, index) => (
-                                          <div key={item.duo.id} className="flex justify-between items-center text-[11px]">
+                                  <div key={cat.id} className="bg-[#0d1424] border border-slate-800/80 rounded-3xl p-5 space-y-4 shadow-sm">
+                                    <div className="flex justify-between items-center border-b border-slate-800/80 pb-3">
+                                      <div>
+                                        <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Duplas · Classificação</span>
+                                        <h3 className="font-black text-white text-base mt-0.5">{cat.name || `${cat.type} ${cat.level}`}</h3>
+                                      </div>
+                                    </div>
+
+                                    {leaderboard.length === 0 ? (
+                                      <p className="text-xs text-slate-500 text-center py-6">Nenhuma dupla formada nesta categoria.</p>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {leaderboard.map((item, index) => (
+                                          <div key={item.duo.id} className="flex justify-between items-center text-xs p-2.5 rounded-xl bg-[#090e1a] border border-slate-800">
                                             <span className="truncate text-slate-200">
                                               {index === 0 ? '🥇 ' : index === 1 ? '🥈 ' : index === 2 ? '🥉 ' : `${index + 1}º `}
-                                              <strong className="text-white">{item.duo.player1Name.split(' ')[0]} / {item.duo.player2Name.split(' ')[0]}</strong>
+                                              <strong className="text-white">{item.duo.player1Name} &amp; {item.duo.player2Name}</strong>
                                             </span>
-                                            <span className="font-mono text-emerald-400 font-bold shrink-0 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/20">{item.wins}V / {item.totalPlayed}J</span>
+                                            <span className="font-mono text-emerald-400 font-bold shrink-0 bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-500/20 text-xs">
+                                              {item.wins} Vitórias / {item.totalPlayed} Jogos
+                                            </span>
                                           </div>
-                                        ))
-                                      )}
-                                    </div>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })
@@ -3388,8 +5720,8 @@ export default function Home() {
                           </div>
                         </div>
                       );
-                    })}
-                  </div>
+                    })()
+                  )}
                 </motion.div>
               )}
 
@@ -4389,12 +6721,36 @@ export default function Home() {
                 <select 
                   value={regForm.tournamentId} 
                   onChange={(e) => setRegForm({ ...regForm, tournamentId: e.target.value, categoryId: '' })}
-                  className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500"
+                  className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
                 >
                   <option value="">Selecione o Torneio</option>
-                  {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  {tournaments.map(t => {
+                    const vigente = isTournamentVigente(t);
+                    const arenaName = arenas.find(a => a.id === t.arenaId)?.name;
+                    return (
+                      <option key={t.id} value={t.id}>
+                        {t.name} {t.seriesName ? `· ${t.seriesName}` : ''} {session?.role === 'SUPER_ADMIN' && arenaName ? `[${arenaName}]` : ''} — {vigente ? '🟢 Vigente' : '🔴 Expirado (Fechado)'}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
+
+              {(() => {
+                const tourSelected = tournaments.find(t => t.id === regForm.tournamentId);
+                if (tourSelected && !isTournamentVigente(tourSelected)) {
+                  return (
+                    <div className="p-3 bg-rose-950/60 border border-rose-500/40 rounded-xl text-rose-300 text-xs flex items-start gap-2.5">
+                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="block font-bold">Inscrições Encerradas (Período Expirado)</strong>
+                        <span>O período vigente desta edição encerrou em {new Date(tourSelected.endDate).toLocaleDateString('pt-BR')}. Não é mais permitido registrar inscrições nesta edição. Gere uma nova edição para receber inscrições.</span>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-slate-300 font-semibold">Categoria</label>
@@ -4450,7 +6806,19 @@ export default function Home() {
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">
                 <button type="button" onClick={() => setIsRegModalOpen(false)} className="py-2 px-4 text-slate-400 hover:text-white transition cursor-pointer">Cancelar</button>
-                <button type="submit" className="py-2.5 px-5 bg-emerald-500 text-slate-950 font-bold rounded-xl hover:bg-emerald-400 transition shadow-md shadow-emerald-500/10 cursor-pointer">Confirmar Inscrição</button>
+                {(() => {
+                  const tourSelected = tournaments.find(t => t.id === regForm.tournamentId);
+                  const isVigente = isTournamentVigente(tourSelected);
+                  return (
+                    <button 
+                      type="submit" 
+                      disabled={!regForm.tournamentId || !isVigente}
+                      className="py-2.5 px-5 bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-slate-950 font-bold rounded-xl hover:bg-emerald-400 transition shadow-md shadow-emerald-500/10 cursor-pointer"
+                    >
+                      {isVigente ? 'Confirmar Inscrição' : 'Inscrições Encerradas'}
+                    </button>
+                  );
+                })()}
               </div>
             </form>
           </motion.div>
@@ -4679,75 +7047,141 @@ export default function Home() {
               <button onClick={() => setIsGenModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
             <form onSubmit={handleGenerateMatches} className="p-6 space-y-4 text-xs">
-              <p className="text-slate-400 leading-relaxed text-[11px]">
-                Esta ferramenta apagará as partidas pendentes e gerará novos jogos no formato <strong>Todos contra Todos (Round Robin)</strong> para a categoria selecionada, distribuindo as partidas de forma equilibrada pelas quadras.
-              </p>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Torneio</label>
-                <select 
-                  value={genForm.tournamentId} 
-                  onChange={(e) => setGenForm({ ...genForm, tournamentId: e.target.value, categoryId: '' })}
-                  className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500"
-                >
-                  <option value="">Selecione o Torneio</option>
-                  {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-
               {(() => {
                 const tour = tournaments.find(t => t.id === genForm.tournamentId);
-                const venueObj = venues.find(v => v.id === tour?.venueId);
-                const courtsToUse = tour?.courtsUsed || 4;
+                const cat = categories.find(c => c.id === genForm.categoryId);
+                const isSuper8 = tour?.isDuo === false || cat?.type === 'SUPER 8';
+                const enrolledCount = registrations.filter(r => r.tournamentId === genForm.tournamentId && r.categoryId === genForm.categoryId).length;
 
-                return tour ? (
-                  <div className="bg-[#090e1a] border border-slate-800/80 p-3.5 rounded-xl space-y-1.5">
-                    <p className="text-[11px] text-slate-300 flex items-center gap-1.5">
-                      <Building className="w-3.5 h-3.5 text-amber-400" />
-                      Local: <strong className="text-white">{venueObj?.name || tour.venueName || 'Arena Local'}</strong>
-                    </p>
-                    <p className="text-[11px] text-amber-300 flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-amber-400" />
-                      Quadras definidas para o evento: <strong className="font-mono">{courtsToUse} quadras</strong> (Quadra 1 a Quadra {courtsToUse})
-                    </p>
-                    <p className="text-[10px] text-slate-400 leading-relaxed">
-                      O sorteio distribuirá os confrontos automaticamente entre essas {courtsToUse} quadras. O organizador poderá trocar a quadra de qualquer confronto a qualquer momento.
-                    </p>
-                  </div>
-                ) : null;
+                return (
+                  <>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-slate-300 font-semibold">Torneio</label>
+                      <select 
+                        value={genForm.tournamentId} 
+                        onChange={(e) => setGenForm({ ...genForm, tournamentId: e.target.value, categoryId: '' })}
+                        className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="">Selecione o Torneio</option>
+                        {tournaments.map(t => (
+                          <option key={t.id} value={t.id}>
+                            {t.name} ({t.isDuo === false ? 'Individual' : 'Duplas'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-slate-300 font-semibold">Categoria</label>
+                      <select 
+                        value={genForm.categoryId} 
+                        onChange={(e) => setGenForm({ ...genForm, categoryId: e.target.value })}
+                        className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="">Selecione a Categoria</option>
+                        {categories.filter(c => c.tournamentId === genForm.tournamentId).map(c => (
+                          <option key={c.id} value={c.id}>{c.type} {c.level} {c.name ? `(${c.name})` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {isSuper8 ? (
+                      /* SUPER 8 SPECIFIC INTERFACE */
+                      <div className="bg-[#090e1a] border border-amber-500/30 p-4 rounded-2xl space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-mono uppercase font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                            Competição Individual · Super 8
+                          </span>
+                          <span className="text-[10px] text-emerald-400 font-semibold">
+                            Duplas Temporárias Automáticas
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="bg-[#0d1424] p-2.5 rounded-xl border border-slate-800">
+                            <span className="text-[10px] text-slate-400 block font-medium">Tipo de Torneio</span>
+                            <strong className="text-white">Individual</strong>
+                          </div>
+                          <div className="bg-[#0d1424] p-2.5 rounded-xl border border-slate-800">
+                            <span className="text-[10px] text-slate-400 block font-medium">Formato</span>
+                            <strong className="text-amber-400">Super 8</strong>
+                          </div>
+                          <div className="bg-[#0d1424] p-2.5 rounded-xl border border-slate-800">
+                            <span className="text-[10px] text-slate-400 block font-medium">Atletas Inscritos</span>
+                            <strong className={`font-mono text-sm ${enrolledCount === 8 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                              {enrolledCount} / 8 atletas
+                            </strong>
+                          </div>
+                          <div className="bg-[#0d1424] p-2.5 rounded-xl border border-slate-800">
+                            <span className="text-[10px] text-slate-400 block font-medium">Estrutura de Jogos</span>
+                            <strong className="text-white font-mono text-sm">7 rodadas · 14 jogos</strong>
+                          </div>
+                        </div>
+
+                        <p className="text-[10px] text-slate-400 leading-relaxed">
+                          No Super 8 não existe dupla fixa. O sistema formará as duplas automaticamente para que cada um dos 8 atletas jogue exatamente 7 partidas, com 7 parceiros diferentes ao longo das 7 rodadas.
+                        </p>
+
+                        {enrolledCount !== 8 ? (
+                          <div className="p-2.5 bg-rose-950/40 border border-rose-500/30 rounded-xl text-rose-300 text-[11px] flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                            <span>
+                              O formato Super 8 exige <strong>exatamente 8 atletas</strong> inscritos na categoria. Atualmente há <strong>{enrolledCount}</strong> inscrito(s).
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="p-2.5 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-emerald-300 text-[11px] flex items-center gap-2">
+                            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span>
+                              Validação OK! 8 atletas inscritos. Pronto para gerar a tabela de 14 confrontos.
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* TRADITIONAL DUO INTERFACE */
+                      <p className="text-slate-400 leading-relaxed text-[11px]">
+                        Esta ferramenta apagará as partidas pendentes e gerará novos jogos no formato <strong>Todos contra Todos (Round Robin)</strong> para as duplas cadastradas na categoria.
+                      </p>
+                    )}
+
+                    {tour && (
+                      <div className="bg-[#090e1a] border border-slate-800/80 p-3 rounded-xl space-y-1">
+                        <p className="text-[11px] text-slate-300 flex items-center gap-1.5">
+                          <Building className="w-3.5 h-3.5 text-amber-400" />
+                          Local: <strong className="text-white">{tour.venueName || 'Arena Local'}</strong>
+                        </p>
+                        <p className="text-[11px] text-amber-300 flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5 text-amber-400" />
+                          Quadras do evento: <strong className="font-mono">{tour.courtsUsed || 4} quadras</strong>
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-slate-300 font-semibold">Data dos Jogos</label>
+                        <input type="date" required value={genForm.date} onChange={(e) => setGenForm({ ...genForm, date: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono focus:outline-none focus:border-amber-500" />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-slate-300 font-semibold">Prefixo Quadra</label>
+                        <input type="text" required value={genForm.court} onChange={(e) => setGenForm({ ...genForm, court: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500" />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">
+                      <button type="button" onClick={() => setIsGenModalOpen(false)} className="py-2 px-4 text-slate-400 hover:text-white transition cursor-pointer">Cancelar</button>
+                      <button 
+                        type="submit" 
+                        disabled={isSuper8 && enrolledCount !== 8}
+                        className="py-2.5 px-5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-black rounded-xl transition shadow-md shadow-amber-500/10 cursor-pointer"
+                      >
+                        {isSuper8 ? 'Gerar Jogos Super 8 (14 Partidas)' : 'Gerar Jogos Chaveados'}
+                      </button>
+                    </div>
+                  </>
+                );
               })()}
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Categoria</label>
-                <select 
-                  value={genForm.categoryId} 
-                  onChange={(e) => setGenForm({ ...genForm, categoryId: e.target.value })}
-                  className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500"
-                >
-                  <option value="">Selecione a Categoria</option>
-                  {categories.filter(c => c.tournamentId === genForm.tournamentId).map(c => (
-                    <option key={c.id} value={c.id}>{c.type} {c.level}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Data dos Jogos</label>
-                  <input type="date" required value={genForm.date} onChange={(e) => setGenForm({ ...genForm, date: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono focus:outline-none focus:border-amber-500" />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Prefixo Quadra</label>
-                  <input type="text" required value={genForm.court} onChange={(e) => setGenForm({ ...genForm, court: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500" />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">
-                <button type="button" onClick={() => setIsGenModalOpen(false)} className="py-2 px-4 text-slate-400 hover:text-white transition cursor-pointer">Cancelar</button>
-                <button type="submit" className="py-2.5 px-5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl transition shadow-md shadow-amber-500/10 cursor-pointer">
-                  Gerar Jogos Chaveados
-                </button>
-              </div>
             </form>
           </motion.div>
         </div>
@@ -4766,27 +7200,124 @@ export default function Home() {
             </div>
             <form onSubmit={handleSaveResultSubmit} className="p-6 space-y-4 text-xs">
               <div className="bg-[#090e1a] p-4 rounded-xl space-y-1 text-center border border-slate-800/80">
-                <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">{selectedMatch.categoryName}</p>
-                <p className="text-base font-bold text-white mt-1">{selectedMatch.duo1Name} <span className="text-amber-400 font-extrabold mx-1">vs</span> {selectedMatch.duo2Name}</p>
+                <div className="flex items-center justify-center gap-2">
+                  <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">{selectedMatch.categoryName}</p>
+                  {selectedMatch.round && (
+                    <span className="text-[10px] font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                      Rodada {selectedMatch.round} · Jogo {selectedMatch.matchNumber}
+                    </span>
+                  )}
+                </div>
+                <p className="text-base font-bold text-white mt-1.5">{selectedMatch.duo1Name} <span className="text-amber-400 font-extrabold mx-1">vs</span> {selectedMatch.duo2Name}</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">{selectedMatch.court} @ {selectedMatch.time}</p>
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Placar (Sets / Games)</label>
-                <input type="text" required placeholder="Ex: 6/4 6/3 ou 6/1 3/6 10/7" value={resultForm.score} onChange={(e) => setResultForm({ ...resultForm, score: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono text-center text-sm font-bold focus:border-emerald-500 focus:outline-none" />
-              </div>
+              {selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || selectedMatch.teamA ? (
+                /* Super 8 Scoring: 4 games format */
+                <div className="space-y-3.5">
+                  <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl text-center">
+                    <p className="text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      Regra Super 8: Partida em 4 Games
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Um dos lados deve fechar com 4 games e o adversário entre 0 e 3 games.
+                    </p>
+                  </div>
 
-              <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Dupla Vencedora</label>
-                <select 
-                  value={resultForm.winnerDuoId} 
-                  onChange={(e) => setResultForm({ ...resultForm, winnerDuoId: e.target.value })}
-                  className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
-                >
-                  <option value={selectedMatch.duo1Id}>{selectedMatch.duo1Name}</option>
-                  <option value={selectedMatch.duo2Id}>{selectedMatch.duo2Name}</option>
-                </select>
-              </div>
+                  <div>
+                    <label className="text-slate-300 font-semibold block mb-1.5">Clique para Lançar Placar Rápido:</label>
+                    <div className="space-y-2">
+                      <div className="bg-[#090e1a] p-2.5 rounded-xl border border-slate-800/80 space-y-1.5">
+                        <span className="text-[10px] text-emerald-400 font-bold block truncate">
+                          Vitória de {selectedMatch.duo1Name}:
+                        </span>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {[0, 1, 2, 3].map(opp => (
+                            <button
+                              key={`quick-a-${opp}`}
+                              type="button"
+                              onClick={() => {
+                                setResultForm({
+                                  ...resultForm,
+                                  scoreA: 4,
+                                  scoreB: opp,
+                                  score: `4 x ${opp}`,
+                                  winnerTeam: 'TEAM_A'
+                                });
+                              }}
+                              className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
+                                resultForm.scoreA === 4 && resultForm.scoreB === opp && resultForm.winnerTeam === 'TEAM_A'
+                                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
+                                  : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
+                              }`}
+                            >
+                              4 × {opp}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-[#090e1a] p-2.5 rounded-xl border border-slate-800/80 space-y-1.5">
+                        <span className="text-[10px] text-amber-400 font-bold block truncate">
+                          Vitória de {selectedMatch.duo2Name}:
+                        </span>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {[0, 1, 2, 3].map(opp => (
+                            <button
+                              key={`quick-b-${opp}`}
+                              type="button"
+                              onClick={() => {
+                                setResultForm({
+                                  ...resultForm,
+                                  scoreA: opp,
+                                  scoreB: 4,
+                                  score: `${opp} x 4`,
+                                  winnerTeam: 'TEAM_B'
+                                });
+                              }}
+                              className={`py-1.5 px-2 rounded-lg font-mono font-bold text-xs transition border cursor-pointer ${
+                                resultForm.scoreB === 4 && resultForm.scoreA === opp && resultForm.winnerTeam === 'TEAM_B'
+                                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
+                                  : 'bg-[#0d1424] text-slate-300 border-slate-800 hover:border-slate-700'
+                              }`}
+                            >
+                              {opp} × 4
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-[#090e1a] border border-slate-800 rounded-xl flex items-center justify-between">
+                    <span className="text-slate-400">Placar Selecionado:</span>
+                    <span className="font-mono text-base font-black text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-3 py-1 rounded-lg">
+                      {resultForm.scoreA} × {resultForm.scoreB}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                /* Traditional Duo Scoring */
+                <>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-slate-300 font-semibold">Placar (Sets / Games)</label>
+                    <input type="text" required placeholder="Ex: 6/4 6/3 ou 6/1 3/6 10/7" value={resultForm.score} onChange={(e) => setResultForm({ ...resultForm, score: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono text-center text-sm font-bold focus:border-emerald-500 focus:outline-none" />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-slate-300 font-semibold">Dupla Vencedora</label>
+                    <select 
+                      value={resultForm.winnerDuoId} 
+                      onChange={(e) => setResultForm({ ...resultForm, winnerDuoId: e.target.value })}
+                      className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                    >
+                      <option value={selectedMatch.duo1Id}>{selectedMatch.duo1Name}</option>
+                      <option value={selectedMatch.duo2Id}>{selectedMatch.duo2Name}</option>
+                    </select>
+                  </div>
+                </>
+              )}
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">
                 <button type="button" onClick={() => setIsResultModalOpen(false)} className="py-2 px-4 text-slate-400 hover:text-white transition cursor-pointer">Cancelar</button>
@@ -4812,19 +7343,34 @@ export default function Home() {
               <div className="bg-[#090e1a] p-4 rounded-xl space-y-1 text-center border border-rose-900/30">
                 <p className="text-[10px] text-rose-400 font-bold uppercase tracking-wider">{selectedMatch.categoryName}</p>
                 <p className="text-sm font-bold text-white mt-1">{selectedMatch.duo1Name} <span className="text-slate-500">vs</span> {selectedMatch.duo2Name}</p>
-                <p className="text-[10px] text-slate-400 mt-1">A dupla ausente será derrotada por W.O. (6/0 6/0 oficial).</p>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || selectedMatch.teamA 
+                    ? 'A ausência será computada como W.O. (4x0).' 
+                    : 'A dupla ausente será derrotada por W.O. (6/0 6/0 oficial).'}
+                </p>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Dupla Vencedora (Quem compareceu à quadra)</label>
-                <select 
-                  value={woForm.winnerDuoId} 
-                  onChange={(e) => setWoForm({ ...woForm, winnerDuoId: e.target.value })}
-                  className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-rose-500 font-semibold"
-                >
-                  <option value={selectedMatch.duo1Id}>{selectedMatch.duo1Name}</option>
-                  <option value={selectedMatch.duo2Id}>{selectedMatch.duo2Name}</option>
-                </select>
+                <label className="text-slate-300 font-semibold">Quem compareceu à quadra (Vencedor)</label>
+                {selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || selectedMatch.teamA ? (
+                  <select 
+                    value={woForm.winnerTeam} 
+                    onChange={(e) => setWoForm({ ...woForm, winnerTeam: e.target.value as any })}
+                    className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-rose-500 font-semibold"
+                  >
+                    <option value="TEAM_A">{selectedMatch.duo1Name}</option>
+                    <option value="TEAM_B">{selectedMatch.duo2Name}</option>
+                  </select>
+                ) : (
+                  <select 
+                    value={woForm.winnerDuoId} 
+                    onChange={(e) => setWoForm({ ...woForm, winnerDuoId: e.target.value })}
+                    className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-rose-500 font-semibold"
+                  >
+                    <option value={selectedMatch.duo1Id}>{selectedMatch.duo1Name}</option>
+                    <option value={selectedMatch.duo2Id}>{selectedMatch.duo2Name}</option>
+                  </select>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">

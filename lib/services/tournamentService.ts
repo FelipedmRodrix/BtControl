@@ -12,7 +12,7 @@ export const tournamentService = {
   getAll(arenaId?: string): Tournament[] {
     const db = readDB();
     if (arenaId) {
-      return db.tournaments.filter(t => t.arenaId === arenaId);
+      return db.tournaments.filter(t => t.arenaId === arenaId || t.organizerId === arenaId);
     }
     return db.tournaments;
   },

@@ -5,8 +5,9 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const arenaId = searchParams.get('arenaId') || undefined;
+    const tournamentId = searchParams.get('tournamentId') || undefined;
 
-    const list = matchService.getAll(arenaId);
+    const list = matchService.getAll(arenaId, tournamentId);
     return NextResponse.json(list);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

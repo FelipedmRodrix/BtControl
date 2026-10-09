@@ -1,10 +1,10 @@
 import { readDB, writeDB, Registration } from '../db/store';
 
 export const registrationService = {
-  getAll(arenaId?: string) {
+  getAll(arenaId?: string, tournamentId?: string) {
     const db = readDB();
     
-    const enriched = db.registrations.map(r => {
+    let enriched = db.registrations.map(r => {
       const athlete = db.athletes.find(a => a.id === r.athleteId);
       const category = db.categories.find(c => c.id === r.categoryId);
       const tournament = db.tournaments.find(t => t.id === r.tournamentId);
@@ -19,7 +19,10 @@ export const registrationService = {
     });
 
     if (arenaId) {
-      return enriched.filter(r => r.arenaId === arenaId);
+      enriched = enriched.filter(r => r.arenaId === arenaId);
+    }
+    if (tournamentId) {
+      enriched = enriched.filter(r => r.tournamentId === tournamentId);
     }
 
     return enriched;
@@ -32,6 +35,21 @@ export const registrationService = {
     const tour = db.tournaments.find(t => t.id === data.tournamentId);
     if (!tour) {
       return { success: false, error: 'O torneio especificado não existe.' };
+    }
+
+    // 1.1 Verify registration period (Período Vigente)
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (tour.endDate && tour.endDate < todayStr) {
+      return { 
+        success: false, 
+        error: `Inscrições encerradas. O período vigente deste torneio expirou em ${tour.endDate}. Não é mais possível realizar inscrições nesta edição. Gere uma nova edição para receber novos atletas.` 
+      };
+    }
+    if (tour.status === 'FINALIZADO') {
+      return { 
+        success: false, 
+        error: 'Este torneio já foi finalizado e não aceita mais inscrições.' 
+      };
     }
 
     // 2. Verify category

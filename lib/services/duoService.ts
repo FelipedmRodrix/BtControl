@@ -1,10 +1,10 @@
 import { readDB, writeDB, Duo } from '../db/store';
 
 export const duoService = {
-  getAll(arenaId?: string) {
+  getAll(arenaId?: string, tournamentId?: string) {
     const db = readDB();
 
-    const enriched = db.duos.map(d => {
+    let enriched = db.duos.map(d => {
       const p1 = db.athletes.find(a => a.id === d.player1Id);
       const p2 = db.athletes.find(a => a.id === d.player2Id);
       const category = db.categories.find(c => c.id === d.categoryId);
@@ -21,7 +21,10 @@ export const duoService = {
     });
 
     if (arenaId) {
-      return enriched.filter(d => d.arenaId === arenaId);
+      enriched = enriched.filter(d => d.arenaId === arenaId);
+    }
+    if (tournamentId) {
+      enriched = enriched.filter(d => d.tournamentId === tournamentId);
     }
 
     return enriched;

@@ -120,19 +120,34 @@ export interface Duo {
   updatedAt: string;
 }
 
+export interface MatchTeam {
+  player1Id: string;
+  player2Id: string;
+  player1Name?: string;
+  player2Name?: string;
+}
+
 export interface Match {
   id: string;
   tournamentId: string;
   categoryId: string;
   stage: string;
   groupName?: string;
-  duo1Id: string;
-  duo2Id: string;
+  round?: number; // 1 to 7 for Super 8
+  matchNumber?: number; // 1 to 14
+  format?: 'STANDARD' | 'SUPER_8';
+  teamA?: MatchTeam;
+  teamB?: MatchTeam;
+  scoreA?: number; // Games won by Team A (0 to 4 in Super 8)
+  scoreB?: number; // Games won by Team B (0 to 4 in Super 8)
+  winnerTeam?: 'TEAM_A' | 'TEAM_B';
+  duo1Id?: string; // Optional for Super 8, used for traditional duo tournaments
+  duo2Id?: string;
   date: string;
   time: string;
   court: string;
   status: 'PENDENTE' | 'FINALIZADA' | 'WO';
-  score?: string;
+  score?: string; // e.g. "4 x 2" or "6/4 6/2"
   winnerDuoId?: string;
   createdAt: string;
   updatedAt: string;

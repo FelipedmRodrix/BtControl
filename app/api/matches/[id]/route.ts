@@ -9,15 +9,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const { score, winnerDuoId, isWO, court } = body;
+    const { score, winnerDuoId, isWO, court, scoreA, scoreB, winnerTeam } = body;
 
     let res;
     if (court !== undefined) {
       res = matchService.updateCourt(id, court);
     } else if (isWO) {
-      res = matchService.toggleWO(id, winnerDuoId);
+      res = matchService.toggleWO(id, winnerDuoId, winnerTeam);
     } else {
-      res = matchService.updateResult(id, score, winnerDuoId);
+      res = matchService.updateResult(id, score, winnerDuoId, scoreA, scoreB, winnerTeam);
     }
 
     if (!res.success) {
