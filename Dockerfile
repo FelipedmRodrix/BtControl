@@ -14,8 +14,9 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:5433/arenabt
 
-RUN npm run build
+RUN npm run prisma:generate && npm run build
 
 # Etapa 3: Imagem de execução final (Runner leve e seguro)
 FROM node:22-bookworm AS runner
