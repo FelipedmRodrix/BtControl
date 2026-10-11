@@ -21,6 +21,7 @@ return NextResponse.json({ error: 'Usuário e senha são obrigatórios.' }, { st
 
     return NextResponse.json(result.user, { status: 200 });
   } catch (error: any) {
+    console.error('[Auth Login Error]', error?.message || error);
     return NextResponse.json({ error: 'Erro ao processar login.' }, { status: 400 });
   }
 }
