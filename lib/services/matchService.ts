@@ -1,5 +1,6 @@
 import { readDB, writeDB, Match, Duo } from '../db/store';
 import { SUPER_8_ROUNDS_TEMPLATE, validateSuper8Schedule, validateSuper8Score, calculateSuper8Standings, resolveSuper8Tie } from './super8Service';
+import { conventionalTournamentService } from './conventionalTournamentService';
 
 export const matchService = {
   getAll(arenaId?: string, tournamentId?: string) {
@@ -213,7 +214,21 @@ export const matchService = {
       return { success: false, error: 'A dupla vencedora deve fazer parte do jogo.' };
     }
 
+    // Try parsing numeric scores if score is provided (e.g. "6 x 4" or "7 x 6 (TB)")
+    let sA = scoreA;
+    let sB = scoreB;
+    if ((sA === undefined || sB === undefined) && score) {
+      const parts = score.match(/(\d+)\s*[xX/-]\s*(\d+)/);
+      if (parts) {
+        sA = parseInt(parts[1], 10);
+        sB = parseInt(parts[2], 10);
+      }
+    }
+
     db.matches[index].score = score;
+    if (sA !== undefined) db.matches[index].scoreA = sA;
+    if (sB !== undefined) db.matches[index].scoreB = sB;
+
     if (isDraw) {
       db.matches[index].isDraw = true;
       db.matches[index].winnerDuoId = undefined;
@@ -222,12 +237,23 @@ export const matchService = {
       writeDB(db);
       return { success: true };
     }
+
+    db.matches[index].isDraw = false;
     if (winnerDuoId) {
       db.matches[index].winnerDuoId = winnerDuoId;
+    } else if (sA !== undefined && sB !== undefined && sA !== sB) {
+      db.matches[index].winnerDuoId = sA > sB ? m.duo1Id : m.duo2Id;
     }
+
     db.matches[index].status = 'FINALIZADA';
     db.matches[index].updatedAt = new Date().toISOString();
     writeDB(db);
+
+    // If it's an elimination match, automatically advance the winner into the next bracket node!
+    const effectiveWinner = db.matches[index].winnerDuoId;
+    if (effectiveWinner && m.stage !== 'Fase de Grupos') {
+      conventionalTournamentService.advanceWinnerInBracket(id, effectiveWinner);
+    }
 
     return { success: true };
   },
@@ -261,11 +287,18 @@ export const matchService = {
       return { success: false, error: 'A dupla vencedora do WO deve fazer parte do jogo.' };
     }
 
-    db.matches[index].score = 'W.O. (6/0 6/0)';
+    const woGames = db.matches[index].games !== undefined ? db.matches[index].games : 6;
+    db.matches[index].score = `W.O. (${woGames}x0)`;
     db.matches[index].winnerDuoId = winnerDuoId;
+    db.matches[index].scoreA = winnerDuoId === m.duo1Id ? woGames : 0;
+    db.matches[index].scoreB = winnerDuoId === m.duo2Id ? woGames : 0;
     db.matches[index].status = 'WO';
     db.matches[index].updatedAt = new Date().toISOString();
     writeDB(db);
+
+    if (winnerDuoId && m.stage !== 'Fase de Grupos') {
+      conventionalTournamentService.advanceWinnerInBracket(id, winnerDuoId);
+    }
 
     return { success: true };
   },
@@ -413,54 +446,21 @@ export const matchService = {
       return { success: true, count: 14, format: 'SUPER_8' };
     }
 
-    // Formato tradicional de duplas
-    const duos = db.duos.filter(d => d.categoryId === categoryId && d.tournamentId === tournamentId);
-    if (duos.length < 2) {
-      return { success: false, error: 'É necessário pelo menos 2 duplas cadastradas na categoria para gerar jogos.' };
-    }
+    // Formato de Jogos Convencionais (Fase de Grupos balanceada + Eliminatórias)
+    return conventionalTournamentService.generateGroupStage(tournamentId, categoryId, matchDate, courtPrefix);
+  },
 
-    // Remover pendentes anteriores
-    db.matches = db.matches.filter(m => !(m.categoryId === categoryId && m.tournamentId === tournamentId && m.status === 'PENDENTE'));
+  generateEliminationBracket(tournamentId: string, categoryId: string, date?: string, courtPrefix?: string) {
+    return conventionalTournamentService.generateEliminationBracket(
+      tournamentId,
+      categoryId,
+      date || new Date().toISOString().split('T')[0],
+      courtPrefix || 'Quadra'
+    );
+  },
 
-    let count = 0;
-    const now = new Date().toISOString();
-    for (let i = 0; i < duos.length; i++) {
-      for (let j = i + 1; j < duos.length; j++) {
-        const d1 = duos[i];
-        const d2 = duos[j];
-
-        const courtNumber = (count % availableCourts) + 1;
-        const courtName = `${courtPrefix} ${courtNumber}`;
-        const hour = 14 + Math.floor(count / availableCourts);
-        const minutes = (Math.floor(count / availableCourts) * 35) % 60;
-        const matchTime = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-
-        const newMatch: Match = {
-          id: 'mat-' + Math.random().toString(36).substring(2, 11),
-          tournamentId,
-          categoryId,
-          stage: 'Fase de Grupos',
-          groupName: 'Grupo Único',
-          duo1Id: d1.id,
-          duo2Id: d2.id,
-          date: matchDate,
-          time: matchTime,
-          court: courtName,
-          status: 'PENDENTE',
-          format: 'STANDARD',
-          games: category.games || 4,
-          thaiBreak: category.thaiBreak || false,
-          createdAt: now,
-          updatedAt: now
-        };
-
-        db.matches.push(newMatch);
-        count++;
-      }
-    }
-
-    writeDB(db);
-    return { success: true, count, format: 'STANDARD' };
+  getConventionalData(tournamentId: string, categoryId: string) {
+    return conventionalTournamentService.getTournamentData(tournamentId, categoryId);
   },
 
   getSuper8Standings(tournamentId: string, categoryId: string) {

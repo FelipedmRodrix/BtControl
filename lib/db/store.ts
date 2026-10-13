@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { PrismaClient } from '@prisma/client';
+import { Pool } from 'pg';
 
 export interface Athlete {
   id: string;
@@ -91,7 +91,7 @@ export interface Category {
   tournamentId?: string; // If 'GLOBAL' or not set, it's a pre-registered system master category
   masterCategoryId?: string; // Optional reference to template master category
   name?: string; // Ex: "Masculino C", "Feminino Open", "Mista B"
-  type: 'SUPER 8' | 'MISTA' | 'MASCULINO' | 'FEMININO';
+  type: 'SUPER 8' | 'SUPER 8 DUPLAS' | 'MISTA' | 'MASCULINO' | 'FEMININO';
   level: 'PRINCIPIANTE' | 'INICIANTE' | 'D' | 'C' | 'B' | 'A' | 'OPEN';
   price: number;
   maxParticipants: number; // Max players or duos that can register
@@ -209,7 +209,8 @@ export const DEFAULT_MASTER_CATEGORIES: Omit<Category, 'createdAt' | 'updatedAt'
   { id: 'cat-std-mis-ini', name: 'Mista Iniciante', type: 'MISTA', level: 'INICIANTE', price: 80, maxParticipants: 16, status: 'ATIVA', tournamentId: 'GLOBAL', description: 'Duplas Mistas Iniciantes' },
 
   // SUPER 8
-  { id: 'cat-std-sup8-open', name: 'Super 8 Open', type: 'SUPER 8', level: 'OPEN', price: 130, maxParticipants: 8, status: 'ATIVA', tournamentId: 'GLOBAL', description: 'Formato Super 8 com chaveamento dinâmico' }
+  { id: 'cat-std-sup8-open', name: 'Super 8 Open', type: 'SUPER 8', level: 'OPEN', price: 130, maxParticipants: 8, status: 'ATIVA', tournamentId: 'GLOBAL', description: 'Formato Super 8 individual com parceiros dinâmicos' },
+  { id: 'cat-std-sup8-duplas', name: 'Super 8 Duplas Formadas', type: 'SUPER 8 DUPLAS', level: 'OPEN', price: 130, maxParticipants: 8, status: 'ATIVA', tournamentId: 'GLOBAL', description: 'Formato Super 8 com duplas fixas já formadas' }
 ];
 
 // Default seeding data
@@ -1480,22 +1481,41 @@ let pendingWrites: Promise<any>[] = [];
 
 const hasDb = !!process.env.DATABASE_URL;
 
-let prisma: PrismaClient | null = null;
+let pgPool: Pool | null = null;
 if (hasDb) {
   try {
-    prisma = new PrismaClient({ log: ['error', 'warn'] });
+    const connStr = process.env.DATABASE_URL || '';
+    pgPool = new Pool({
+      connectionString: connStr,
+      ssl: connStr.includes('localhost') ? false : { rejectUnauthorized: false }
+    });
   } catch (e) {
-    console.error('[ArenaBT] Erro ao instanciar Prisma Client:', (e as any)?.message || e);
-    prisma = null;
+    console.error('[ArenaBT] Erro ao instanciar Pool do PostgreSQL:', (e as any)?.message || e);
+    pgPool = null;
+  }
+}
+
+async function initPostgresTable(): Promise<void> {
+  if (!pgPool) return;
+  try {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS "DbStore" (
+        key TEXT PRIMARY KEY,
+        data JSONB NOT NULL,
+        "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `);
+  } catch (e) {
+    console.warn('[ArenaBT] Falha ao verificar/criar tabela DbStore no PostgreSQL:', (e as any)?.message || e);
   }
 }
 
 async function loadFromDb(): Promise<DBData | null> {
-  if (!prisma) return null;
+  if (!pgPool) return null;
   try {
-    const result = await prisma!.$queryRaw<{ data: any }[]>`SELECT data FROM "DbStore" WHERE key = 'main_db' LIMIT 1;`;
-    if (result && result.length > 0 && result[0]?.data) {
-      return result[0].data as DBData;
+    const result = await pgPool.query('SELECT data FROM "DbStore" WHERE key = $1 LIMIT 1;', ['main_db']);
+    if (result.rows && result.rows.length > 0 && result.rows[0]?.data) {
+      return result.rows[0].data as DBData;
     }
   } catch (e) {
     console.warn('[ArenaBT] Nao foi possivel carregar dados do PostgreSQL:', (e as any)?.message || e);
@@ -1504,12 +1524,11 @@ async function loadFromDb(): Promise<DBData | null> {
 }
 
 async function upsertToDb(data: DBData): Promise<void> {
-  if (!prisma) return;
+  if (!pgPool) return;
   try {
-    await prisma!.$executeRawUnsafe(
+    await pgPool.query(
       'INSERT INTO "DbStore" (key, data, "updatedAt") VALUES ($1, $2::jsonb, NOW()) ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, "updatedAt" = NOW();',
-      'main_db',
-      JSON.stringify(data)
+      ['main_db', JSON.stringify(data)]
     );
   } catch (e) {
     console.warn('[ArenaBT] Falha ao salvar no PostgreSQL:', (e as any)?.message || e);
@@ -1523,10 +1542,11 @@ export async function ensureDbInitialized(): Promise<void> {
     return;
   }
   dbInitPromise = (async () => {
-    if (!hasDb || !prisma) {
+    if (!hasDb || !pgPool) {
       isDbInitialized = true;
       return;
     }
+    await initPostgresTable();
     const loaded = await loadFromDb();
     if (loaded) {
       memoryCache = loaded;
@@ -1702,7 +1722,7 @@ export function writeDB(data: DBData): void {
     }
   }
 
-  if (hasDb && prisma) {
+  if (hasDb && pgPool) {
     const p = upsertToDb(data);
     pendingWrites.push(p);
   }

@@ -42,9 +42,13 @@ import {
   Clock,
   ArrowRight,
   Filter,
-  CheckCircle2
+  CheckCircle2,
+  Menu
 } from 'lucide-react';
 import { calculateSuper8Standings, Super8AthleteStanding } from '@/lib/services/super8Service';
+import { WorldCupBracket } from '@/components/WorldCupBracket';
+import { GroupStageView } from '@/components/GroupStageView';
+import type { ConventionalTournamentData } from '@/lib/services/conventionalTournamentService';
 
 // Type definitions
 interface Athlete {
@@ -120,7 +124,7 @@ interface Category {
   tournamentId?: string;
   masterCategoryId?: string;
   name?: string;
-  type: 'SUPER 8' | 'MISTA' | 'MASCULINO' | 'FEMININO';
+  type: 'SUPER 8' | 'SUPER 8 DUPLAS' | 'MISTA' | 'MASCULINO' | 'FEMININO';
   level: 'PRINCIPIANTE' | 'INICIANTE' | 'D' | 'C' | 'B' | 'A' | 'OPEN';
   price: number;
   maxParticipants?: number;
@@ -220,7 +224,8 @@ const STANDARD_CATEGORIES = [
   { type: 'MISTA' as const, level: 'A' as const },
   { type: 'MISTA' as const, level: 'OPEN' as const },
   
-  { type: 'SUPER 8' as const, level: 'OPEN' as const }
+  { type: 'SUPER 8' as const, level: 'OPEN' as const },
+  { type: 'SUPER 8 DUPLAS' as const, level: 'OPEN' as const }
 ];
 
 export default function Home() {
@@ -264,6 +269,7 @@ export default function Home() {
   const [filterCategoryStatus, setFilterCategoryStatus] = useState<string>('ALL');
   const [isCadastrarExpanded, setIsCadastrarExpanded] = useState<boolean>(true);
   const [searchGlobalQuery, setSearchGlobalQuery] = useState('');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   // Loading & Notification States
   const [loading, setLoading] = useState(true);
@@ -491,6 +497,7 @@ export default function Home() {
   // Central Navigation Handler: Always resets tournament search and selection when clicking sidebar
   const handleNavTab = (tab: 'dashboard' | 'athletes' | 'arenas' | 'venues' | 'categories' | 'tournaments' | 'registrations' | 'duos' | 'matches' | 'results' | 'reports' | 'settings') => {
     setActiveTab(tab);
+    setIsMobileMenuOpen(false);
     if (tab === 'registrations') {
       setSelectedRegTournamentId('');
       setSearchRegTournamentTerm('');
@@ -2174,31 +2181,245 @@ export default function Home() {
       <div className="flex-1 flex flex-col min-h-screen overflow-y-auto">
         
         {/* Mobile Navbar Header */}
-        <header className="md:hidden sticky top-0 z-40 bg-[#0d1424] border-b border-slate-800 px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-              <Trophy className="w-4 h-4 text-emerald-400" />
-            </div>
-            <span className="text-base font-black text-white bg-gradient-to-r from-emerald-400 to-amber-300 bg-clip-text text-transparent">BtControl</span>
-          </div>
-          <div className="flex gap-2">
+        <header className="md:hidden sticky top-0 z-40 bg-[#0d1424]/95 backdrop-blur-md border-b border-slate-800/90 px-3.5 py-2.5 flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-2.5">
             <button 
-              onClick={() => { setActiveTab('dashboard'); handleCloseArenaManagement(); }}
-              className={`p-1.5 px-3 rounded-lg text-xs font-semibold ${activeTab === 'dashboard' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400'}`}
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="p-2 -ml-1 text-slate-300 hover:text-white rounded-xl bg-slate-800/60 active:bg-slate-700/80 transition flex items-center justify-center min-w-[38px] min-h-[38px]"
+              aria-label="Abrir menu de navegação"
             >
-              Menu
+              <Menu className="w-5 h-5 text-emerald-400" />
             </button>
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleNavTab('dashboard')}>
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-emerald-500/20 to-amber-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <Trophy className="w-4 h-4 text-emerald-400" />
+              </div>
+              <span className="text-base font-black text-white bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 bg-clip-text text-transparent">
+                BtControl
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/25">
+              {activeTab === 'dashboard' ? 'Painel' : 
+               activeTab === 'tournaments' ? 'Torneios' : 
+               activeTab === 'matches' ? 'Jogos' : 
+               activeTab === 'duos' ? 'Duplas' : 
+               activeTab === 'registrations' ? 'Inscrições' : 
+               activeTab === 'athletes' ? 'Atletas' : 
+               activeTab === 'results' ? 'Resultados' : 
+               activeTab === 'arenas' ? 'Arenas' : 
+               activeTab === 'venues' ? 'Locais' : 
+               activeTab === 'categories' ? 'Categorias' : activeTab}
+            </span>
             <button 
               onClick={handleLogout}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400"
+              className="p-2 text-slate-400 hover:text-rose-400 rounded-xl bg-slate-800/50 active:bg-slate-700 transition"
+              title="Sair do sistema"
             >
               <LogOut className="w-4 h-4" />
             </button>
           </div>
         </header>
 
+        {/* Mobile Drawer Slide-over */}
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <>
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 md:hidden"
+              />
+              <motion.div 
+                initial={{ x: '-100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '-100%' }}
+                transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+                className="fixed top-0 bottom-0 left-0 w-72 max-w-[85vw] bg-[#0d1424] border-r border-slate-800 z-50 flex flex-col justify-between md:hidden shadow-2xl"
+              >
+                <div className="flex flex-col overflow-y-auto">
+                  <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                        <Trophy className="w-4 h-4 text-emerald-400" />
+                      </div>
+                      <div>
+                        <span className="text-base font-black text-white bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 bg-clip-text text-transparent">
+                          BtControl
+                        </span>
+                        <p className="text-[10px] text-slate-400 font-medium">Menu Principal</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800/60"
+                      aria-label="Fechar menu"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <nav className="p-3 space-y-1 text-xs">
+                    <button 
+                      onClick={() => { handleNavTab('dashboard'); handleCloseArenaManagement(); }}
+                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'dashboard' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
+                    >
+                      <Activity className="w-4 h-4 shrink-0 text-emerald-400" />
+                      <span>{session.role === 'SUPER_ADMIN' ? 'Painel Geral' : 'Painel da Arena'}</span>
+                    </button>
+
+                    {/* Cadastrar accordion no mobile */}
+                    <div className="pt-1">
+                      <button 
+                        type="button"
+                        onClick={() => setIsCadastrarExpanded(!isCadastrarExpanded)}
+                        className={`w-full flex items-center justify-between py-2 px-3 rounded-xl font-bold transition-all ${
+                          ['athletes', 'arenas', 'venues', 'categories'].includes(activeTab)
+                            ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
+                            <FolderPlus className="w-4 h-4 stroke-[2.5]" />
+                          </div>
+                          <span className="font-black tracking-tight text-[13px]">Cadastrar</span>
+                        </div>
+                        {isCadastrarExpanded ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
+                      </button>
+
+                      {isCadastrarExpanded && (
+                        <div className="pl-3.5 pr-1 pt-1 space-y-1 border-l-2 border-emerald-500/20 ml-4 my-1">
+                          <button 
+                            onClick={() => { handleNavTab('athletes'); handleCloseArenaManagement(); }}
+                            className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-bold text-xs transition-all ${activeTab === 'athletes' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400 hover:text-white'}`}
+                          >
+                            <Users className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>{session.role === 'SUPER_ADMIN' ? 'Atletas Globais' : 'Atletas da Arena'}</span>
+                          </button>
+
+                          {session.role === 'SUPER_ADMIN' && (
+                            <>
+                              <button 
+                                onClick={() => { handleNavTab('arenas'); handleCloseArenaManagement(); }}
+                                className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-bold text-xs transition-all ${activeTab === 'arenas' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400 hover:text-white'}`}
+                              >
+                                <Shield className="w-3.5 h-3.5 text-amber-400" />
+                                <span>Organizadores</span>
+                              </button>
+
+                              <button 
+                                onClick={() => { handleNavTab('venues'); handleCloseArenaManagement(); }}
+                                className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-bold text-xs transition-all ${activeTab === 'venues' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400 hover:text-white'}`}
+                              >
+                                <Building className="w-3.5 h-3.5 text-teal-400" />
+                                <span>Arenas Físicas</span>
+                              </button>
+
+                              <button 
+                                onClick={() => { handleNavTab('categories'); handleCloseArenaManagement(); }}
+                                className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-bold text-xs transition-all ${activeTab === 'categories' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400 hover:text-white'}`}
+                              >
+                                <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>Categorias</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-slate-800/80 my-2 pt-2">
+                      <span className="px-3.5 text-[9px] font-bold text-slate-500 uppercase tracking-widest">Torneios & Jogos</span>
+                    </div>
+
+                    <button 
+                      onClick={() => handleNavTab('tournaments')}
+                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'tournaments' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      <Trophy className="w-4 h-4 text-emerald-400" />
+                      <span>Torneios</span>
+                    </button>
+
+                    <button 
+                      onClick={() => handleNavTab('registrations')}
+                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'registrations' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      <ClipboardList className="w-4 h-4 text-emerald-400" />
+                      <span>Inscrições</span>
+                    </button>
+
+                    <button 
+                      onClick={() => handleNavTab('duos')}
+                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'duos' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      <UserCheck className="w-4 h-4 text-emerald-400" />
+                      <span>Duplas</span>
+                    </button>
+
+                    <button 
+                      onClick={() => handleNavTab('matches')}
+                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'matches' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      <Calendar className="w-4 h-4 text-emerald-400" />
+                      <span>Jogos / Quadras</span>
+                    </button>
+
+                    <button 
+                      onClick={() => handleNavTab('results')}
+                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'results' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      <Award className="w-4 h-4 text-amber-400" />
+                      <span>Resultados / WO</span>
+                    </button>
+
+                    <button 
+                      onClick={() => handleNavTab('reports')}
+                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'reports' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      <TrendingUp className="w-4 h-4 text-emerald-400" />
+                      <span>Relatórios</span>
+                    </button>
+
+                    <button 
+                      onClick={() => handleNavTab('settings')}
+                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'settings' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
+                    >
+                      <Settings className="w-4 h-4 text-slate-400" />
+                      <span>Configurações</span>
+                    </button>
+                  </nav>
+                </div>
+
+                <div className="p-4 border-t border-slate-800 space-y-3 bg-[#090d16] text-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center font-bold text-emerald-400 uppercase">
+                      {session.username.substring(0, 2)}
+                    </div>
+                    <div className="truncate">
+                      <p className="font-bold text-white leading-none truncate">{session.name}</p>
+                      <span className="text-[10px] text-emerald-400/90 font-medium">{session.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin da Arena'}</span>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-slate-900 hover:bg-rose-950/30 text-slate-300 hover:text-rose-400 rounded-xl transition font-semibold border border-slate-800"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-rose-400" /> Sair
+                  </button>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
         {/* Global Notifications inside Viewport */}
-        <div className="p-6 max-w-7xl w-full mx-auto flex flex-col gap-6">
+        <div className="p-3.5 sm:p-5 md:p-6 pb-24 md:pb-8 max-w-7xl w-full mx-auto flex flex-col gap-4 sm:gap-6">
 
           {loading ? (
             <div className="flex-1 flex flex-col items-center justify-center py-24">
@@ -2430,8 +2651,8 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="bg-[#0d1424] border border-slate-800 rounded-2xl overflow-hidden shadow-md">
-                    <table className="w-full text-left border-collapse text-xs">
+                  <div className="bg-[#0d1424] border border-slate-800 rounded-2xl overflow-x-auto shadow-md">
+                    <table className="w-full min-w-[620px] text-left border-collapse text-xs">
                       <thead>
                         <tr className="bg-slate-800/40 border-b border-slate-800 text-slate-400 font-bold uppercase text-[11px]">
                           <th className="p-4">Nome</th>
@@ -3706,8 +3927,8 @@ export default function Home() {
                           </div>
 
                           {/* Tabela de Inscrições */}
-                          <div className="bg-[#0d1424] border border-slate-800 rounded-2xl overflow-hidden shadow-md">
-                            <table className="w-full text-left border-collapse text-xs">
+                          <div className="bg-[#0d1424] border border-slate-800 rounded-2xl overflow-x-auto shadow-md">
+                            <table className="w-full min-w-[600px] text-left border-collapse text-xs">
                               <thead>
                                 <tr className="bg-slate-800/40 border-b border-slate-800 text-slate-400 font-bold uppercase text-[11px]">
                                   <th className="p-4">Atleta</th>
@@ -5871,8 +6092,8 @@ export default function Home() {
                   </span>
                 </div>
 
-                <div className="overflow-hidden border border-slate-800/80 rounded-xl bg-[#090e1a]">
-                  <table className="w-full text-left border-collapse text-xs">
+                <div className="overflow-x-auto border border-slate-800/80 rounded-xl bg-[#090e1a]">
+                  <table className="w-full min-w-[500px] text-left border-collapse text-xs">
                     <thead>
                       <tr className="border-b border-slate-800 bg-[#0d1424] text-slate-400 font-bold uppercase text-[10px]">
                         <th className="py-3 px-4">Atleta</th>
@@ -7763,6 +7984,65 @@ export default function Home() {
         </AnimatePresence>
       </div>
 
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0d1424]/95 backdrop-blur-md border-t border-slate-800/90 shadow-2xl px-2 py-1.5 flex justify-around items-center">
+        <button
+          type="button"
+          onClick={() => { handleNavTab('dashboard'); handleCloseArenaManagement(); }}
+          className={`flex flex-col items-center justify-center min-w-[56px] py-1 px-1 rounded-xl transition ${
+            activeTab === 'dashboard' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Activity className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">Início</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleNavTab('tournaments')}
+          className={`flex flex-col items-center justify-center min-w-[56px] py-1 px-1 rounded-xl transition ${
+            activeTab === 'tournaments' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Trophy className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">Torneios</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleNavTab('matches')}
+          className={`flex flex-col items-center justify-center min-w-[56px] py-1 px-1 rounded-xl transition ${
+            activeTab === 'matches' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Calendar className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">Jogos</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleNavTab('duos')}
+          className={`flex flex-col items-center justify-center min-w-[56px] py-1 px-1 rounded-xl transition ${
+            activeTab === 'duos' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <UserCheck className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">Duplas</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setIsMobileMenuOpen(true)}
+          className={`flex flex-col items-center justify-center min-w-[56px] py-1 px-1 rounded-xl transition ${
+            ['athletes', 'arenas', 'venues', 'categories', 'registrations', 'results', 'reports', 'settings'].includes(activeTab)
+              ? 'text-emerald-400 font-bold'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Menu className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] leading-tight">Mais</span>
+        </button>
+      </nav>
     </div>
   );
 }

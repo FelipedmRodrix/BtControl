@@ -95,6 +95,90 @@
       "status": "ATIVO",
       "createdAt": "2026-10-09T12:05:22.772Z",
       "updatedAt": "2026-10-09T18:24:50.834Z"
+    },
+    {
+      "id": "ath-mateus-freitas",
+      "name": "Mateus Freitas",
+      "cpf": "01234567801",
+      "birthDate": "1994-06-15",
+      "gender": "M",
+      "phone": "85988881111",
+      "email": "mateus.freitas@ceara.com",
+      "status": "ATIVO",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "ath-lucas-alencar",
+      "name": "Lucas Alencar",
+      "cpf": "02345678902",
+      "birthDate": "1994-06-15",
+      "gender": "M",
+      "phone": "85988882222",
+      "email": "lucas.alencar@ceara.com",
+      "status": "ATIVO",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "ath-rodrigo-bezerra",
+      "name": "Rodrigo Bezerra",
+      "cpf": "03456789003",
+      "birthDate": "1994-06-15",
+      "gender": "M",
+      "phone": "85988883333",
+      "email": "rodrigo.bezerra@ceara.com",
+      "status": "ATIVO",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "ath-gabriel-cavalcante",
+      "name": "Gabriel Cavalcante",
+      "cpf": "04567890104",
+      "birthDate": "1994-06-15",
+      "gender": "M",
+      "phone": "85988884444",
+      "email": "gabriel.cavalcante@ceara.com",
+      "status": "ATIVO",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "ath-thiago-mendonca",
+      "name": "Thiago Mendonça",
+      "cpf": "05678901205",
+      "birthDate": "1994-06-15",
+      "gender": "M",
+      "phone": "85988885555",
+      "email": "thiago.mendonca@ceara.com",
+      "status": "ATIVO",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "ath-davi-holanda",
+      "name": "Davi Holanda",
+      "cpf": "06789012306",
+      "birthDate": "1994-06-15",
+      "gender": "M",
+      "phone": "85988886666",
+      "email": "davi.holanda@ceara.com",
+      "status": "ATIVO",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "ath-rafael-vasconcelos",
+      "name": "Rafael Vasconcelos",
+      "cpf": "08901234508",
+      "birthDate": "1994-06-15",
+      "gender": "M",
+      "phone": "85988888888",
+      "email": "rafael.vasconcelos@ceara.com",
+      "status": "ATIVO",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
     }
   ],
   "arenas": [
@@ -121,6 +205,18 @@
       "status": "ATIVA",
       "createdAt": "2026-10-09T12:15:22.519Z",
       "updatedAt": "2026-10-09T12:15:22.519Z"
+    },
+    {
+      "id": "arena-fortaleza-cbt",
+      "name": "Circuito Cearense de Beach Tennis",
+      "owner": "Felipe Rodrigues",
+      "email": "contato@circuitocbt.com.br",
+      "phone": "85996595730",
+      "city": "Fortaleza",
+      "state": "CE",
+      "status": "ATIVA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
     }
   ],
   "arenaAthletes": [
@@ -251,6 +347,70 @@
       "status": "ATIVO",
       "createdAt": "2026-10-09T12:44:28.883Z",
       "updatedAt": "2026-10-09T12:44:28.883Z"
+    },
+    {
+      "id": "aa-fort-ath-mateus-freitas",
+      "arenaId": "arena-fortaleza-cbt",
+      "athleteId": "ath-mateus-freitas",
+      "status": "ATIVO",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "aa-fort-ath-lucas-alencar",
+      "arenaId": "arena-fortaleza-cbt",
+      "athleteId": "ath-lucas-alencar",
+      "status": "ATIVO",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "aa-fort-ath-rodrigo-bezerra",
+      "arenaId": "arena-fortaleza-cbt",
+      "athleteId": "ath-rodrigo-bezerra",
+      "status": "ATIVO",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "aa-fort-ath-gabriel-cavalcante",
+      "arenaId": "arena-fortaleza-cbt",
+      "athleteId": "ath-gabriel-cavalcante",
+      "status": "ATIVO",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "aa-fort-ath-thiago-mendonca",
+      "arenaId": "arena-fortaleza-cbt",
+      "athleteId": "ath-thiago-mendonca",
+      "status": "ATIVO",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "aa-fort-ath-davi-holanda",
+      "arenaId": "arena-fortaleza-cbt",
+      "athleteId": "ath-davi-holanda",
+      "status": "ATIVO",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "aa-fort-ath-bktqtc8rs",
+      "arenaId": "arena-fortaleza-cbt",
+      "athleteId": "ath-bktqtc8rs",
+      "status": "ATIVO",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "aa-fort-ath-rafael-vasconcelos",
+      "arenaId": "arena-fortaleza-cbt",
+      "athleteId": "ath-rafael-vasconcelos",
+      "status": "ATIVO",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
     }
   ],
   "users": [
@@ -283,6 +443,16 @@
       "name": "Orion Admin",
       "createdAt": "2026-10-09T12:15:22.521Z",
       "updatedAt": "2026-10-09T12:15:22.521Z"
+    },
+    {
+      "id": "usr-fortaleza",
+      "username": "fortaleza",
+      "password": "123",
+      "role": "ARENA_ADMIN",
+      "arenaId": "arena-fortaleza-cbt",
+      "name": "Gestor Fortaleza BT",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
     }
   ],
   "tournaments": [
@@ -317,6 +487,24 @@
       "isDuo": true,
       "createdAt": "2026-10-09T12:17:49.912Z",
       "updatedAt": "2026-10-09T12:47:49.069Z"
+    },
+    {
+      "id": "tor-fortaleza-beiramar-2027",
+      "name": "Open Beira-Mar Fortaleza 2027",
+      "seriesName": "Circuito Cearense BT",
+      "arenaId": "arena-fortaleza-cbt",
+      "organizerId": "arena-fortaleza-cbt",
+      "venueId": "ven-posto085-beiramar",
+      "venueName": "Complexo Arena Posto 085",
+      "courtsUsed": 4,
+      "startDate": "2027-03-20",
+      "endDate": "2027-03-22",
+      "status": "FINALIZADO",
+      "isDuo": true,
+      "games": 6,
+      "thaiBreak": true,
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
     }
   ],
   "categories": [
@@ -631,6 +819,21 @@
       "status": "ATIVA",
       "createdAt": "2026-10-09T12:47:49.069Z",
       "updatedAt": "2026-10-09T12:47:49.069Z"
+    },
+    {
+      "id": "cat-fort-masc-open-2027",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "name": "Dupla Masculina Open",
+      "type": "MASCULINO",
+      "level": "OPEN",
+      "price": 120,
+      "maxParticipants": 16,
+      "status": "ATIVA",
+      "description": "Categoria Open Masculina - 6 games com Thai Break",
+      "games": 6,
+      "thaiBreak": true,
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
     }
   ],
   "registrations": [
@@ -822,6 +1025,78 @@
       "status": "CONFIRMADA",
       "createdAt": "2026-10-09T12:48:10.091Z",
       "updatedAt": "2026-10-09T12:48:23.953Z"
+    },
+    {
+      "id": "reg-fort-ath-mateus-freitas",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "categoryId": "cat-fort-masc-open-2027",
+      "athleteId": "ath-mateus-freitas",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "reg-fort-ath-lucas-alencar",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "categoryId": "cat-fort-masc-open-2027",
+      "athleteId": "ath-lucas-alencar",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "reg-fort-ath-rodrigo-bezerra",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "categoryId": "cat-fort-masc-open-2027",
+      "athleteId": "ath-rodrigo-bezerra",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "reg-fort-ath-gabriel-cavalcante",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "categoryId": "cat-fort-masc-open-2027",
+      "athleteId": "ath-gabriel-cavalcante",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "reg-fort-ath-thiago-mendonca",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "categoryId": "cat-fort-masc-open-2027",
+      "athleteId": "ath-thiago-mendonca",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "reg-fort-ath-davi-holanda",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "categoryId": "cat-fort-masc-open-2027",
+      "athleteId": "ath-davi-holanda",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "reg-fort-ath-bktqtc8rs",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "categoryId": "cat-fort-masc-open-2027",
+      "athleteId": "ath-bktqtc8rs",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "reg-fort-ath-rafael-vasconcelos",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "categoryId": "cat-fort-masc-open-2027",
+      "athleteId": "ath-rafael-vasconcelos",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
     }
   ],
   "duos": [
@@ -834,6 +1109,46 @@
       "status": "CONFIRMADA",
       "createdAt": "2026-10-09T12:45:13.349Z",
       "updatedAt": "2026-10-09T12:45:13.349Z"
+    },
+    {
+      "id": "duo-fort-freitas-alencar",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "categoryId": "cat-fort-masc-open-2027",
+      "player1Id": "ath-mateus-freitas",
+      "player2Id": "ath-lucas-alencar",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "duo-fort-bezerra-cavalcante",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "categoryId": "cat-fort-masc-open-2027",
+      "player1Id": "ath-rodrigo-bezerra",
+      "player2Id": "ath-gabriel-cavalcante",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "duo-fort-mendonca-holanda",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "categoryId": "cat-fort-masc-open-2027",
+      "player1Id": "ath-thiago-mendonca",
+      "player2Id": "ath-davi-holanda",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "duo-fort-rodrigues-vasconcelos",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "categoryId": "cat-fort-masc-open-2027",
+      "player1Id": "ath-bktqtc8rs",
+      "player2Id": "ath-rafael-vasconcelos",
+      "status": "CONFIRMADA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
     }
   ],
   "matches": [
@@ -1284,6 +1599,113 @@
       "scoreB": 0,
       "score": "4 x 0",
       "winnerTeam": "TEAM_A"
+    },
+    {
+      "id": "mat-fort-semi-1",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "categoryId": "cat-fort-masc-open-2027",
+      "stage": "Semifinal",
+      "format": "STANDARD",
+      "matchNumber": 1,
+      "round": 1,
+      "duo1Id": "duo-fort-freitas-alencar",
+      "duo2Id": "duo-fort-mendonca-holanda",
+      "teamA": {
+        "player1Id": "ath-mateus-freitas",
+        "player2Id": "ath-lucas-alencar",
+        "player1Name": "Mateus Freitas",
+        "player2Name": "Lucas Alencar"
+      },
+      "teamB": {
+        "player1Id": "ath-thiago-mendonca",
+        "player2Id": "ath-davi-holanda",
+        "player1Name": "Thiago Mendonça",
+        "player2Name": "Davi Holanda"
+      },
+      "date": "2027-03-21",
+      "time": "15:00",
+      "court": "Quadra 1 (Central Beira-Mar)",
+      "status": "FINALIZADA",
+      "scoreA": 6,
+      "scoreB": 4,
+      "score": "6 x 4",
+      "winnerTeam": "TEAM_A",
+      "winnerDuoId": "duo-fort-freitas-alencar",
+      "games": 6,
+      "thaiBreak": true,
+      "createdAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "mat-fort-semi-2",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "categoryId": "cat-fort-masc-open-2027",
+      "stage": "Semifinal",
+      "format": "STANDARD",
+      "matchNumber": 2,
+      "round": 1,
+      "duo1Id": "duo-fort-bezerra-cavalcante",
+      "duo2Id": "duo-fort-rodrigues-vasconcelos",
+      "teamA": {
+        "player1Id": "ath-rodrigo-bezerra",
+        "player2Id": "ath-gabriel-cavalcante",
+        "player1Name": "Rodrigo Bezerra",
+        "player2Name": "Gabriel Cavalcante"
+      },
+      "teamB": {
+        "player1Id": "ath-bktqtc8rs",
+        "player2Id": "ath-rafael-vasconcelos",
+        "player1Name": "Felipe de Melo Rodrigues",
+        "player2Name": "Rafael Vasconcelos"
+      },
+      "date": "2027-03-21",
+      "time": "16:00",
+      "court": "Quadra 2 (Posto 085)",
+      "status": "FINALIZADA",
+      "scoreA": 7,
+      "scoreB": 6,
+      "score": "7 x 6 (7-4 Thai Break)",
+      "winnerTeam": "TEAM_A",
+      "winnerDuoId": "duo-fort-bezerra-cavalcante",
+      "games": 6,
+      "thaiBreak": true,
+      "tieBreaker": "Thai Break 7x4 após empate em 6x6",
+      "createdAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "mat-fort-final",
+      "tournamentId": "tor-fortaleza-beiramar-2027",
+      "categoryId": "cat-fort-masc-open-2027",
+      "stage": "Final",
+      "format": "STANDARD",
+      "matchNumber": 3,
+      "round": 2,
+      "duo1Id": "duo-fort-freitas-alencar",
+      "duo2Id": "duo-fort-bezerra-cavalcante",
+      "teamA": {
+        "player1Id": "ath-mateus-freitas",
+        "player2Id": "ath-lucas-alencar",
+        "player1Name": "Mateus Freitas",
+        "player2Name": "Lucas Alencar"
+      },
+      "teamB": {
+        "player1Id": "ath-rodrigo-bezerra",
+        "player2Id": "ath-gabriel-cavalcante",
+        "player1Name": "Rodrigo Bezerra",
+        "player2Name": "Gabriel Cavalcante"
+      },
+      "date": "2027-03-22",
+      "time": "18:00",
+      "court": "Quadra 1 (Central Beira-Mar)",
+      "status": "FINALIZADA",
+      "scoreA": 7,
+      "scoreB": 5,
+      "score": "7 x 5",
+      "winnerTeam": "TEAM_A",
+      "winnerDuoId": "duo-fort-freitas-alencar",
+      "games": 6,
+      "thaiBreak": true,
+      "tieBreaker": "Regra de 5x5 estendido até 7 games",
+      "createdAt": "2026-10-11T21:58:43.893Z"
     }
   ],
   "venues": [
@@ -1310,6 +1732,18 @@
       "status": "ATIVA",
       "createdAt": "2026-10-09T12:15:47.892Z",
       "updatedAt": "2026-10-09T12:15:47.892Z"
+    },
+    {
+      "id": "ven-posto085-beiramar",
+      "name": "Complexo Arena Posto 085",
+      "city": "Fortaleza",
+      "state": "CE",
+      "address": "Av. Beira Mar, 2900 - Meireles, Fortaleza - CE",
+      "courtsCount": 8,
+      "contactPhone": "85996595730",
+      "status": "ATIVA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
     }
   ]
 }
