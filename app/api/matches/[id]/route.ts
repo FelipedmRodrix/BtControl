@@ -23,11 +23,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     if (!res.success) {
-            await flushWrites();
-return NextResponse.json({ error: res.error }, { status: 400 });
+      await flushWrites();
+      return NextResponse.json({ error: res.error }, { status: 400 });
     }
 
-    return NextResponse.json({ success: true, tieBreaker: (res as any).tieBreaker });
+    return NextResponse.json({ 
+      success: true, 
+      tieBreaker: (res as any).tieBreaker,
+      freedCourt: (res as any).freedCourt,
+      nextMatchSuggestion: (res as any).nextMatchSuggestion
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

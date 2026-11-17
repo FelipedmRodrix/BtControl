@@ -135,7 +135,7 @@ export const matchService = {
     winnerTeam?: 'TEAM_A' | 'TEAM_B',
     isDraw?: boolean,
     tieBreaker?: string
-  ): { success: boolean; error?: string; tieBreaker?: string } {
+  ): { success: boolean; error?: string; tieBreaker?: string; freedCourt?: string; nextMatchSuggestion?: any } {
     const db = readDB();
     const index = db.matches.findIndex(m => m.id === id);
 
@@ -205,8 +205,32 @@ export const matchService = {
 
       db.matches[index].status = 'FINALIZADA';
       db.matches[index].updatedAt = new Date().toISOString();
+      const freedCourt = db.matches[index].court;
       writeDB(db);
-      return { success: true, tieBreaker: db.matches[index].tieBreaker };
+
+      // Encontrar próximo jogo pendente que pode ser iniciado na quadra liberada
+      const nextPendingMatch = db.matches.find(nextM => 
+        nextM.id !== id && 
+        nextM.tournamentId === m.tournamentId && 
+        nextM.status === 'PENDENTE' &&
+        (!nextM.court || nextM.court === freedCourt || nextM.court.startsWith('Quadra'))
+      );
+
+      return { 
+        success: true, 
+        tieBreaker: db.matches[index].tieBreaker,
+        freedCourt,
+        nextMatchSuggestion: nextPendingMatch ? {
+          id: nextPendingMatch.id,
+          stage: nextPendingMatch.stage,
+          groupName: nextPendingMatch.groupName,
+          categoryName: db.categories.find(c => c.id === nextPendingMatch.categoryId)?.name || 'Categoria',
+          duo1Name: nextPendingMatch.teamA ? `${db.athletes.find(a => a.id === nextPendingMatch.teamA?.player1Id)?.name || 'Atleta 1'} / ${db.athletes.find(a => a.id === nextPendingMatch.teamA?.player2Id)?.name || 'Atleta 2'}` : (db.duos.find(d => d.id === nextPendingMatch.duo1Id)?.player1Id ? `${db.athletes.find(a => a.id === db.duos.find(d => d.id === nextPendingMatch.duo1Id)?.player1Id)?.name || 'Atleta A'} / ${db.athletes.find(a => a.id === db.duos.find(d => d.id === nextPendingMatch.duo1Id)?.player2Id)?.name || 'Atleta B'}` : 'Dupla 1'),
+          duo2Name: nextPendingMatch.teamB ? `${db.athletes.find(a => a.id === nextPendingMatch.teamB?.player1Id)?.name || 'Atleta 3'} / ${db.athletes.find(a => a.id === nextPendingMatch.teamB?.player2Id)?.name || 'Atleta 4'}` : (db.duos.find(d => d.id === nextPendingMatch.duo2Id)?.player1Id ? `${db.athletes.find(a => a.id === db.duos.find(d => d.id === nextPendingMatch.duo2Id)?.player1Id)?.name || 'Atleta C'} / ${db.athletes.find(a => a.id === db.duos.find(d => d.id === nextPendingMatch.duo2Id)?.player2Id)?.name || 'Atleta D'}` : 'Dupla 2'),
+          court: freedCourt,
+          time: nextPendingMatch.time
+        } : null
+      };
     }
 
     // Partida tradicional de duplas
@@ -234,8 +258,24 @@ export const matchService = {
       db.matches[index].winnerDuoId = undefined;
       db.matches[index].status = 'FINALIZADA';
       db.matches[index].updatedAt = new Date().toISOString();
+      const freedCourt = db.matches[index].court;
       writeDB(db);
-      return { success: true };
+
+      const nextPendingMatch = db.matches.find(nextM => 
+        nextM.id !== id && 
+        nextM.tournamentId === m.tournamentId && 
+        nextM.status === 'PENDENTE'
+      );
+
+      return { 
+        success: true,
+        freedCourt,
+        nextMatchSuggestion: nextPendingMatch ? {
+          id: nextPendingMatch.id,
+          stage: nextPendingMatch.stage,
+          court: freedCourt
+        } : null
+      };
     }
 
     db.matches[index].isDraw = false;
@@ -247,6 +287,7 @@ export const matchService = {
 
     db.matches[index].status = 'FINALIZADA';
     db.matches[index].updatedAt = new Date().toISOString();
+    const freedCourt = db.matches[index].court;
     writeDB(db);
 
     // If it's an elimination match, automatically advance the winner into the next bracket node!
@@ -255,7 +296,40 @@ export const matchService = {
       conventionalTournamentService.advanceWinnerInBracket(id, effectiveWinner);
     }
 
-    return { success: true };
+    // Sugerir próximo jogo a entrar na quadra liberada
+    const nextPendingMatch = db.matches.find(nextM => 
+      nextM.id !== id && 
+      nextM.tournamentId === m.tournamentId && 
+      nextM.status === 'PENDENTE'
+    );
+
+    let nextMatchDetails = null;
+    if (nextPendingMatch) {
+      const d1 = db.duos.find(d => d.id === nextPendingMatch.duo1Id);
+      const d2 = db.duos.find(d => d.id === nextPendingMatch.duo2Id);
+      const p1a = d1 ? db.athletes.find(a => a.id === d1.player1Id) : null;
+      const p1b = d1 ? db.athletes.find(a => a.id === d1.player2Id) : null;
+      const p2a = d2 ? db.athletes.find(a => a.id === d2.player1Id) : null;
+      const p2b = d2 ? db.athletes.find(a => a.id === d2.player2Id) : null;
+      const cat = db.categories.find(c => c.id === nextPendingMatch.categoryId);
+
+      nextMatchDetails = {
+        id: nextPendingMatch.id,
+        stage: nextPendingMatch.stage,
+        groupName: nextPendingMatch.groupName,
+        categoryName: cat?.name || `${cat?.type} ${cat?.level}`,
+        duo1Name: d1 ? `${p1a?.name || 'Atleta A'} / ${p1b?.name || 'Atleta B'}` : 'A definir',
+        duo2Name: d2 ? `${p2a?.name || 'Atleta C'} / ${p2b?.name || 'Atleta D'}` : 'A definir',
+        court: freedCourt,
+        time: nextPendingMatch.time
+      };
+    }
+
+    return { 
+      success: true, 
+      freedCourt,
+      nextMatchSuggestion: nextMatchDetails 
+    };
   },
 
   toggleWO(id: string, winnerDuoId?: string, winnerTeam?: 'TEAM_A' | 'TEAM_B'): { success: boolean; error?: string } {

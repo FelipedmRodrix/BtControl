@@ -232,8 +232,10 @@ export const conventionalTournamentService = {
             court: courtName,
             status: 'PENDENTE',
             format: 'STANDARD',
-            games: category.games || 4,
-            thaiBreak: category.thaiBreak ?? false,
+            games: category.games || (tournament as any).games || 6,
+            thaiBreak: (category.games || (tournament as any).games || 6) === 6 
+              ? (category.thaiBreak !== undefined ? category.thaiBreak : ((tournament as any).thaiBreak ?? true)) 
+              : false,
             createdAt: now,
             updatedAt: now
           };

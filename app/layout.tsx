@@ -1,5 +1,24 @@
 import type {Metadata} from 'next';
+import { Plus_Jakarta_Sans, DM_Sans, JetBrains_Mono } from 'next/font/google';
 import './globals.css'; // Global styles
+
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  variable: '--font-display',
+  weight: ['500', '600', '700', '800'],
+});
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  weight: ['400', '500', '600', '700'],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  weight: ['400', '500', '600', '700'],
+});
 
 export const metadata: Metadata = {
   title: 'ArenaBT - Beach Tennis',
@@ -18,8 +37,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({children}: {children: React.ReactNode}) {
   return (
-    <html lang="pt-BR">
-      <body suppressHydrationWarning className="bg-[#070b14] text-slate-100 min-h-screen antialiased selection:bg-emerald-500 selection:text-slate-950">
+    <html lang="pt-BR" className={`${plusJakarta.variable} ${dmSans.variable} ${jetbrainsMono.variable}`}>
+      <body suppressHydrationWarning className="bg-white text-slate-900 font-sans min-h-screen antialiased selection:bg-emerald-600 selection:text-white">
         {children}
       </body>
     </html>

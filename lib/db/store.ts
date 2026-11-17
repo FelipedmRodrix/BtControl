@@ -56,13 +56,56 @@ export interface ArenaAthlete {
   updatedAt: string;
 }
 
+export type SystemScreen = 
+  | 'dashboard'
+  | 'athletes'
+  | 'arenas'
+  | 'venues'
+  | 'categories'
+  | 'tournaments'
+  | 'registrations'
+  | 'duos'
+  | 'matches'
+  | 'results'
+  | 'reports'
+  | 'bracket-tree'
+  | 'settings'
+  | 'profiles'
+  | 'users';
+
+export type PermissionAction = 'view' | 'create' | 'edit' | 'delete';
+
+export interface ScreenPermission {
+  screen: SystemScreen;
+  view: boolean;
+  create: boolean;
+  edit: boolean;
+  delete: boolean;
+}
+
+export interface Profile {
+  id: string;
+  name: string; // Ex: "Administrador Geral", "Organizador", "Mesário", "Financeiro", "Visualizador"
+  description: string;
+  isSystem?: boolean; // Não pode ser excluído
+  permissions: ScreenPermission[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface User {
   id: string;
   username: string;
   password?: string; // stored plain-text for developer preview/simplicity, can be omitted in API responses
-  role: 'SUPER_ADMIN' | 'ARENA_ADMIN';
-  arenaId: string | null; // null for SUPER_ADMIN
+  role: 'SUPER_ADMIN' | 'ARENA_ADMIN' | 'CUSTOM';
+  arenaId: string | null; // null for SUPER_ADMIN or global profiles
   name: string;
+  email?: string;
+  phone?: string;
+  status: 'ATIVO' | 'INATIVO';
+  profileId?: string; // Vínculo ao Perfil de Acesso
+  athleteId?: string; // Vínculo se originado de atleta
+  source?: 'SISTEMA' | 'ORGANIZADOR' | 'ATLETA' | 'IMPORTACAO';
   createdAt: string;
   updatedAt: string;
 }
@@ -167,12 +210,94 @@ interface DBData {
   venues: ArenaVenue[];
   arenaAthletes: ArenaAthlete[];
   users: User[];
+  profiles: Profile[];
   tournaments: Tournament[];
   categories: Category[];
   registrations: Registration[];
   duos: Duo[];
   matches: Match[];
 }
+
+export const ALL_SYSTEM_SCREENS: { id: SystemScreen; label: string; description: string }[] = [
+  { id: 'dashboard', label: 'Painel Geral', description: 'Visão geral de métricas, status de jogos e atalhos' },
+  { id: 'athletes', label: 'Atletas', description: 'Cadastro e gestão de atletas' },
+  { id: 'arenas', label: 'Organizadores', description: 'Gestão de organizadores / parceiros' },
+  { id: 'venues', label: 'Arenas Físicas', description: 'Locais de jogos e estrutura de quadras' },
+  { id: 'categories', label: 'Categorias', description: 'Categorias oficiais do sistema' },
+  { id: 'tournaments', label: 'Torneios', description: 'Criação e configuração de torneios' },
+  { id: 'registrations', label: 'Inscrições', description: 'Inscrições de atletas em categorias' },
+  { id: 'duos', label: 'Duplas', description: 'Formação de duplas por categoria' },
+  { id: 'matches', label: 'Jogos / Quadras', description: 'Chaveamento, quadras e horários' },
+  { id: 'results', label: 'Resultados / Placar / WO', description: 'Lançamento de placares e desfechos' },
+  { id: 'reports', label: 'Relatórios', description: 'Relatórios financeiros e estatísticas' },
+  { id: 'bracket-tree', label: 'Mata-Mata (Árvore)', description: 'Chaveamento visual de mata-mata' },
+  { id: 'settings', label: 'Configurações', description: 'Configurações gerais do sistema' },
+  { id: 'profiles', label: 'Perfis de Acesso', description: 'Gerenciamento de perfis e permissões' },
+  { id: 'users', label: 'Usuários do Sistema', description: 'Central de usuários e vinculação a perfis' },
+];
+
+export const DEFAULT_SYSTEM_PROFILES: Profile[] = [
+  {
+    id: 'prof-super-admin',
+    name: 'Super Administrador',
+    description: 'Acesso irrestrito a todas as telas e operações do sistema.',
+    isSystem: true,
+    permissions: ALL_SYSTEM_SCREENS.map(s => ({
+      screen: s.id,
+      view: true,
+      create: true,
+      edit: true,
+      delete: true
+    })),
+    createdAt: '2026-10-01T00:00:00.000Z',
+    updatedAt: '2026-10-01T00:00:00.000Z'
+  },
+  {
+    id: 'prof-organizador',
+    name: 'Organizador',
+    description: 'Gerencia torneios, inscrições, duplas, jogos e quadras.',
+    isSystem: true,
+    permissions: ALL_SYSTEM_SCREENS.map(s => {
+      if (['arenas', 'venues', 'categories', 'profiles', 'users'].includes(s.id)) {
+        return { screen: s.id, view: false, create: false, edit: false, delete: false };
+      }
+      return { screen: s.id, view: true, create: true, edit: true, delete: false };
+    }),
+    createdAt: '2026-10-01T00:00:00.000Z',
+    updatedAt: '2026-10-01T00:00:00.000Z'
+  },
+  {
+    id: 'prof-mesario',
+    name: 'Mesário / Árbitro',
+    description: 'Visualiza jogos, quadras e lança placares e resultados.',
+    isSystem: true,
+    permissions: ALL_SYSTEM_SCREENS.map(s => {
+      if (s.id === 'matches' || s.id === 'results' || s.id === 'bracket-tree') {
+        return { screen: s.id, view: true, create: false, edit: true, delete: false };
+      }
+      if (s.id === 'dashboard') {
+        return { screen: s.id, view: true, create: false, edit: false, delete: false };
+      }
+      return { screen: s.id, view: false, create: false, edit: false, delete: false };
+    }),
+    createdAt: '2026-10-01T00:00:00.000Z',
+    updatedAt: '2026-10-01T00:00:00.000Z'
+  },
+  {
+    id: 'prof-visualizador',
+    name: 'Visualizador de Relatórios',
+    description: 'Permissão apenas de visualização para relatórios, tabelas e resultados.',
+    isSystem: false,
+    permissions: ALL_SYSTEM_SCREENS.map(s => {
+      if (['reports', 'dashboard', 'bracket-tree', 'results'].includes(s.id)) {
+        return { screen: s.id, view: true, create: false, edit: false, delete: false };
+      }
+      return { screen: s.id, view: false, create: false, edit: false, delete: false };
+    }),
+    createdAt: '2026-10-01T00:00:00.000Z',
+    updatedAt: '2026-10-01T00:00:00.000Z'
+  }
+];
 
 function getDbPath(): string {
   if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
@@ -477,6 +602,9 @@ const defaultData: DBData = {
       "role": "SUPER_ADMIN",
       "arenaId": null,
       "name": "Administrador Geral",
+      "status": "ATIVO",
+      "profileId": "prof-super-admin",
+      "source": "SISTEMA",
       "createdAt": "2026-10-02T18:35:13.574Z",
       "updatedAt": "2026-10-02T18:35:13.574Z"
     },
@@ -487,6 +615,9 @@ const defaultData: DBData = {
       "role": "ARENA_ADMIN",
       "arenaId": "arena-zne0sbge6",
       "name": "Super 8 Allan Admin",
+      "status": "ATIVO",
+      "profileId": "prof-organizador",
+      "source": "ORGANIZADOR",
       "createdAt": "2026-10-09T12:02:05.531Z",
       "updatedAt": "2026-10-09T12:02:05.531Z"
     },
@@ -497,10 +628,14 @@ const defaultData: DBData = {
       "role": "ARENA_ADMIN",
       "arenaId": "arena-6a5h1o8wd",
       "name": "Orion Admin",
+      "status": "ATIVO",
+      "profileId": "prof-organizador",
+      "source": "ORGANIZADOR",
       "createdAt": "2026-10-09T12:15:22.521Z",
       "updatedAt": "2026-10-09T12:15:22.521Z"
     }
   ],
+  "profiles": DEFAULT_SYSTEM_PROFILES,
   "tournaments": [
     {
       "id": "t-qw68nd3xp",
@@ -1689,6 +1824,104 @@ export function readDB(): DBData {
         needsUpdate = true;
       }
     });
+
+    if (!parsed.profiles || !Array.isArray(parsed.profiles) || parsed.profiles.length === 0) {
+      parsed.profiles = DEFAULT_SYSTEM_PROFILES;
+      needsUpdate = true;
+    } else {
+      // Garantir que todos os perfis do sistema existam
+      DEFAULT_SYSTEM_PROFILES.forEach(dp => {
+        if (!parsed.profiles.some((p: any) => p.id === dp.id)) {
+          parsed.profiles.push(dp);
+          needsUpdate = true;
+        }
+      });
+    }
+
+    // Migração de campos de usuários e vinculação padrão de perfil
+    parsed.users.forEach((u: any) => {
+      if (!u.status) {
+        u.status = 'ATIVO';
+        needsUpdate = true;
+      }
+      if (!u.profileId) {
+        if (u.role === 'SUPER_ADMIN') {
+          u.profileId = 'prof-super-admin';
+        } else if (u.role === 'ARENA_ADMIN') {
+          u.profileId = 'prof-organizador';
+        } else {
+          u.profileId = 'prof-organizador';
+        }
+        needsUpdate = true;
+      }
+      if (!u.source) {
+        u.source = u.role === 'SUPER_ADMIN' ? 'SISTEMA' : 'ORGANIZADOR';
+        needsUpdate = true;
+      }
+    });
+
+    // Sincronização automática de Atletas -> Usuários (sem duplicidade)
+    if (parsed.athletes && Array.isArray(parsed.athletes)) {
+      parsed.athletes.forEach((ath: any) => {
+        const cpfDigits = (ath.cpf || '').replace(/\D/g, '');
+        const usernameCandidate = cpfDigits || (ath.email ? ath.email.toLowerCase().trim() : `ath_${ath.id}`);
+        const userExists = parsed.users.some((u: any) => 
+          (u.athleteId && u.athleteId === ath.id) ||
+          (u.username && u.username.toLowerCase() === usernameCandidate.toLowerCase()) ||
+          (cpfDigits && u.username === cpfDigits)
+        );
+
+        if (!userExists) {
+          parsed.users.push({
+            id: `usr-ath-${ath.id}`,
+            username: usernameCandidate,
+            password: '123', // Senha inicial padrão configurável
+            role: 'CUSTOM',
+            arenaId: null,
+            name: ath.name,
+            email: ath.email,
+            phone: ath.phone,
+            status: ath.status === 'INATIVO' ? 'INATIVO' : 'ATIVO',
+            profileId: 'prof-visualizador',
+            athleteId: ath.id,
+            source: 'ATLETA',
+            createdAt: ath.createdAt || new Date().toISOString(),
+            updatedAt: ath.updatedAt || new Date().toISOString()
+          });
+          needsUpdate = true;
+        }
+      });
+    }
+
+    // Sincronização automática de Organizadores/Arenas -> Usuários (sem duplicidade)
+    if (parsed.arenas && Array.isArray(parsed.arenas)) {
+      parsed.arenas.forEach((arena: any) => {
+        const adminUser = parsed.users.find((u: any) => u.arenaId === arena.id && u.role === 'ARENA_ADMIN');
+        if (!adminUser) {
+          const baseUser = arena.email ? arena.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '') : `org_${arena.id.substring(0, 6)}`;
+          const finalUser = baseUser.length >= 3 ? baseUser : `org_${arena.id.substring(0, 6)}`;
+          
+          if (!parsed.users.some((u: any) => u.username.toLowerCase() === finalUser.toLowerCase())) {
+            parsed.users.push({
+              id: `usr-org-${arena.id}`,
+              username: finalUser,
+              password: '123',
+              role: 'ARENA_ADMIN',
+              arenaId: arena.id,
+              name: `${arena.name} Admin`,
+              email: arena.email,
+              phone: arena.phone,
+              status: arena.status === 'INATIVA' ? 'INATIVO' : 'ATIVO',
+              profileId: 'prof-organizador',
+              source: 'ORGANIZADOR',
+              createdAt: arena.createdAt || new Date().toISOString(),
+              updatedAt: arena.updatedAt || new Date().toISOString()
+            });
+            needsUpdate = true;
+          }
+        }
+      });
+    }
 
     if (needsUpdate) {
       writeDB(parsed);

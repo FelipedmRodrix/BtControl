@@ -97,8 +97,8 @@ export const tournamentService = {
       endDate: data.endDate,
       status: data.status || 'INSCRICOES_ABERTAS',
       isDuo: data.isDuo !== undefined ? data.isDuo : true,
-      games: data.games && (data.games === 4 || data.games === 6) ? data.games : 4,
-      thaiBreak: data.thaiBreak === true,
+      games: data.games && (data.games === 4 || data.games === 6) ? data.games : 6,
+      thaiBreak: (data.games === 4) ? false : (data.thaiBreak === true),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -108,6 +108,8 @@ export const tournamentService = {
     // Synchronize enabled categories (Requested Feature!)
     if (data.enabledCategories && Array.isArray(data.enabledCategories)) {
       const activeCategories = data.enabledCategories.filter(c => c.enabled);
+      const tourGames = newTournament.games || 6;
+      const tourThaiBreak = tourGames === 6 ? (newTournament.thaiBreak === true) : false;
       
       activeCategories.forEach(c => {
         const newCat: Category = {
@@ -120,8 +122,8 @@ export const tournamentService = {
           price: c.price || 0,
           maxParticipants: c.maxParticipants !== undefined ? c.maxParticipants : 16,
           status: 'ATIVA',
-          games: (c as any).games !== undefined ? Number((c as any).games) : 4,
-          thaiBreak: (c as any).thaiBreak === true,
+          games: tourGames,
+          thaiBreak: tourThaiBreak,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
@@ -189,9 +191,13 @@ export const tournamentService = {
         return { success: false, error: 'A quantidade de games deve ser 4 ou 6.', code: 400 };
       }
       (db.tournaments[index] as any).games = g;
+      if (g === 4) {
+        (db.tournaments[index] as any).thaiBreak = false;
+      }
     }
     if (data.thaiBreak !== undefined) {
-      (db.tournaments[index] as any).thaiBreak = data.thaiBreak;
+      const currentGames = (db.tournaments[index] as any).games || 6;
+      (db.tournaments[index] as any).thaiBreak = currentGames === 6 ? (data.thaiBreak === true) : false;
     }
 
     // Date changes validations
@@ -212,6 +218,9 @@ export const tournamentService = {
       // 1. Remove existing categories for this tournament first
       db.categories = db.categories.filter(c => c.tournamentId !== id);
 
+      const tourGames = (db.tournaments[index] as any).games || 6;
+      const tourThaiBreak = tourGames === 6 ? ((db.tournaments[index] as any).thaiBreak === true) : false;
+
       // 2. Add currently checked ones
       const activeCategories = data.enabledCategories.filter(c => c.enabled);
       activeCategories.forEach(c => {
@@ -225,8 +234,8 @@ export const tournamentService = {
           price: c.price || 0,
           maxParticipants: c.maxParticipants !== undefined ? c.maxParticipants : 16,
           status: 'ATIVA',
-          games: (c as any).games !== undefined ? Number((c as any).games) : 4,
-          thaiBreak: (c as any).thaiBreak === true,
+          games: tourGames,
+          thaiBreak: tourThaiBreak,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };

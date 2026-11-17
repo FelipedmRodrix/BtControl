@@ -86,6 +86,14 @@ export const athleteService = {
     db.athletes.push(newAthlete);
     writeDB(db);
 
+    // Sincronização centralizada com o módulo de Usuários sem duplicidade
+    try {
+      const { userService } = require('./userService');
+      userService.syncUserFromAthlete(newAthlete);
+    } catch (e) {
+      console.warn('[AthleteService] Erro ao sincronizar usuário do atleta:', e);
+    }
+
     return { success: true, data: newAthlete };
   },
 
@@ -116,6 +124,13 @@ export const athleteService = {
 
     db.athletes[index].updatedAt = new Date().toISOString();
     writeDB(db);
+
+    try {
+      const { userService } = require('./userService');
+      userService.syncUserFromAthlete(db.athletes[index]);
+    } catch (e) {
+      console.warn('[AthleteService] Erro ao sincronizar usuário do atleta:', e);
+    }
 
     return { success: true, data: db.athletes[index] };
   }

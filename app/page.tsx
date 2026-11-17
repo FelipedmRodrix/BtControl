@@ -43,12 +43,17 @@ import {
   ArrowRight,
   Filter,
   CheckCircle2,
-  Menu
+  Menu,
+  GitFork
 } from 'lucide-react';
 import { calculateSuper8Standings, Super8AthleteStanding } from '@/lib/services/super8Service';
 import { WorldCupBracket } from '@/components/WorldCupBracket';
 import { GroupStageView } from '@/components/GroupStageView';
+import { TournamentTreeBracket } from '@/components/TournamentTreeBracket';
+import { ProfilesManager } from '@/components/ProfilesManager';
+import { UsersManager } from '@/components/UsersManager';
 import type { ConventionalTournamentData } from '@/lib/services/conventionalTournamentService';
+import type { Profile } from '@/lib/types/permissions';
 
 // Type definitions
 interface Athlete {
@@ -84,9 +89,27 @@ interface ArenaAthlete extends Athlete {
 interface UserSession {
   id: string;
   username: string;
-  role: 'SUPER_ADMIN' | 'ARENA_ADMIN';
+  role: 'SUPER_ADMIN' | 'ARENA_ADMIN' | 'CUSTOM';
   arenaId: string | null;
   name: string;
+  profileId?: string;
+  profile?: Profile;
+}
+
+export interface SystemUser {
+  id: string;
+  username: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  role: 'SUPER_ADMIN' | 'ARENA_ADMIN' | 'CUSTOM';
+  arenaId: string | null;
+  status: 'ATIVO' | 'INATIVO';
+  profileId?: string;
+  profileName?: string;
+  source?: 'SISTEMA' | 'ORGANIZADOR' | 'ATLETA' | 'IMPORTACAO';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ArenaVenue {
@@ -237,8 +260,29 @@ export default function Home() {
 
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'athletes' | 'arenas' | 'venues' | 'tournaments' | 'categories' | 'registrations' | 'duos' | 'matches' | 'results' | 'reports' | 'settings'
+    'dashboard' | 'athletes' | 'arenas' | 'venues' | 'tournaments' | 'categories' | 'registrations' | 'duos' | 'matches' | 'results' | 'reports' | 'settings' | 'bracket-tree' | 'profiles' | 'users'
   >('dashboard');
+
+  // Sub-aba de Configurações
+  const [settingsSubTab, setSettingsSubTab] = useState<'general' | 'profiles' | 'users'>('general');
+  const [isSettingsExpanded, setIsSettingsExpanded] = useState<boolean>(true);
+
+  // Perfis e Usuários States
+  const [systemProfiles, setSystemProfiles] = useState<Profile[]>([]);
+  const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
+
+  // Notificação de Próximo Jogo e Liberação de Quadra
+  const [courtFreedNotice, setCourtFreedNotice] = useState<{
+    freedCourt: string;
+    nextMatchSuggestion?: any;
+  } | null>(null);
+
+  // Mata-Mata Tree States
+  const [isMataMataExpanded, setIsMataMataExpanded] = useState<boolean>(true);
+  const [selectedTreeTournamentId, setSelectedTreeTournamentId] = useState<string>('');
+  const [selectedTreeCategoryId, setSelectedTreeCategoryId] = useState<string>('');
+  const [treeData, setTreeData] = useState<ConventionalTournamentData | null>(null);
+  const [loadingTree, setLoadingTree] = useState<boolean>(false);
 
   // Selected Arena for managing its athletes (SUPER_ADMIN ONLY)
   const [selectedArena, setSelectedArena] = useState<Arena | null>(null);
@@ -359,20 +403,20 @@ export default function Home() {
     endDate: '',
     status: 'INSCRICOES_ABERTAS' as 'INSCRICOES_ABERTAS' | 'EM_ANDAMENTO' | 'FINALIZADO',
     isDuo: true,
-    games: 4 as 4 | 6,
-    thaiBreak: false
+    games: 6 as 4 | 6,
+    thaiBreak: true
   });
 
   // Interactive categories selection state inside tournament modal (Selected from system's pre-registered categories!)
   const [tourCategories, setTourCategories] = useState<{
     masterCategoryId?: string;
     name?: string;
-    type: 'SUPER 8' | 'MISTA' | 'MASCULINO' | 'FEMININO';
+    type: 'SUPER 8' | 'SUPER 8 DUPLAS' | 'MISTA' | 'MASCULINO' | 'FEMININO';
     level: 'PRINCIPIANTE' | 'INICIANTE' | 'D' | 'C' | 'B' | 'A' | 'OPEN';
     price: number;
     maxParticipants: number;
-    games: number;
-    thaiBreak: boolean;
+    games?: number;
+    thaiBreak?: boolean;
     enabled: boolean;
   }[]>([]);
 
@@ -382,7 +426,7 @@ export default function Home() {
   const [categoryForm, setCategoryForm] = useState({
     name: '',
     tournamentId: 'GLOBAL',
-    type: 'MASCULINO' as 'SUPER 8' | 'MISTA' | 'MASCULINO' | 'FEMININO',
+    type: 'MASCULINO' as 'SUPER 8' | 'SUPER 8 DUPLAS' | 'MISTA' | 'MASCULINO' | 'FEMININO',
     level: 'C' as 'PRINCIPIANTE' | 'INICIANTE' | 'D' | 'C' | 'B' | 'A' | 'OPEN',
     price: 100,
      maxParticipants: 16,
@@ -495,7 +539,7 @@ export default function Home() {
   const [filterReportCategory, setFilterReportCategory] = useState<string>('ALL');
 
   // Central Navigation Handler: Always resets tournament search and selection when clicking sidebar
-  const handleNavTab = (tab: 'dashboard' | 'athletes' | 'arenas' | 'venues' | 'categories' | 'tournaments' | 'registrations' | 'duos' | 'matches' | 'results' | 'reports' | 'settings') => {
+  const handleNavTab = (tab: 'dashboard' | 'athletes' | 'arenas' | 'venues' | 'categories' | 'tournaments' | 'registrations' | 'duos' | 'matches' | 'results' | 'reports' | 'settings' | 'bracket-tree') => {
     setActiveTab(tab);
     setIsMobileMenuOpen(false);
     if (tab === 'registrations') {
@@ -530,6 +574,92 @@ export default function Home() {
       setFilterReportStatus('ALL');
       setFilterReportArenaId('ALL');
       setFilterReportCategory('ALL');
+    } else if (tab === 'bracket-tree') {
+      const eligibleTours = tournaments.filter(t => t.isDuo !== false && !t.name.toLowerCase().includes('super 8') && !t.seriesName.toLowerCase().includes('super 8'));
+      const activeTour = eligibleTours.find(t => t.id === selectedTreeTournamentId) || eligibleTours[0];
+      if (activeTour) {
+        setSelectedTreeTournamentId(activeTour.id);
+        const tourCats = categories.filter(c => c.tournamentId === activeTour.id && c.type !== 'SUPER 8' && c.type !== 'SUPER 8 DUPLAS');
+        const activeCat = tourCats.find(c => c.id === selectedTreeCategoryId) || tourCats[0];
+        if (activeCat) {
+          setSelectedTreeCategoryId(activeCat.id);
+          fetchTreeData(activeTour.id, activeCat.id);
+        }
+      }
+    }
+  };
+
+  const fetchTreeData = async (tourId: string, catId: string) => {
+    if (!tourId || !catId) {
+      setTreeData(null);
+      return;
+    }
+    try {
+      setLoadingTree(true);
+      const res = await fetch(`/api/matches/conventional?tournamentId=${tourId}&categoryId=${catId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTreeData(data);
+      } else {
+        setTreeData(null);
+      }
+    } catch (e) {
+      setTreeData(null);
+    } finally {
+      setLoadingTree(false);
+    }
+  };
+
+  const handleGenerateTreeElimination = async () => {
+    if (!selectedTreeTournamentId || !selectedTreeCategoryId) return;
+    try {
+      setLoadingTree(true);
+      const res = await fetch('/api/matches/conventional', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tournamentId: selectedTreeTournamentId,
+          categoryId: selectedTreeCategoryId,
+          action: 'generate-elimination'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showError(data.error || 'Erro ao gerar chave eliminatória.');
+      } else {
+        showSuccess('Chave eliminatória do mata-mata gerada com sucesso!');
+        fetchData();
+        fetchTreeData(selectedTreeTournamentId, selectedTreeCategoryId);
+      }
+    } catch (e: any) {
+      showError(e?.message || 'Erro ao conectar ao servidor.');
+    } finally {
+      setLoadingTree(false);
+    }
+  };
+
+  const handleOpenTreeScoreModal = (matchId: string, duo1Name: string, duo2Name: string, stage: string) => {
+    const realMatch = matches.find(m => m.id === matchId);
+    if (realMatch) {
+      handleLaunchResult(realMatch);
+    } else {
+      const stageMatch = treeData?.eliminationStages.flatMap(s => s.matches).find(m => m.id === matchId);
+      const draftMatch = {
+        id: matchId,
+        tournamentId: selectedTreeTournamentId,
+        categoryId: selectedTreeCategoryId,
+        categoryName: treeData?.categoryName,
+        duo1Name: stageMatch?.duo1Name || duo1Name,
+        duo2Name: stageMatch?.duo2Name || duo2Name,
+        duo1Id: stageMatch?.duo1Id,
+        duo2Id: stageMatch?.duo2Id,
+        stage: stageMatch?.stage || stage,
+        games: treeData?.games || 6,
+        thaiBreak: treeData?.thaiBreak || true,
+        court: stageMatch?.court || 'Quadra 1',
+        time: stageMatch?.time || '14:00'
+      };
+      handleLaunchResult(draftMatch);
     }
   };
 
@@ -583,7 +713,7 @@ export default function Home() {
         ? `/api/matches?arenaId=${currentSession.arenaId}`
         : '/api/matches';
 
-      const [resAthletes, resArenas, resVenues, resTournaments, resCategories, resRegistrations, resDuos, resMatches] = await Promise.all([
+      const [resAthletes, resArenas, resVenues, resTournaments, resCategories, resRegistrations, resDuos, resMatches, resProfiles, resUsers] = await Promise.all([
         fetch('/api/athletes'),
         fetch('/api/arenas'),
         fetch('/api/venues'),
@@ -591,7 +721,19 @@ export default function Home() {
         fetch(categoriesUrl),
         fetch(registrationsUrl),
         fetch(duosUrl),
-        fetch(matchesUrl)
+        fetch(matchesUrl),
+        fetch('/api/profiles', {
+          headers: {
+            'x-user-role': currentSession.role,
+            'x-user-id': currentSession.id
+          }
+        }),
+        fetch('/api/users', {
+          headers: {
+            'x-user-role': currentSession.role,
+            'x-user-id': currentSession.id
+          }
+        })
       ]);
 
       if (!resAthletes.ok || !resArenas.ok || !resVenues.ok || !resTournaments.ok || !resCategories.ok || !resRegistrations.ok || !resDuos.ok || !resMatches.ok) {
@@ -606,6 +748,15 @@ export default function Home() {
       const registrationsData = await resRegistrations.json();
       const duosData = await resDuos.json();
       const matchesData = await resMatches.json();
+
+      if (resProfiles.ok) {
+        const profilesData = await resProfiles.json();
+        setSystemProfiles(profilesData);
+      }
+      if (resUsers.ok) {
+        const usersData = await resUsers.json();
+        setSystemUsers(usersData);
+      }
 
       setAthletes(athletesData);
       setArenas(arenasData);
@@ -1134,18 +1285,19 @@ export default function Home() {
   const handleOpenTournamentCreate = () => {
     setEditingTournament(null);
     const initialVenue = venues.find(v => v.status === 'ATIVA') || venues[0];
+    const defaultMaxCourts = initialVenue ? (initialVenue.courtsCount || 1) : 4;
     setTourForm({
       name: '',
       seriesName: '',
       arenaId: session?.arenaId || (arenas[0]?.id || ''),
       venueId: initialVenue?.id || '',
-      courtsUsed: initialVenue ? Math.min(4, initialVenue.courtsCount) : 4,
+      courtsUsed: defaultMaxCourts,
       startDate: '',
       endDate: '',
       status: 'INSCRICOES_ABERTAS',
       isDuo: true,
-      games: 4,
-      thaiBreak: false
+      games: 6,
+      thaiBreak: true
     });
 
     // Carregar as categorias pré-cadastradas no sistema para seleção no torneio
@@ -1169,8 +1321,6 @@ export default function Home() {
         level: c.level,
         price: c.price || 100,
         maxParticipants: c.maxParticipants || 16,
-        games: 4,
-        thaiBreak: false,
         enabled: false
       }));
     setTourCategories(initialCats);
@@ -1181,18 +1331,21 @@ export default function Home() {
   const handleOpenTournamentEdit = (t: Tournament) => {
     setEditingTournament(t);
     const matchedVenue = venues.find(v => v.id === t.venueId) || venues[0];
+    const maxCourtsOfVenue = matchedVenue ? (matchedVenue.courtsCount || 1) : 4;
+    const tGames = (t as any).games === 4 ? 4 : 6;
+    const tThaiBreak = tGames === 6 ? ((t as any).thaiBreak === true) : false;
     setTourForm({
       name: t.name,
       seriesName: t.seriesName,
       arenaId: t.arenaId,
       venueId: t.venueId || (matchedVenue?.id || ''),
-      courtsUsed: t.courtsUsed || (matchedVenue ? Math.min(4, matchedVenue.courtsCount) : 4),
+      courtsUsed: t.courtsUsed || maxCourtsOfVenue,
       startDate: t.startDate,
       endDate: t.endDate,
       status: t.status,
       isDuo: t.isDuo !== undefined ? t.isDuo : true,
-      games: (t as any).games === 6 ? 6 : 4,
-      thaiBreak: (t as any).thaiBreak === true
+      games: tGames,
+      thaiBreak: tThaiBreak
     });
 
     // Mapear categorias pré-cadastradas sincronizando com as ativadas para este torneio
@@ -1216,8 +1369,6 @@ export default function Home() {
         level: std.level,
         price: matchCat ? matchCat.price : (std.price || 100),
         maxParticipants: matchCat ? (matchCat.maxParticipants || 16) : (std.maxParticipants || 16),
-        games: matchCat ? (matchCat.games || 4) : 4,
-        thaiBreak: matchCat ? !!matchCat.thaiBreak : false,
         enabled: !!matchCat
       };
     });
@@ -1230,14 +1381,21 @@ export default function Home() {
     e.preventDefault();
     setErrorMsg(null);
 
+    const effectiveGames = tourForm.games === 4 ? 4 : 6;
+    const effectiveThaiBreak = effectiveGames === 6 ? tourForm.thaiBreak === true : false;
+
     const payload = {
       ...tourForm,
       arenaId: session?.role === 'ARENA_ADMIN' ? session.arenaId : tourForm.arenaId,
       venueId: tourForm.venueId,
       courtsUsed: Number(tourForm.courtsUsed) || 1,
-      games: tourForm.games,
-      thaiBreak: tourForm.thaiBreak,
-      enabledCategories: tourCategories // Send categories matrix to API
+      games: effectiveGames,
+      thaiBreak: effectiveThaiBreak,
+      enabledCategories: tourCategories.map(c => ({
+        ...c,
+        games: effectiveGames,
+        thaiBreak: effectiveThaiBreak
+      }))
     };
 
     try {
@@ -1771,11 +1929,26 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar resultado.');
+      
+      const freedCourt = data.freedCourt || selectedMatch.court;
+      if (data.nextMatchSuggestion) {
+        setCourtFreedNotice({
+          freedCourt,
+          nextMatchSuggestion: data.nextMatchSuggestion
+        });
+        showSuccess(`Placar registrado com sucesso! A ${freedCourt} foi liberada.`);
+      } else {
+        showSuccess(`Placar salvo com sucesso! A ${freedCourt} agora está livre.`);
+      }
+
       if (data.tieBreaker) {
         showSuccess(`Resultado registrado! Empate resolvido: ${data.tieBreaker}`);
       }
       setIsResultModalOpen(false);
       fetchData();
+      if (selectedTreeTournamentId && selectedTreeCategoryId) {
+        fetchTreeData(selectedTreeTournamentId, selectedTreeCategoryId);
+      }
     } catch (err: any) {
       showError(err.message || 'Erro ao salvar placar.');
     }
@@ -1811,9 +1984,23 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar WO.');
-      showSuccess('W.O. registrado com sucesso!');
+      
+      const freedCourt = data.freedCourt || selectedMatch.court;
+      if (data.nextMatchSuggestion) {
+        setCourtFreedNotice({
+          freedCourt,
+          nextMatchSuggestion: data.nextMatchSuggestion
+        });
+        showSuccess(`W.O. registrado! ${freedCourt} liberada para o próximo jogo.`);
+      } else {
+        showSuccess(`W.O. registrado com sucesso! ${freedCourt} liberada.`);
+      }
+
       setIsWoModalOpen(false);
       fetchData();
+      if (selectedTreeTournamentId && selectedTreeCategoryId) {
+        fetchTreeData(selectedTreeTournamentId, selectedTreeCategoryId);
+      }
     } catch (err: any) {
       showError(err.message || 'Erro ao registrar WO.');
     }
@@ -1862,72 +2049,67 @@ export default function Home() {
   // RENDER LOGIN VIEW
   if (!session) {
     return (
-      <div className="min-h-screen bg-[#070b14] flex flex-col items-center justify-center p-4 relative overflow-hidden">
-        <div className="absolute top-1/4 left-1/4 w-[420px] h-[420px] bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-[420px] h-[420px] bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 relative">
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md bg-[#0f172a] border border-slate-800 rounded-3xl p-8 z-10 shadow-2xl space-y-6"
+          className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 z-10 shadow-sm space-y-6"
         >
           <div className="text-center space-y-2">
-            <div className="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-400 to-amber-400 p-0.5 justify-center items-center shadow-lg shadow-emerald-500/20">
-              <div className="w-full h-full bg-[#0f172a] rounded-[14px] flex items-center justify-center">
-                <Trophy className="w-7 h-7 text-emerald-400" />
-              </div>
+            <div className="inline-flex w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 justify-center items-center shadow-xs">
+              <Trophy className="w-6 h-6 text-emerald-600" />
             </div>
-            <h1 className="text-2xl font-black text-white tracking-tight">BtControl</h1>
-            <p className="text-xs text-slate-400 font-medium">Gestão Profissional de Beach Tennis</p>
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">BtControl</h1>
+            <p className="text-xs text-slate-500 font-medium">Gestão Profissional de Beach Tennis</p>
           </div>
 
-          <div className="bg-[#090d16] border border-slate-800/80 rounded-2xl p-4 space-y-2.5">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-emerald-400" /> Acesso Rápido para Demonstração
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2.5">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Shield className="w-3.5 h-3.5 text-emerald-600" /> Acesso Rápido para Demonstração
             </p>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
               <button 
                 type="button"
                 onClick={() => setLoginForm({ username: 'admin', password: 'admin123' })}
-                className="bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 p-2.5 rounded-xl text-slate-200 transition text-left group"
+                className="bg-white hover:bg-emerald-50/60 border border-slate-200 hover:border-emerald-300 p-2.5 rounded-xl text-slate-700 transition text-left group cursor-pointer"
               >
-                <strong className="block text-white group-hover:text-emerald-400 transition-colors">Super Admin</strong>
-                <span className="block text-[10px] text-slate-400 font-mono mt-0.5">admin / admin123</span>
+                <strong className="block text-slate-900 group-hover:text-emerald-700 transition-colors">Super Admin</strong>
+                <span className="block text-[10px] text-slate-500 font-mono mt-0.5">admin / admin123</span>
               </button>
 
               <button 
                 type="button"
                 onClick={() => setLoginForm({ username: 'ipanema', password: 'ipa123' })}
-                className="bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 p-2.5 rounded-xl text-slate-200 transition text-left group"
+                className="bg-white hover:bg-emerald-50/60 border border-slate-200 hover:border-emerald-300 p-2.5 rounded-xl text-slate-700 transition text-left group cursor-pointer"
               >
-                <strong className="block text-white group-hover:text-emerald-400 transition-colors">Ipanema Admin</strong>
-                <span className="block text-[10px] text-slate-400 font-mono mt-0.5">ipanema / ipa123</span>
+                <strong className="block text-slate-900 group-hover:text-emerald-700 transition-colors">Ipanema Admin</strong>
+                <span className="block text-[10px] text-slate-500 font-mono mt-0.5">ipanema / ipa123</span>
               </button>
             </div>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             {errorMsg && (
-              <div className="bg-rose-950/60 border border-rose-500/40 text-rose-300 text-xs p-3.5 rounded-xl flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs p-3.5 rounded-xl flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-slate-300 font-semibold">Nome de Usuário</label>
+              <label className="text-xs text-slate-700 font-semibold">Nome de Usuário</label>
               <input 
                 type="text"
                 required
                 placeholder="Digite seu usuário..."
                 value={loginForm.username}
                 onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-                className="bg-[#090d16] border border-slate-700/80 rounded-xl py-2.5 px-3.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+                className="bg-white border border-slate-300 rounded-xl py-2.5 px-3.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 transition"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-slate-300 font-semibold">Senha de Acesso</label>
+              <label className="text-xs text-slate-700 font-semibold">Senha de Acesso</label>
               <div className="relative">
                 <input 
                   type={showPassword ? 'text' : 'password'}
@@ -1935,12 +2117,12 @@ export default function Home() {
                   placeholder="••••••••"
                   value={loginForm.password}
                   onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                  className="w-full bg-[#090d16] border border-slate-700/80 rounded-xl py-2.5 px-3.5 pr-10 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition font-mono"
+                  className="w-full bg-white border border-slate-300 rounded-xl py-2.5 px-3.5 pr-10 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15 transition font-mono"
                 />
                 <button 
                   type="button" 
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -1950,10 +2132,10 @@ export default function Home() {
             <button 
               type="submit"
               disabled={authLoading}
-              className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 text-slate-950 font-bold py-3 rounded-xl text-sm transition-all shadow-lg shadow-emerald-500/20 active:scale-[0.99] flex items-center justify-center gap-2"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-semibold py-3 rounded-xl text-sm transition-all shadow-xs active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
             >
               {authLoading ? (
-                <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
               ) : (
                 <>
                   <Lock className="w-4 h-4" /> Acessar Sistema
@@ -1967,27 +2149,27 @@ export default function Home() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#070b14] text-slate-100 font-sans">
+    <div className="flex min-h-screen bg-slate-50/70 text-slate-900 font-sans">
       
       {/* SIDEBAR */}
-      <aside className="w-64 bg-[#0d1424] border-r border-slate-800/80 flex flex-col justify-between shrink-0 hidden md:flex">
+      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col justify-between shrink-0 hidden md:flex">
         <div className="flex flex-col">
-          <div className="p-6 border-b border-slate-800/80 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500/20 to-amber-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-sm">
-              <Trophy className="w-5 h-5 text-emerald-400" />
+          <div className="p-5 border-b border-slate-200 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-xs">
+              <Trophy className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-lg font-black tracking-tight bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 bg-clip-text text-transparent">BtControl</span>
-              <p className="text-[10px] text-slate-400 leading-none mt-0.5 font-medium">Beach Tennis Hub</p>
+              <span className="text-lg font-extrabold tracking-tight text-slate-900">BtControl</span>
+              <p className="text-[10px] text-slate-500 leading-none mt-0.5 font-medium">Beach Tennis Hub</p>
             </div>
           </div>
 
           <nav className="p-3.5 space-y-1 text-xs">
             <button 
               onClick={() => { setActiveTab('dashboard'); handleCloseArenaManagement(); }}
-              className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'dashboard' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
+              className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-semibold transition-all cursor-pointer ${activeTab === 'dashboard' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'}`}
             >
-              <Activity className="w-4 h-4 shrink-0 text-emerald-400" />
+              <Activity className={`w-4 h-4 shrink-0 ${activeTab === 'dashboard' ? 'text-emerald-600' : 'text-slate-500'}`} />
               <span>{session.role === 'SUPER_ADMIN' ? 'Painel Geral' : 'Painel da Arena'}</span>
             </button>
 
@@ -1996,24 +2178,24 @@ export default function Home() {
               <button 
                 type="button"
                 onClick={() => setIsCadastrarExpanded(!isCadastrarExpanded)}
-                className={`w-full flex items-center justify-between py-2 px-3 rounded-xl font-bold transition-all ${
+                className={`w-full flex items-center justify-between py-2 px-3 rounded-xl font-semibold transition-all cursor-pointer ${
                   ['athletes', 'arenas', 'venues', 'categories'].includes(activeTab)
-                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm'
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs'
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100/80'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
                     ['athletes', 'arenas', 'venues', 'categories'].includes(activeTab)
-                      ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/30'
-                      : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                   }`}>
-                    <FolderPlus className="w-4 h-4 stroke-[2.5]" />
+                    <FolderPlus className="w-4 h-4 stroke-[2.2]" />
                   </div>
-                  <span className="font-black tracking-tight text-[13px]">Cadastrar</span>
+                  <span className="font-bold tracking-tight text-[13px]">Cadastrar</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-800/80 text-emerald-400 font-mono font-bold border border-slate-700/60">
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono tabular-nums font-bold border border-slate-200">
                     {session.role === 'SUPER_ADMIN' ? '4' : '2'}
                   </span>
                   {isCadastrarExpanded ? (
@@ -2031,18 +2213,18 @@ export default function Home() {
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.15 }}
-                    className="overflow-hidden pl-3.5 pr-1 pt-1.5 space-y-1 border-l-2 border-emerald-500/20 ml-4 my-1"
+                    className="overflow-hidden pl-3.5 pr-1 pt-1.5 space-y-1 border-l border-slate-200 ml-4 my-1"
                   >
                     {/* Opção 1: Atletas Globais */}
                     <button 
                       onClick={() => { setActiveTab('athletes'); handleCloseArenaManagement(); }}
-                      className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-bold text-xs transition-all ${
+                      className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all cursor-pointer ${
                         activeTab === 'athletes' 
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm' 
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs' 
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                       }`}
                     >
-                      <Users className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                      <Users className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'athletes' ? 'text-emerald-600' : 'text-slate-500'}`} />
                       <span>{session.role === 'SUPER_ADMIN' ? 'Atletas Globais' : 'Atletas da Arena'}</span>
                     </button>
 
@@ -2050,13 +2232,13 @@ export default function Home() {
                     {session.role === 'SUPER_ADMIN' && (
                       <button 
                         onClick={() => { setActiveTab('arenas'); handleCloseArenaManagement(); }}
-                        className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-bold text-xs transition-all ${
+                        className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all cursor-pointer ${
                           activeTab === 'arenas' 
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm' 
-                            : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs' 
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                         }`}
                       >
-                        <Shield className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                        <Shield className="w-3.5 h-3.5 shrink-0 text-amber-600" />
                         <span>Organizadores</span>
                       </button>
                     )}
@@ -2064,31 +2246,31 @@ export default function Home() {
                     {/* Opção 3: Arenas (Locais) */}
                     <button 
                       onClick={() => { setActiveTab('venues'); handleCloseArenaManagement(); }}
-                      className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-bold text-xs transition-all ${
+                      className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all cursor-pointer ${
                         activeTab === 'venues' 
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm' 
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs' 
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                       }`}
                     >
-                      <Building className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                      <Building className="w-3.5 h-3.5 shrink-0 text-amber-600" />
                       <span>Arenas (Locais)</span>
                     </button>
 
-                    {/* Opção 4: Categorias (Super Admin) - Cadastro vem ANTES dos torneios */}
+                    {/* Opção 4: Categorias (Super Admin) */}
                     {session.role === 'SUPER_ADMIN' && (
                       <button 
                         onClick={() => { setActiveTab('categories'); handleCloseArenaManagement(); }}
-                        className={`w-full flex items-center justify-between py-2 px-3 rounded-xl font-bold text-xs transition-all ${
+                        className={`w-full flex items-center justify-between py-2 px-3 rounded-xl font-semibold text-xs transition-all cursor-pointer ${
                           activeTab === 'categories' 
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm' 
-                            : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs' 
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                         }`}
                       >
                         <div className="flex items-center gap-2.5">
-                          <Layers className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                          <Layers className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'categories' ? 'text-emerald-600' : 'text-slate-500'}`} />
                           <span>Categorias</span>
                         </div>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono font-semibold">ADMIN</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-mono font-semibold">ADMIN</span>
                       </button>
                     )}
                   </motion.div>
@@ -2096,113 +2278,250 @@ export default function Home() {
               </AnimatePresence>
             </div>
 
-            <div className="border-t border-slate-800/80 my-2 pt-2">
-              <span className="px-3.5 text-[9px] font-bold text-slate-500 uppercase tracking-widest">Torneios & Jogos</span>
+            <div className="border-t border-slate-200 my-2 pt-2">
+              <span className="px-3.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Torneios &amp; Jogos</span>
             </div>
 
             <button 
               onClick={() => handleNavTab('tournaments')}
-              className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'tournaments' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
+              className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-semibold transition-all cursor-pointer ${activeTab === 'tournaments' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'}`}
             >
-              <Trophy className="w-4 h-4 shrink-0 text-emerald-400" />
+              <Trophy className={`w-4 h-4 shrink-0 ${activeTab === 'tournaments' ? 'text-emerald-600' : 'text-slate-500'}`} />
               <span>Torneios</span>
             </button>
 
             <button 
               onClick={() => handleNavTab('registrations')}
-              className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'registrations' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
+              className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-semibold transition-all cursor-pointer ${activeTab === 'registrations' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'}`}
             >
-              <ClipboardList className="w-4 h-4 shrink-0 text-emerald-400" />
+              <ClipboardList className={`w-4 h-4 shrink-0 ${activeTab === 'registrations' ? 'text-emerald-600' : 'text-slate-500'}`} />
               <span>Inscrições</span>
             </button>
 
             <button 
               onClick={() => handleNavTab('duos')}
-              className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'duos' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
+              className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-semibold transition-all cursor-pointer ${activeTab === 'duos' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'}`}
             >
-              <UserCheck className="w-4 h-4 shrink-0 text-emerald-400" />
+              <UserCheck className={`w-4 h-4 shrink-0 ${activeTab === 'duos' ? 'text-emerald-600' : 'text-slate-500'}`} />
               <span>Duplas</span>
             </button>
 
             <button 
               onClick={() => handleNavTab('matches')}
-              className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'matches' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
+              className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-semibold transition-all cursor-pointer ${activeTab === 'matches' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'}`}
             >
-              <Calendar className="w-4 h-4 shrink-0 text-emerald-400" />
+              <Calendar className={`w-4 h-4 shrink-0 ${activeTab === 'matches' ? 'text-emerald-600' : 'text-slate-500'}`} />
               <span>Jogos / Quadras</span>
             </button>
 
             <button 
               onClick={() => handleNavTab('results')}
-              className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'results' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
+              className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-semibold transition-all cursor-pointer ${activeTab === 'results' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'}`}
             >
-              <Award className="w-4 h-4 shrink-0 text-amber-400" />
+              <Award className={`w-4 h-4 shrink-0 ${activeTab === 'results' ? 'text-amber-600' : 'text-amber-500'}`} />
               <span>Resultados / WO</span>
             </button>
 
             <button 
               onClick={() => handleNavTab('reports')}
-              className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'reports' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
+              className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-semibold transition-all cursor-pointer ${activeTab === 'reports' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'}`}
             >
-              <TrendingUp className="w-4 h-4 shrink-0 text-emerald-400" />
+              <TrendingUp className={`w-4 h-4 shrink-0 ${activeTab === 'reports' ? 'text-emerald-600' : 'text-slate-500'}`} />
               <span>Relatórios</span>
             </button>
 
-            <button 
-              onClick={() => handleNavTab('settings')}
-              className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'settings' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
-            >
-              <Settings className="w-4 h-4 shrink-0 text-slate-400" />
-              <span>Configurações</span>
-            </button>
+            {/* GUIA MATA-MATA (CHAVEAMENTO EM ÁRVORE) */}
+            <div className="pt-1">
+              <button 
+                type="button"
+                onClick={() => setIsMataMataExpanded(!isMataMataExpanded)}
+                className={`w-full flex items-center justify-between py-2 px-3 rounded-xl font-semibold transition-all cursor-pointer ${
+                  activeTab === 'bracket-tree'
+                    ? 'bg-amber-50 text-amber-800 border border-amber-200 shadow-xs'
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100/80'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                    activeTab === 'bracket-tree'
+                      ? 'bg-amber-500 text-white shadow-xs'
+                      : 'bg-amber-50 text-amber-600 border border-amber-200'
+                  }`}>
+                    <GitFork className="w-4 h-4 stroke-[2.2]" />
+                  </div>
+                  <span className="font-bold tracking-tight text-[13px]">Mata-Mata</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 font-mono font-bold border border-amber-200">
+                    Árvore
+                  </span>
+                  {isMataMataExpanded ? (
+                    <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  )}
+                </div>
+              </button>
+
+              <AnimatePresence initial={false}>
+                {isMataMataExpanded && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="overflow-hidden pl-3.5 pr-1 pt-1.5 space-y-1 border-l border-slate-200 ml-4 my-1"
+                  >
+                    <button 
+                      onClick={() => handleNavTab('bracket-tree')}
+                      className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all cursor-pointer ${
+                        activeTab === 'bracket-tree' 
+                          ? 'bg-amber-50 text-amber-800 border border-amber-200 shadow-xs' 
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                      }`}
+                    >
+                      <Trophy className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                      <span>Árvore de Torneio</span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* GUIA CONFIGURAÇÕES (GERAL, USUÁRIOS E PERFIS) */}
+            <div className="pt-1">
+              <button 
+                type="button"
+                onClick={() => setIsSettingsExpanded(!isSettingsExpanded)}
+                className={`w-full flex items-center justify-between py-2 px-3 rounded-xl font-semibold transition-all cursor-pointer ${
+                  ['settings', 'profiles', 'users'].includes(activeTab)
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs'
+                    : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100/80'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+                    ['settings', 'profiles', 'users'].includes(activeTab)
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                  }`}>
+                    <Settings className="w-4 h-4" />
+                  </div>
+                  <span className="font-bold tracking-tight text-[13px]">Configurações</span>
+                </div>
+                {isSettingsExpanded ? (
+                  <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                )}
+              </button>
+
+              <AnimatePresence initial={false}>
+                {isSettingsExpanded && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="overflow-hidden pl-3.5 pr-1 pt-1.5 space-y-1 border-l border-slate-200 ml-4 my-1"
+                  >
+                    <button 
+                      onClick={() => { setActiveTab('users'); setSettingsSubTab('users'); }}
+                      className={`w-full flex items-center justify-between py-2 px-3 rounded-xl font-semibold text-xs transition-all cursor-pointer ${
+                        activeTab === 'users' || (activeTab === 'settings' && settingsSubTab === 'users')
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs' 
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Users className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'users' ? 'text-emerald-600' : 'text-slate-500'}`} />
+                        <span>Usuários</span>
+                      </div>
+                      <span className="text-[10px] font-mono tabular-nums font-bold bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-700">
+                        {systemUsers.length}
+                      </span>
+                    </button>
+
+                    <button 
+                      onClick={() => { setActiveTab('profiles'); setSettingsSubTab('profiles'); }}
+                      className={`w-full flex items-center justify-between py-2 px-3 rounded-xl font-semibold text-xs transition-all cursor-pointer ${
+                        activeTab === 'profiles' || (activeTab === 'settings' && settingsSubTab === 'profiles')
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs' 
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Shield className={`w-3.5 h-3.5 shrink-0 ${activeTab === 'profiles' ? 'text-emerald-600' : 'text-slate-500'}`} />
+                        <span>Perfis</span>
+                      </div>
+                      <span className="text-[10px] font-mono tabular-nums font-bold bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-700">
+                        {systemProfiles.length}
+                      </span>
+                    </button>
+
+                    <button 
+                      onClick={() => { setActiveTab('settings'); setSettingsSubTab('general'); }}
+                      className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all cursor-pointer ${
+                        activeTab === 'settings' && settingsSubTab === 'general'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs' 
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                      }`}
+                    >
+                      <Settings className="w-3.5 h-3.5 shrink-0 text-slate-500" />
+                      <span>Preferências Gerais</span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </nav>
         </div>
 
-        <div className="p-4 border-t border-slate-800/80 space-y-3 bg-[#090d16] text-xs">
+        <div className="p-4 border-t border-slate-200 space-y-3 bg-slate-50/80 text-xs">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center font-bold text-emerald-400 uppercase">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center font-bold text-emerald-700 uppercase">
               {session.username.substring(0, 2)}
             </div>
             <div className="truncate">
-              <p className="font-bold text-white leading-none truncate">{session.name}</p>
-              <span className="text-[10px] text-emerald-400/90 font-medium">{session.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin da Arena'}</span>
+              <p className="font-bold text-slate-900 leading-none truncate">{session.name}</p>
+              <span className="text-[10px] text-emerald-700 font-medium">{session.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin da Arena'}</span>
             </div>
           </div>
           <button 
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-slate-900 hover:bg-rose-950/30 text-slate-300 hover:text-rose-400 rounded-xl transition font-semibold border border-slate-800"
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 rounded-xl transition font-semibold border border-slate-200 hover:border-rose-200 cursor-pointer"
           >
-            <LogOut className="w-3.5 h-3.5 text-rose-400" /> Sair
+            <LogOut className="w-3.5 h-3.5 text-rose-600" /> Sair
           </button>
         </div>
       </aside>
 
       {/* CORE VIEWPORT CONTAINER */}
-      <div className="flex-1 flex flex-col min-h-screen overflow-y-auto">
+      <div className="flex-1 flex flex-col min-h-screen overflow-y-auto bg-white">
         
         {/* Mobile Navbar Header */}
-        <header className="md:hidden sticky top-0 z-40 bg-[#0d1424]/95 backdrop-blur-md border-b border-slate-800/90 px-3.5 py-2.5 flex items-center justify-between shadow-lg">
+        <header className="md:hidden sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 px-3.5 py-2.5 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2.5">
             <button 
               type="button"
               onClick={() => setIsMobileMenuOpen(true)}
-              className="p-2 -ml-1 text-slate-300 hover:text-white rounded-xl bg-slate-800/60 active:bg-slate-700/80 transition flex items-center justify-center min-w-[38px] min-h-[38px]"
+              className="p-2 -ml-1 text-slate-700 hover:text-slate-900 rounded-xl bg-slate-100 active:bg-slate-200 transition flex items-center justify-center min-w-[38px] min-h-[38px]"
               aria-label="Abrir menu de navegação"
             >
-              <Menu className="w-5 h-5 text-emerald-400" />
+              <Menu className="w-5 h-5 text-emerald-600" />
             </button>
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleNavTab('dashboard')}>
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-emerald-500/20 to-amber-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                <Trophy className="w-4 h-4 text-emerald-400" />
+              <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center text-white">
+                <Trophy className="w-4 h-4" />
               </div>
-              <span className="text-base font-black text-white bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 bg-clip-text text-transparent">
+              <span className="text-base font-extrabold text-slate-900">
                 BtControl
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/25">
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
               {activeTab === 'dashboard' ? 'Painel' : 
                activeTab === 'tournaments' ? 'Torneios' : 
                activeTab === 'matches' ? 'Jogos' : 
@@ -2212,11 +2531,12 @@ export default function Home() {
                activeTab === 'results' ? 'Resultados' : 
                activeTab === 'arenas' ? 'Arenas' : 
                activeTab === 'venues' ? 'Locais' : 
-               activeTab === 'categories' ? 'Categorias' : activeTab}
+               activeTab === 'categories' ? 'Categorias' : 
+               activeTab === 'bracket-tree' ? 'Mata-Mata' : activeTab}
             </span>
             <button 
               onClick={handleLogout}
-              className="p-2 text-slate-400 hover:text-rose-400 rounded-xl bg-slate-800/50 active:bg-slate-700 transition"
+              className="p-2 text-slate-500 hover:text-rose-600 rounded-xl bg-slate-100 active:bg-slate-200 transition"
               title="Sair do sistema"
             >
               <LogOut className="w-4 h-4" />
@@ -2233,31 +2553,31 @@ export default function Home() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 md:hidden"
+                className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 md:hidden"
               />
               <motion.div 
                 initial={{ x: '-100%' }}
                 animate={{ x: 0 }}
                 exit={{ x: '-100%' }}
                 transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-                className="fixed top-0 bottom-0 left-0 w-72 max-w-[85vw] bg-[#0d1424] border-r border-slate-800 z-50 flex flex-col justify-between md:hidden shadow-2xl"
+                className="fixed top-0 bottom-0 left-0 w-72 max-w-[85vw] bg-white border-r border-slate-200 z-50 flex flex-col justify-between md:hidden shadow-2xl"
               >
                 <div className="flex flex-col overflow-y-auto">
-                  <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                  <div className="p-4 border-b border-slate-200 flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                        <Trophy className="w-4 h-4 text-emerald-400" />
+                      <div className="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center text-white">
+                        <Trophy className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-base font-black text-white bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 bg-clip-text text-transparent">
+                        <span className="text-base font-extrabold text-slate-900">
                           BtControl
                         </span>
-                        <p className="text-[10px] text-slate-400 font-medium">Menu Principal</p>
+                        <p className="text-[10px] text-slate-500 font-medium">Menu Principal</p>
                       </div>
                     </div>
                     <button 
                       onClick={() => setIsMobileMenuOpen(false)}
-                      className="p-1.5 text-slate-400 hover:text-white rounded-lg bg-slate-800/60"
+                      className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg bg-slate-100"
                       aria-label="Fechar menu"
                     >
                       <X className="w-5 h-5" />
@@ -2267,9 +2587,9 @@ export default function Home() {
                   <nav className="p-3 space-y-1 text-xs">
                     <button 
                       onClick={() => { handleNavTab('dashboard'); handleCloseArenaManagement(); }}
-                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'dashboard' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800/50'}`}
+                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-semibold transition-all ${activeTab === 'dashboard' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
                     >
-                      <Activity className="w-4 h-4 shrink-0 text-emerald-400" />
+                      <Activity className="w-4 h-4 shrink-0 text-emerald-600" />
                       <span>{session.role === 'SUPER_ADMIN' ? 'Painel Geral' : 'Painel da Arena'}</span>
                     </button>
 
@@ -2278,28 +2598,28 @@ export default function Home() {
                       <button 
                         type="button"
                         onClick={() => setIsCadastrarExpanded(!isCadastrarExpanded)}
-                        className={`w-full flex items-center justify-between py-2 px-3 rounded-xl font-bold transition-all ${
+                        className={`w-full flex items-center justify-between py-2 px-3 rounded-xl font-semibold transition-all ${
                           ['athletes', 'arenas', 'venues', 'categories'].includes(activeTab)
-                            ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm'
-                            : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs'
+                            : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
                         }`}
                       >
                         <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
-                            <FolderPlus className="w-4 h-4 stroke-[2.5]" />
+                          <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center">
+                            <FolderPlus className="w-4 h-4 stroke-[2.2]" />
                           </div>
-                          <span className="font-black tracking-tight text-[13px]">Cadastrar</span>
+                          <span className="font-bold tracking-tight text-[13px]">Cadastrar</span>
                         </div>
                         {isCadastrarExpanded ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
                       </button>
 
                       {isCadastrarExpanded && (
-                        <div className="pl-3.5 pr-1 pt-1 space-y-1 border-l-2 border-emerald-500/20 ml-4 my-1">
+                        <div className="pl-3.5 pr-1 pt-1 space-y-1 border-l border-slate-200 ml-4 my-1">
                           <button 
                             onClick={() => { handleNavTab('athletes'); handleCloseArenaManagement(); }}
-                            className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-bold text-xs transition-all ${activeTab === 'athletes' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400 hover:text-white'}`}
+                            className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all ${activeTab === 'athletes' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:text-slate-900'}`}
                           >
-                            <Users className="w-3.5 h-3.5 text-emerald-400" />
+                            <Users className="w-3.5 h-3.5 text-emerald-600" />
                             <span>{session.role === 'SUPER_ADMIN' ? 'Atletas Globais' : 'Atletas da Arena'}</span>
                           </button>
 
@@ -2307,25 +2627,25 @@ export default function Home() {
                             <>
                               <button 
                                 onClick={() => { handleNavTab('arenas'); handleCloseArenaManagement(); }}
-                                className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-bold text-xs transition-all ${activeTab === 'arenas' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400 hover:text-white'}`}
+                                className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all ${activeTab === 'arenas' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:text-slate-900'}`}
                               >
-                                <Shield className="w-3.5 h-3.5 text-amber-400" />
+                                <Shield className="w-3.5 h-3.5 text-amber-600" />
                                 <span>Organizadores</span>
                               </button>
 
                               <button 
                                 onClick={() => { handleNavTab('venues'); handleCloseArenaManagement(); }}
-                                className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-bold text-xs transition-all ${activeTab === 'venues' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400 hover:text-white'}`}
+                                className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all ${activeTab === 'venues' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:text-slate-900'}`}
                               >
-                                <Building className="w-3.5 h-3.5 text-teal-400" />
+                                <Building className="w-3.5 h-3.5 text-teal-600" />
                                 <span>Arenas Físicas</span>
                               </button>
 
                               <button 
                                 onClick={() => { handleNavTab('categories'); handleCloseArenaManagement(); }}
-                                className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-bold text-xs transition-all ${activeTab === 'categories' ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-400 hover:text-white'}`}
+                                className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all ${activeTab === 'categories' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:text-slate-900'}`}
                               >
-                                <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                                <Layers className="w-3.5 h-3.5 text-emerald-600" />
                                 <span>Categorias</span>
                               </button>
                             </>
@@ -2334,83 +2654,157 @@ export default function Home() {
                       )}
                     </div>
 
-                    <div className="border-t border-slate-800/80 my-2 pt-2">
-                      <span className="px-3.5 text-[9px] font-bold text-slate-500 uppercase tracking-widest">Torneios & Jogos</span>
+                    <div className="border-t border-slate-200 my-2 pt-2">
+                      <span className="px-3.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Torneios &amp; Jogos</span>
                     </div>
 
                     <button 
                       onClick={() => handleNavTab('tournaments')}
-                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'tournaments' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
+                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-semibold transition-all ${activeTab === 'tournaments' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'text-slate-600 hover:text-slate-900'}`}
                     >
-                      <Trophy className="w-4 h-4 text-emerald-400" />
+                      <Trophy className="w-4 h-4 text-emerald-600" />
                       <span>Torneios</span>
                     </button>
 
                     <button 
                       onClick={() => handleNavTab('registrations')}
-                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'registrations' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
+                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-semibold transition-all ${activeTab === 'registrations' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'text-slate-600 hover:text-slate-900'}`}
                     >
-                      <ClipboardList className="w-4 h-4 text-emerald-400" />
+                      <ClipboardList className="w-4 h-4 text-emerald-600" />
                       <span>Inscrições</span>
                     </button>
 
                     <button 
                       onClick={() => handleNavTab('duos')}
-                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'duos' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
+                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-semibold transition-all ${activeTab === 'duos' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'text-slate-600 hover:text-slate-900'}`}
                     >
-                      <UserCheck className="w-4 h-4 text-emerald-400" />
+                      <UserCheck className="w-4 h-4 text-emerald-600" />
                       <span>Duplas</span>
                     </button>
 
                     <button 
                       onClick={() => handleNavTab('matches')}
-                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'matches' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
+                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-semibold transition-all ${activeTab === 'matches' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'text-slate-600 hover:text-slate-900'}`}
                     >
-                      <Calendar className="w-4 h-4 text-emerald-400" />
+                      <Calendar className="w-4 h-4 text-emerald-600" />
                       <span>Jogos / Quadras</span>
                     </button>
 
                     <button 
                       onClick={() => handleNavTab('results')}
-                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'results' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
+                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-semibold transition-all ${activeTab === 'results' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'text-slate-600 hover:text-slate-900'}`}
                     >
-                      <Award className="w-4 h-4 text-amber-400" />
+                      <Award className="w-4 h-4 text-amber-600" />
                       <span>Resultados / WO</span>
                     </button>
 
                     <button 
                       onClick={() => handleNavTab('reports')}
-                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'reports' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
+                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-semibold transition-all ${activeTab === 'reports' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'text-slate-600 hover:text-slate-900'}`}
                     >
-                      <TrendingUp className="w-4 h-4 text-emerald-400" />
+                      <TrendingUp className="w-4 h-4 text-emerald-600" />
                       <span>Relatórios</span>
                     </button>
 
-                    <button 
-                      onClick={() => handleNavTab('settings')}
-                      className={`w-full flex items-center gap-3 py-2.5 px-3.5 rounded-xl font-bold transition-all ${activeTab === 'settings' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}
-                    >
-                      <Settings className="w-4 h-4 text-slate-400" />
-                      <span>Configurações</span>
-                    </button>
+                    {/* Guia Mata-Mata no Mobile */}
+                    <div className="pt-1">
+                      <button 
+                        type="button"
+                        onClick={() => setIsMataMataExpanded(!isMataMataExpanded)}
+                        className={`w-full flex items-center justify-between py-2 px-3 rounded-xl font-semibold transition-all ${
+                          activeTab === 'bracket-tree'
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                            : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center">
+                            <GitFork className="w-4 h-4 stroke-[2.2]" />
+                          </div>
+                          <span className="font-bold tracking-tight text-[13px]">Mata-Mata</span>
+                        </div>
+                        {isMataMataExpanded ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
+                      </button>
+
+                      {isMataMataExpanded && (
+                        <div className="pl-3.5 pr-1 pt-1 space-y-1 border-l border-slate-200 ml-4 my-1">
+                          <button 
+                            onClick={() => handleNavTab('bracket-tree')}
+                            className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all ${activeTab === 'bracket-tree' ? 'bg-amber-50 text-amber-800' : 'text-slate-600 hover:text-slate-900'}`}
+                          >
+                            <Trophy className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Árvore de Torneio</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Configurações accordion no mobile */}
+                    <div className="pt-1">
+                      <button 
+                        type="button"
+                        onClick={() => setIsSettingsExpanded(!isSettingsExpanded)}
+                        className={`w-full flex items-center justify-between py-2 px-3 rounded-xl font-semibold transition-all ${
+                          ['settings', 'profiles', 'users'].includes(activeTab)
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 border border-slate-200 flex items-center justify-center">
+                            <Settings className="w-4 h-4 stroke-[2.2]" />
+                          </div>
+                          <span className="font-bold tracking-tight text-[13px]">Configurações</span>
+                        </div>
+                        {isSettingsExpanded ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
+                      </button>
+
+                      {isSettingsExpanded && (
+                        <div className="pl-3.5 pr-1 pt-1 space-y-1 border-l border-slate-200 ml-4 my-1">
+                          <button 
+                            onClick={() => { setActiveTab('users'); setSettingsSubTab('users'); setIsMobileMenuOpen(false); }}
+                            className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all ${activeTab === 'users' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:text-slate-900'}`}
+                          >
+                            <Users className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Usuários ({systemUsers.length})</span>
+                          </button>
+
+                          <button 
+                            onClick={() => { setActiveTab('profiles'); setSettingsSubTab('profiles'); setIsMobileMenuOpen(false); }}
+                            className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all ${activeTab === 'profiles' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:text-slate-900'}`}
+                          >
+                            <Shield className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Perfis ({systemProfiles.length})</span>
+                          </button>
+
+                          <button 
+                            onClick={() => { setActiveTab('settings'); setSettingsSubTab('general'); setIsMobileMenuOpen(false); }}
+                            className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-xl font-semibold text-xs transition-all ${activeTab === 'settings' && settingsSubTab === 'general' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:text-slate-900'}`}
+                          >
+                            <Settings className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Geral</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </nav>
                 </div>
 
-                <div className="p-4 border-t border-slate-800 space-y-3 bg-[#090d16] text-xs">
+                <div className="p-4 border-t border-slate-200 space-y-3 bg-slate-50 text-xs">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center font-bold text-emerald-400 uppercase">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center font-bold text-emerald-700 uppercase">
                       {session.username.substring(0, 2)}
                     </div>
                     <div className="truncate">
-                      <p className="font-bold text-white leading-none truncate">{session.name}</p>
-                      <span className="text-[10px] text-emerald-400/90 font-medium">{session.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin da Arena'}</span>
+                      <p className="font-bold text-slate-900 leading-none truncate">{session.name}</p>
+                      <span className="text-[10px] text-emerald-700 font-medium">{session.role === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin da Arena'}</span>
                     </div>
                   </div>
                   <button 
                     onClick={handleLogout}
-                    className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-slate-900 hover:bg-rose-950/30 text-slate-300 hover:text-rose-400 rounded-xl transition font-semibold border border-slate-800"
+                    className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 rounded-xl transition font-semibold border border-slate-200 hover:border-rose-200"
                   >
-                    <LogOut className="w-3.5 h-3.5 text-rose-400" /> Sair
+                    <LogOut className="w-3.5 h-3.5 text-rose-600" /> Sair
                   </button>
                 </div>
               </motion.div>
@@ -2423,8 +2817,8 @@ export default function Home() {
 
           {loading ? (
             <div className="flex-1 flex flex-col items-center justify-center py-24">
-              <div className="w-10 h-10 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
-              <p className="mt-4 text-slate-400 text-sm">Carregando painel de controle...</p>
+              <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+              <p className="mt-4 text-slate-500 text-sm font-medium">Carregando painel de controle...</p>
             </div>
           ) : (
             <AnimatePresence mode="wait">
@@ -2433,19 +2827,18 @@ export default function Home() {
               {activeTab === 'dashboard' && (session.role === 'ARENA_ADMIN' || !selectedArena) && (
                 <motion.div key="db" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
                   {/* Hero Banner */}
-                  <div className="bg-gradient-to-r from-[#0d1424] via-[#0f1930] to-[#0d1424] border border-slate-800 rounded-3xl p-6 sm:p-7 relative overflow-hidden shadow-xl">
-                    <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+                  <div className="bg-gradient-to-br from-white via-white to-emerald-50/50 border border-slate-200 rounded-2xl p-6 sm:p-7 relative overflow-hidden shadow-xs">
                     <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] uppercase font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
                             {session.role === 'SUPER_ADMIN' ? 'Central Geral de Controle' : 'Painel do Organizador'}
                           </span>
                         </div>
-                        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                           Bem-vindo ao BtControl
                         </h1>
-                        <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
+                        <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-xl">
                           {session.role === 'SUPER_ADMIN' 
                             ? 'Gestão unificada em tempo real de organizadores, arenas com quadras, torneios, categorias e atletas cadastrados.'
                             : `Painel de gerenciamento exclusivo de ${arenas.find(a => a.id === session.arenaId)?.name || session.name}.`}
@@ -2456,21 +2849,21 @@ export default function Home() {
                       <div className="flex flex-wrap gap-2 pt-2 md:pt-0">
                         <button 
                           onClick={handleOpenTournamentCreate}
-                          className="flex items-center gap-2 py-2 px-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-md shadow-emerald-500/20"
+                          className="flex items-center gap-2 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition shadow-xs cursor-pointer"
                         >
                           <Plus className="w-3.5 h-3.5" /> Novo Torneio
                         </button>
                         <button 
                           onClick={handleOpenVenueCreate}
-                          className="flex items-center gap-2 py-2 px-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold rounded-xl text-xs transition"
+                          className="flex items-center gap-2 py-2.5 px-4 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-semibold rounded-xl text-xs transition cursor-pointer"
                         >
-                          <Building className="w-3.5 h-3.5 text-amber-400" /> Nova Arena (Local)
+                          <Building className="w-3.5 h-3.5 text-amber-600" /> Nova Arena (Local)
                         </button>
                         <button 
                           onClick={handleOpenAthleteCreate}
-                          className="flex items-center gap-2 py-2 px-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold rounded-xl text-xs transition"
+                          className="flex items-center gap-2 py-2.5 px-4 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-semibold rounded-xl text-xs transition cursor-pointer"
                         >
-                          <Users className="w-3.5 h-3.5 text-emerald-400" /> Cadastrar Atleta
+                          <Users className="w-3.5 h-3.5 text-emerald-600" /> Cadastrar Atleta
                         </button>
                       </div>
                     </div>
@@ -2478,14 +2871,14 @@ export default function Home() {
 
                   {/* Metric Cards */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-[#0d1424] border border-slate-800/90 hover:border-slate-700 p-5 rounded-2xl transition shadow-md group">
+                    <div className="bg-white border border-slate-200 hover:border-slate-300 p-5 rounded-2xl transition shadow-xs group">
                       <div className="flex items-center justify-between">
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Atletas Cadastrados</p>
-                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Atletas Cadastrados</p>
+                        <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
                           <Users className="w-4 h-4" />
                         </div>
                       </div>
-                      <p className="text-3xl font-black text-white mt-2 font-mono">
+                      <p className="text-3xl font-extrabold text-slate-900 mt-2 font-mono tabular-nums">
                         {session.role === 'SUPER_ADMIN' ? athletes.length : arenaAthletes.length}
                       </p>
                       <p className="text-[11px] text-slate-500 mt-1">
@@ -2494,55 +2887,55 @@ export default function Home() {
                     </div>
 
                     {session.role === 'SUPER_ADMIN' ? (
-                      <div className="bg-[#0d1424] border border-slate-800/90 hover:border-slate-700 p-5 rounded-2xl transition shadow-md group">
+                      <div className="bg-white border border-slate-200 hover:border-slate-300 p-5 rounded-2xl transition shadow-xs group">
                         <div className="flex items-center justify-between">
-                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Organizadores</p>
-                          <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Organizadores</p>
+                          <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
                             <Shield className="w-4 h-4" />
                           </div>
                         </div>
-                        <p className="text-3xl font-black text-white mt-2 font-mono">{arenas.length}</p>
+                        <p className="text-3xl font-extrabold text-slate-900 mt-2 font-mono tabular-nums">{arenas.length}</p>
                         <p className="text-[11px] text-slate-500 mt-1">Clubes e entidades gestoras</p>
                       </div>
                     ) : (
-                      <div className="bg-[#0d1424] border border-slate-800/90 hover:border-slate-700 p-5 rounded-2xl transition shadow-md group">
+                      <div className="bg-white border border-slate-200 hover:border-slate-300 p-5 rounded-2xl transition shadow-xs group">
                         <div className="flex items-center justify-between">
-                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Meu Organizador</p>
-                          <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Meu Organizador</p>
+                          <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
                             <Shield className="w-4 h-4" />
                           </div>
                         </div>
-                        <p className="text-sm font-bold text-amber-300 mt-3 truncate">
+                        <p className="text-sm font-bold text-amber-700 mt-3 truncate">
                           {arenas.find(a => a.id === session.arenaId)?.name || session.name}
                         </p>
                         <p className="text-[11px] text-slate-500 mt-0.5">Perfil autenticado</p>
                       </div>
                     )}
 
-                    <div className="bg-[#0d1424] border border-slate-800/90 hover:border-slate-700 p-5 rounded-2xl transition shadow-md group">
+                    <div className="bg-white border border-slate-200 hover:border-slate-300 p-5 rounded-2xl transition shadow-xs group">
                       <div className="flex items-center justify-between">
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Arenas Físicas (Locais)</p>
-                        <div className="w-8 h-8 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
+                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Arenas Físicas (Locais)</p>
+                        <div className="w-8 h-8 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600">
                           <Building className="w-4 h-4" />
                         </div>
                       </div>
                       <div className="flex items-baseline gap-2 mt-2">
-                        <span className="text-3xl font-black text-teal-300 font-mono">{venues.length}</span>
-                        <span className="text-xs text-slate-400 font-medium">
+                        <span className="text-3xl font-extrabold text-teal-700 font-mono tabular-nums">{venues.length}</span>
+                        <span className="text-xs text-slate-500 font-medium">
                           ({venues.reduce((acc, v) => acc + (v.courtsCount || 0), 0)} quadras)
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">Espaços com quadras ativas</p>
                     </div>
 
-                    <div className="bg-[#0d1424] border border-slate-800/90 hover:border-slate-700 p-5 rounded-2xl transition shadow-md group">
+                    <div className="bg-white border border-slate-200 hover:border-slate-300 p-5 rounded-2xl transition shadow-xs group">
                       <div className="flex items-center justify-between">
-                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Torneios</p>
-                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Torneios</p>
+                        <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
                           <Trophy className="w-4 h-4" />
                         </div>
                       </div>
-                      <p className="text-3xl font-black text-white mt-2 font-mono">{tournaments.length}</p>
+                      <p className="text-3xl font-extrabold text-slate-900 mt-2 font-mono tabular-nums">{tournaments.length}</p>
                       <p className="text-[11px] text-slate-500 mt-1">
                         {tournaments.filter(t => t.status === 'INSCRICOES_ABERTAS' || t.status === 'EM_ANDAMENTO').length} em andamento / abertos
                       </p>
@@ -2550,27 +2943,27 @@ export default function Home() {
                   </div>
 
                   {/* Summary Section: Active Tournaments */}
-                  <div className="bg-[#0d1424] border border-slate-800 rounded-3xl p-6 space-y-4 shadow-md">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-xs">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></div>
-                        <h2 className="text-sm font-bold text-white uppercase tracking-wider">Torneios em Destaque</h2>
+                      <div className="flex items-center gap-2">
+                        <Trophy className="w-4 h-4 text-emerald-600" />
+                        <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Torneios em Destaque</h2>
                       </div>
                       <button 
                         onClick={() => setActiveTab('tournaments')} 
-                        className="text-xs text-emerald-400 hover:text-emerald-300 font-bold transition"
+                        className="text-xs text-emerald-700 hover:text-emerald-800 font-semibold transition cursor-pointer"
                       >
                         Ver Todos →
                       </button>
                     </div>
 
                     {tournaments.length === 0 ? (
-                      <div className="py-10 text-center text-slate-400 border border-dashed border-slate-800 rounded-2xl space-y-2">
-                        <Trophy className="w-8 h-8 text-slate-600 mx-auto" />
-                        <p className="text-xs font-medium">Nenhum torneio cadastrado no momento.</p>
+                      <div className="py-10 text-center text-slate-500 border border-dashed border-slate-300 rounded-2xl space-y-2 bg-slate-50/50">
+                        <Trophy className="w-8 h-8 text-slate-400 mx-auto" />
+                        <p className="text-xs font-medium text-slate-600">Nenhum torneio cadastrado no momento.</p>
                         <button 
                           onClick={handleOpenTournamentCreate} 
-                          className="text-xs text-emerald-400 hover:underline font-bold inline-block"
+                          className="text-xs text-emerald-700 hover:underline font-semibold inline-block cursor-pointer"
                         >
                           Clique aqui para criar o primeiro torneio
                         </button>
@@ -2580,29 +2973,29 @@ export default function Home() {
                         {tournaments.slice(0, 3).map(t => {
                           const venueObj = venues.find(v => v.id === t.venueId);
                           return (
-                            <div key={t.id} className="bg-[#090e1a] border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-700 transition">
+                            <div key={t.id} className="bg-slate-50/70 border border-slate-200 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-300 transition">
                               <div>
                                 <div className="flex items-center justify-between gap-2">
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase">{t.seriesName}</span>
-                                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${
-                                    t.status === 'INSCRICOES_ABERTAS' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' :
-                                    t.status === 'EM_ANDAMENTO' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                    'bg-slate-800 text-slate-400 border-slate-700'
+                                  <span className="text-[10px] font-bold text-slate-500 uppercase">{t.seriesName}</span>
+                                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                                    t.status === 'INSCRICOES_ABERTAS' ? 'bg-sky-50 text-sky-700 border-sky-200' :
+                                    t.status === 'EM_ANDAMENTO' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                    'bg-slate-100 text-slate-600 border-slate-200'
                                   }`}>
                                     {t.status.replace('_', ' ')}
                                   </span>
                                 </div>
-                                <h3 className="font-bold text-white text-sm mt-1 truncate">{t.name}</h3>
-                                <p className="text-xs text-slate-400 mt-2 flex items-center gap-1.5">
-                                  <Building className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                <h3 className="font-bold text-slate-900 text-sm mt-1 truncate">{t.name}</h3>
+                                <p className="text-xs text-slate-600 mt-2 flex items-center gap-1.5">
+                                  <Building className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                                   <span className="truncate">{venueObj?.name || 'Local a definir'}</span>
                                 </p>
                               </div>
-                              <div className="mt-3 pt-3 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400">
-                                <span>{t.courtsUsed || 4} quadras</span>
+                              <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-600">
+                                <span className="tabular-nums font-medium">{t.courtsUsed || 4} quadras</span>
                                 <button 
                                   onClick={() => setActiveTab('tournaments')} 
-                                  className="text-emerald-400 hover:text-emerald-300 font-bold"
+                                  className="text-emerald-700 hover:text-emerald-800 font-semibold cursor-pointer"
                                 >
                                   Gerenciar
                                 </button>
@@ -2621,40 +3014,40 @@ export default function Home() {
                 <motion.div key="ath" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
-                      <h2 className="text-lg font-black text-white flex items-center gap-2">
-                        <Users className="w-5 h-5 text-emerald-400" />
+                      <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                        <Users className="w-5 h-5 text-emerald-600" />
                         Gestão Global de Atletas
                       </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <p className="text-xs text-slate-500 mt-0.5">
                         Base centralizada de atletas cadastrados com controle de CPF, gênero, contato e status.
                       </p>
                     </div>
                     <button 
                       onClick={handleOpenAthleteCreate} 
-                      className="flex items-center gap-2 py-2 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-md shadow-emerald-500/20"
+                      className="flex items-center gap-2 py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition shadow-md shadow-emerald-600/15"
                     >
                       <Plus className="w-3.5 h-3.5" /> Adicionar Atleta
                     </button>
                   </div>
                   
                   {/* Search and Filter */}
-                  <div className="bg-[#0d1424] border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
                     <input 
                       type="text" 
                       placeholder="Buscar por nome ou CPF..." 
                       value={searchAthlete}
                       onChange={(e) => setSearchAthlete(e.target.value)}
-                      className="w-full bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-4 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+                      className="w-full bg-white border border-slate-300 rounded-xl py-2 px-4 text-xs text-slate-800 placeholder:text-slate-500 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 transition"
                     />
-                    <div className="text-[11px] text-slate-400 whitespace-nowrap px-1">
-                      Total: <strong className="text-white font-mono">{filteredAthletes.length}</strong> {filteredAthletes.length === 1 ? 'atleta' : 'atletas'}
+                    <div className="text-[11px] text-slate-500 whitespace-nowrap px-1">
+                      Total: <strong className="text-slate-900 font-mono">{filteredAthletes.length}</strong> {filteredAthletes.length === 1 ? 'atleta' : 'atletas'}
                     </div>
                   </div>
 
-                  <div className="bg-[#0d1424] border border-slate-800 rounded-2xl overflow-x-auto shadow-md">
+                  <div className="bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-md">
                     <table className="w-full min-w-[620px] text-left border-collapse text-xs">
                       <thead>
-                        <tr className="bg-slate-800/40 border-b border-slate-800 text-slate-400 font-bold uppercase text-[11px]">
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[11px]">
                           <th className="p-4">Nome</th>
                           <th className="p-4">CPF</th>
                           <th className="p-4">Gênero</th>
@@ -2663,25 +3056,25 @@ export default function Home() {
                           <th className="p-4 text-right">Ações</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800/60">
+                      <tbody className="divide-y divide-slate-200">
                         {filteredAthletes.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="p-12 text-center text-slate-400">
+                            <td colSpan={6} className="p-12 text-center text-slate-500">
                               Nenhum atleta encontrado com o filtro informado.
                             </td>
                           </tr>
                         ) : (
                           filteredAthletes.map(a => (
-                            <tr key={a.id} className="hover:bg-slate-800/30 transition">
-                              <td className="p-4 font-bold text-white">{a.name}</td>
-                              <td className="p-4 font-mono text-slate-300">{formatCPF(a.cpf)}</td>
-                              <td className="p-4 text-slate-300">{a.gender === 'M' ? 'Masculino' : a.gender === 'F' ? 'Feminino' : 'Misto'}</td>
-                              <td className="p-4 text-slate-300">{a.email || a.phone || '—'}</td>
+                            <tr key={a.id} className="hover:bg-slate-50 transition">
+                              <td className="p-4 font-bold text-slate-900">{a.name}</td>
+                              <td className="p-4 font-mono text-slate-700">{formatCPF(a.cpf)}</td>
+                              <td className="p-4 text-slate-700">{a.gender === 'M' ? 'Masculino' : a.gender === 'F' ? 'Feminino' : 'Misto'}</td>
+                              <td className="p-4 text-slate-700">{a.email || a.phone || '—'}</td>
                               <td className="p-4">
                                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase tracking-wider ${
                                   a.status === 'ATIVO' 
-                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
-                                    : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200' 
+                                    : 'bg-rose-50 text-rose-600 border-rose-200'
                                 }`}>
                                   {a.status}
                                 </span>
@@ -2689,7 +3082,7 @@ export default function Home() {
                               <td className="p-4 text-right">
                                 <button 
                                   onClick={() => handleOpenAthleteEdit(a)} 
-                                  className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition"
+                                  className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-900 transition"
                                   title="Editar Atleta"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
@@ -2709,45 +3102,45 @@ export default function Home() {
                 <motion.div key="arenas_view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
-                      <h2 className="text-lg font-black text-white flex items-center gap-2">
-                        <Shield className="w-5 h-5 text-amber-400" />
+                      <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                        <Shield className="w-5 h-5 text-amber-600" />
                         Gestão de Organizadores
                       </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <p className="text-xs text-slate-500 mt-0.5">
                         Clubes e entidades responsáveis pelos campeonatos, credenciais de acesso e administração de atletas vinculados.
                       </p>
                     </div>
                     <button 
                       onClick={handleOpenArenaCreate} 
-                      className="flex items-center gap-2 py-2 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-md shadow-emerald-500/20"
+                      className="flex items-center gap-2 py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition shadow-md shadow-emerald-600/15"
                     >
                       <Plus className="w-3.5 h-3.5" /> Adicionar Novo Organizador
                     </button>
                   </div>
 
                   {/* Search Bar */}
-                  <div className="bg-[#0d1424] border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
                     <input 
                       type="text" 
                       placeholder="Buscar organizadores por nome ou cidade..." 
                       value={searchArena}
                       onChange={(e) => setSearchArena(e.target.value)}
-                      className="w-full bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-4 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+                      className="w-full bg-white border border-slate-300 rounded-xl py-2 px-4 text-xs text-slate-800 placeholder:text-slate-500 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 transition"
                     />
-                    <div className="text-[11px] text-slate-400 whitespace-nowrap px-1">
-                      Total: <strong className="text-white font-mono">{filteredArenas.length}</strong> {filteredArenas.length === 1 ? 'organizador' : 'organizadores'}
+                    <div className="text-[11px] text-slate-500 whitespace-nowrap px-1">
+                      Total: <strong className="text-slate-900 font-mono">{filteredArenas.length}</strong> {filteredArenas.length === 1 ? 'organizador' : 'organizadores'}
                     </div>
                   </div>
 
                   {/* Arenas Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                     {filteredArenas.length === 0 ? (
-                      <div className="col-span-full py-12 text-center text-slate-400 border border-dashed border-slate-800 bg-[#0d1424]/40 rounded-2xl space-y-2">
+                      <div className="col-span-full py-12 text-center text-slate-500 border border-dashed border-slate-200 bg-slate-50 rounded-2xl space-y-2">
                         <Shield className="w-8 h-8 text-slate-600 mx-auto" />
                         <p className="text-xs font-medium">Nenhum organizador cadastrado no momento.</p>
                         <button 
                           onClick={handleOpenArenaCreate}
-                          className="text-xs text-emerald-400 hover:underline font-bold inline-block"
+                          className="text-xs text-emerald-600 hover:underline font-bold inline-block"
                         >
                           Clique aqui para cadastrar um organizador
                         </button>
@@ -2758,73 +3151,73 @@ export default function Home() {
                         return (
                           <div 
                             key={arena.id} 
-                            className="bg-[#0d1424] border border-slate-800 hover:border-slate-700 rounded-2xl p-5 flex flex-col justify-between transition-all shadow-md group"
+                            className="bg-white border border-slate-200 hover:border-slate-200 rounded-2xl p-5 flex flex-col justify-between transition-all shadow-md group"
                           >
                             <div className="space-y-3.5">
                               {/* Card Header: Name + Status */}
                               <div className="flex justify-between items-start gap-2">
                                 <div>
-                                  <h3 className="font-bold text-white text-base leading-tight group-hover:text-emerald-400 transition-colors">
+                                  <h3 className="font-bold text-slate-900 text-base leading-tight group-hover:text-emerald-600 transition-colors">
                                     {arena.name}
                                   </h3>
-                                  <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
                                     <span>{arena.city} - {arena.state}</span>
                                   </p>
                                 </div>
                                 <span className={`text-[9px] font-extrabold px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${
                                   arena.status === 'ATIVA' 
-                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
-                                    : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200' 
+                                    : 'bg-rose-50 text-rose-600 border-rose-200'
                                 }`}>
                                   {arena.status}
                                 </span>
                               </div>
 
                               {/* Details: Owner, Phone, Email */}
-                              <div className="text-xs text-slate-400 space-y-1 bg-[#090e1a] p-3 rounded-xl border border-slate-800/80">
+                              <div className="text-xs text-slate-500 space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
                                 <p className="truncate">
                                   <span className="text-slate-500 font-medium">Responsável:</span>{' '}
-                                  <strong className="text-slate-200">{arena.owner || 'Não informado'}</strong>
+                                  <strong className="text-slate-800">{arena.owner || 'Não informado'}</strong>
                                 </p>
                                 {arena.phone && (
                                   <p className="truncate font-mono">
                                     <span className="text-slate-500 font-sans font-medium">Telefone:</span>{' '}
-                                    <span className="text-slate-300">{formatPhone(arena.phone)}</span>
+                                    <span className="text-slate-700">{formatPhone(arena.phone)}</span>
                                   </p>
                                 )}
                                 {arena.email && (
                                   <p className="truncate">
                                     <span className="text-slate-500 font-medium">E-mail:</span>{' '}
-                                    <span className="text-slate-300">{arena.email}</span>
+                                    <span className="text-slate-700">{arena.email}</span>
                                   </p>
                                 )}
-                                <div className="pt-1.5 border-t border-slate-800/60 flex justify-between text-[11px] text-slate-400">
+                                <div className="pt-1.5 border-t border-slate-200 flex justify-between text-[11px] text-slate-500">
                                   <span>Torneios gerenciados:</span>
-                                  <strong className="text-emerald-400 font-mono">{tourCount}</strong>
+                                  <strong className="text-emerald-600 font-mono">{tourCount}</strong>
                                 </div>
                               </div>
 
                               {/* Admin Credentials Preview */}
-                              <div className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl font-mono text-[11px] text-slate-300 space-y-1">
+                              <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl font-mono text-[11px] text-slate-700 space-y-1">
                                 <div className="flex justify-between items-center text-[10px] text-slate-500 uppercase tracking-wider font-sans font-bold">
-                                  <span className="flex items-center gap-1"><Lock className="w-3 h-3 text-emerald-400" /> Acesso Administrador</span>
+                                  <span className="flex items-center gap-1"><Lock className="w-3 h-3 text-emerald-600" /> Acesso Administrador</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-slate-500">Usuário:</span>
-                                  <strong className="text-slate-200">{arena.adminUsername || '—'}</strong>
+                                  <strong className="text-slate-800">{arena.adminUsername || '—'}</strong>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-slate-500">Senha:</span>
-                                  <strong className="text-slate-200">{arena.adminPassword || '••••••'}</strong>
+                                  <strong className="text-slate-800">{arena.adminPassword || '••••••'}</strong>
                                 </div>
                               </div>
                             </div>
 
                             {/* Card Footer: Full CRUD Actions */}
-                            <div className="flex items-center justify-between mt-4 pt-3.5 border-t border-slate-800 gap-2">
+                            <div className="flex items-center justify-between mt-4 pt-3.5 border-t border-slate-200 gap-2">
                               <button 
                                 onClick={() => handleOpenArenaManagement(arena)} 
-                                className="text-xs text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 transition"
+                                className="text-xs text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1 transition"
                                 title="Ver atletas vinculados"
                               >
                                 <Users className="w-3.5 h-3.5" /> Atletas
@@ -2833,14 +3226,14 @@ export default function Home() {
                               <div className="flex items-center gap-1.5">
                                 <button 
                                   onClick={() => handleOpenArenaEdit(arena)} 
-                                  className="py-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition border border-slate-700"
+                                  className="py-1 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold flex items-center gap-1 transition border border-slate-200"
                                   title="Editar Organizador e Credenciais"
                                 >
-                                  <Edit2 className="w-3.5 h-3.5 text-slate-400" /> Editar
+                                  <Edit2 className="w-3.5 h-3.5 text-slate-500" /> Editar
                                 </button>
                                 <button 
                                   onClick={() => handleDeleteArena(arena)} 
-                                  className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/20 rounded-lg transition"
+                                  className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                                   title="Excluir Organizador"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -2860,45 +3253,45 @@ export default function Home() {
                 <motion.div key="venues_view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
-                      <h2 className="text-lg font-black text-white flex items-center gap-2">
-                        <Building className="w-5 h-5 text-amber-400" />
+                      <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                        <Building className="w-5 h-5 text-amber-600" />
                         Arenas (Locais dos Eventos)
                       </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <p className="text-xs text-slate-500 mt-0.5">
                         Espaços e complexos esportivos onde os jogos acontecem, com o total de quadras físicas disponíveis.
                       </p>
                     </div>
                     <button 
                       onClick={handleOpenVenueCreate} 
-                      className="flex items-center gap-2 py-2 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-md shadow-emerald-500/20"
+                      className="flex items-center gap-2 py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition shadow-md shadow-emerald-600/15"
                     >
                       <Plus className="w-3.5 h-3.5" /> Adicionar Nova Arena (Local)
                     </button>
                   </div>
 
                   {/* Search Bar */}
-                  <div className="bg-[#0d1424] border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
                     <input 
                       type="text" 
                       placeholder="Buscar arenas por nome, cidade ou endereço..." 
                       value={searchVenue}
                       onChange={(e) => setSearchVenue(e.target.value)}
-                      className="w-full bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-4 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+                      className="w-full bg-white border border-slate-300 rounded-xl py-2 px-4 text-xs text-slate-800 placeholder:text-slate-500 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 transition"
                     />
-                    <div className="text-[11px] text-slate-400 whitespace-nowrap px-1">
-                      Total: <strong className="text-white font-mono">{filteredVenues.length}</strong> {filteredVenues.length === 1 ? 'arena' : 'arenas'}
+                    <div className="text-[11px] text-slate-500 whitespace-nowrap px-1">
+                      Total: <strong className="text-slate-900 font-mono">{filteredVenues.length}</strong> {filteredVenues.length === 1 ? 'arena' : 'arenas'}
                     </div>
                   </div>
 
                   {/* Venues Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                     {filteredVenues.length === 0 ? (
-                      <div className="col-span-full py-12 text-center text-slate-400 border border-dashed border-slate-800 bg-[#0d1424]/40 rounded-2xl space-y-2">
+                      <div className="col-span-full py-12 text-center text-slate-500 border border-dashed border-slate-200 bg-slate-50 rounded-2xl space-y-2">
                         <Building className="w-8 h-8 text-slate-600 mx-auto" />
                         <p className="text-xs font-medium">Nenhuma arena física cadastrada no momento.</p>
                         <button 
                           onClick={handleOpenVenueCreate} 
-                          className="text-xs text-emerald-400 hover:underline font-bold inline-block"
+                          className="text-xs text-emerald-600 hover:underline font-bold inline-block"
                         >
                           Clique aqui para cadastrar a primeira arena
                         </button>
@@ -2909,80 +3302,80 @@ export default function Home() {
                         return (
                           <div 
                             key={venue.id} 
-                            className="bg-[#0d1424] border border-slate-800 hover:border-slate-700 rounded-2xl p-5 flex flex-col justify-between transition-all shadow-md group"
+                            className="bg-white border border-slate-200 hover:border-slate-200 rounded-2xl p-5 flex flex-col justify-between transition-all shadow-md group"
                           >
                             <div className="space-y-3.5">
                               {/* Header: Name + Status */}
                               <div className="flex justify-between items-start gap-2">
                                 <div>
-                                  <h3 className="font-bold text-white text-base leading-tight group-hover:text-emerald-400 transition-colors">
+                                  <h3 className="font-bold text-slate-900 text-base leading-tight group-hover:text-emerald-600 transition-colors">
                                     {venue.name}
                                   </h3>
-                                  <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
                                     <MapPin className="w-3.5 h-3.5 text-slate-500" />
                                     <span>{venue.city} - {venue.state}</span>
                                   </p>
                                 </div>
                                 <span className={`text-[9px] font-extrabold px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${
                                   venue.status === 'ATIVA' 
-                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
-                                    : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200' 
+                                    : 'bg-rose-50 text-rose-600 border-rose-200'
                                 }`}>
                                   {venue.status}
                                 </span>
                               </div>
 
                               {/* Number of Courts Badge */}
-                              <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-amber-500/10 border border-emerald-500/20 p-3.5 rounded-xl flex items-center justify-between">
+                              <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-amber-50 border border-emerald-200 p-3.5 rounded-xl flex items-center justify-between">
                                 <div className="flex items-center gap-2.5">
-                                  <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold">
+                                  <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 font-bold">
                                     <Layers className="w-4 h-4" />
                                   </div>
                                   <div>
-                                    <span className="text-[10px] text-slate-400 uppercase font-semibold">Estrutura de Jogos</span>
-                                    <p className="text-sm font-black text-emerald-300 font-mono">
+                                    <span className="text-[10px] text-slate-500 uppercase font-semibold">Estrutura de Jogos</span>
+                                    <p className="text-sm font-black text-emerald-700 font-mono">
                                       {venue.courtsCount} {venue.courtsCount === 1 ? 'Quadra' : 'Quadras'}
                                     </p>
                                   </div>
                                 </div>
-                                <span className="text-[10px] text-slate-300 bg-[#090e1a] px-2.5 py-1 rounded-lg border border-slate-800 font-medium">
+                                <span className="text-[10px] text-slate-700 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 font-medium">
                                   No local
                                 </span>
                               </div>
 
                               {/* Location details */}
-                              <div className="text-xs text-slate-400 space-y-1 bg-[#090e1a] p-3 rounded-xl border border-slate-800/80">
+                              <div className="text-xs text-slate-500 space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
                                 {venue.address && (
                                   <p className="truncate">
                                     <span className="text-slate-500 font-medium">Endereço:</span>{' '}
-                                    <span className="text-slate-300">{venue.address}</span>
+                                    <span className="text-slate-700">{venue.address}</span>
                                   </p>
                                 )}
                                 {venue.contactPhone && (
                                   <p className="truncate font-mono">
                                     <span className="text-slate-500 font-sans font-medium">Contato:</span>{' '}
-                                    <span className="text-slate-300">{formatPhone(venue.contactPhone)}</span>
+                                    <span className="text-slate-700">{formatPhone(venue.contactPhone)}</span>
                                   </p>
                                 )}
-                                <div className="pt-1.5 border-t border-slate-800/60 flex justify-between text-[11px] text-slate-400">
+                                <div className="pt-1.5 border-t border-slate-200 flex justify-between text-[11px] text-slate-500">
                                   <span>Torneios sediados:</span>
-                                  <strong className="text-emerald-400 font-mono">{linkedTourneys}</strong>
+                                  <strong className="text-emerald-600 font-mono">{linkedTourneys}</strong>
                                 </div>
                               </div>
                             </div>
 
                             {/* Card Footer: CRUD Actions */}
-                            <div className="flex items-center justify-end mt-4 pt-3.5 border-t border-slate-800 gap-2">
+                            <div className="flex items-center justify-end mt-4 pt-3.5 border-t border-slate-200 gap-2">
                               <button 
                                 onClick={() => handleOpenVenueEdit(venue)} 
-                                className="py-1 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border border-slate-700"
+                                className="py-1 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border border-slate-200"
                                 title="Editar dados da arena e quantidade de quadras"
                               >
-                                <Edit2 className="w-3.5 h-3.5 text-slate-400" /> Editar
+                                <Edit2 className="w-3.5 h-3.5 text-slate-500" /> Editar
                               </button>
                               <button 
                                 onClick={() => handleDeleteVenue(venue)} 
-                                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/20 rounded-lg transition"
+                                className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                                 title="Excluir Arena"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -3001,41 +3394,41 @@ export default function Home() {
                 <motion.div key="tour" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
-                      <h2 className="text-lg font-black text-white flex items-center gap-2">
-                        <Trophy className="w-5 h-5 text-emerald-400" />
+                      <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                        <Trophy className="w-5 h-5 text-emerald-600" />
                         Gestão de Torneios
                       </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">Gerenciamento completo de edições de campeonatos, quadras utilizadas e organizadores.</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Gerenciamento completo de edições de campeonatos, quadras utilizadas e organizadores.</p>
                     </div>
                     <button 
                       onClick={handleOpenTournamentCreate} 
-                      className="flex items-center gap-2 py-2 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-md shadow-emerald-500/20"
+                      className="flex items-center gap-2 py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition shadow-md shadow-emerald-600/15"
                     >
                       <Plus className="w-3.5 h-3.5" /> Adicionar Torneio
                     </button>
                   </div>
 
-                  <div className="bg-[#0d1424] border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
                     <input 
                       type="text" 
                       placeholder="Buscar torneios por nome ou série..." 
                       value={searchTournament}
                       onChange={(e) => setSearchTournament(e.target.value)}
-                      className="w-full bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-4 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+                      className="w-full bg-white border border-slate-300 rounded-xl py-2 px-4 text-xs text-slate-800 placeholder:text-slate-500 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 transition"
                     />
-                    <div className="text-[11px] text-slate-400 whitespace-nowrap px-1">
-                      Total: <strong className="text-white font-mono">{filteredTournaments.length}</strong> {filteredTournaments.length === 1 ? 'torneio' : 'torneios'}
+                    <div className="text-[11px] text-slate-500 whitespace-nowrap px-1">
+                      Total: <strong className="text-slate-900 font-mono">{filteredTournaments.length}</strong> {filteredTournaments.length === 1 ? 'torneio' : 'torneios'}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredTournaments.length === 0 ? (
-                      <div className="col-span-full py-12 text-center text-slate-400 border border-dashed border-slate-800 bg-[#0d1424]/40 rounded-2xl space-y-2">
+                      <div className="col-span-full py-12 text-center text-slate-500 border border-dashed border-slate-200 bg-slate-50 rounded-2xl space-y-2">
                         <Trophy className="w-8 h-8 text-slate-600 mx-auto" />
                         <p className="text-xs font-medium">Nenhum torneio cadastrado nesta arena/filtro.</p>
                         <button 
                           onClick={handleOpenTournamentCreate} 
-                          className="text-xs text-emerald-400 hover:underline font-bold inline-block"
+                          className="text-xs text-emerald-600 hover:underline font-bold inline-block"
                         >
                           Clique aqui para cadastrar um torneio
                         </button>
@@ -3045,52 +3438,52 @@ export default function Home() {
                         const arenaObj = arenas.find(a => a.id === t.arenaId);
                         const venueObj = venues.find(v => v.id === t.venueId);
                         return (
-                          <div key={t.id} className="bg-[#0d1424] border border-slate-800 p-5 rounded-2xl flex flex-col justify-between hover:border-slate-700 transition shadow-md group">
+                          <div key={t.id} className="bg-white border border-slate-200 p-5 rounded-2xl flex flex-col justify-between hover:border-slate-200 transition shadow-md group">
                             <div className="space-y-4">
                               <div className="flex justify-between items-start">
                                 <div>
                                   <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="text-[10px] uppercase font-bold text-slate-400">Série: {t.seriesName}</span>
-                                    <span className="text-[8px] font-black uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                                    <span className="text-[10px] uppercase font-bold text-slate-500">Série: {t.seriesName}</span>
+                                    <span className="text-[8px] font-black uppercase text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
                                       {t.isDuo === false ? 'Individual' : 'Dupla'}
                                     </span>
                                   </div>
-                                  <h3 className="font-bold text-white text-base mt-1 group-hover:text-emerald-400 transition-colors">{t.name}</h3>
+                                  <h3 className="font-bold text-slate-900 text-base mt-1 group-hover:text-emerald-600 transition-colors">{t.name}</h3>
                                 </div>
                                 <span className={`text-[9px] font-extrabold px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${
-                                  t.status === 'INSCRICOES_ABERTAS' ? 'bg-sky-500/10 text-sky-400 border-sky-500/30' : 
-                                  t.status === 'EM_ANDAMENTO' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 
-                                  'bg-slate-800 text-slate-400 border-slate-700'
+                                  t.status === 'INSCRICOES_ABERTAS' ? 'bg-sky-50 text-sky-600 border-sky-200' : 
+                                  t.status === 'EM_ANDAMENTO' ? 'bg-amber-50 text-amber-600 border-amber-200' : 
+                                  'bg-slate-100 text-slate-500 border-slate-200'
                                 }`}>
                                   {t.status.replace('_', ' ')}
                                 </span>
                               </div>
-                              <div className="text-xs text-slate-400 space-y-1.5 pt-1 bg-[#090e1a] p-3 rounded-xl border border-slate-800/80">
-                                <p className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-amber-400 shrink-0" /> Organizador: <strong className="text-slate-200">{arenaObj?.name || 'Não informado'}</strong></p>
-                                <p className="flex items-center gap-1.5"><Building className="w-3.5 h-3.5 text-teal-400 shrink-0" /> Local: <strong className="text-teal-300">{venueObj?.name || t.venueName || 'Local a definir'}</strong></p>
-                                <p className="flex items-center gap-1.5"><Layers className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> Quadras no evento: <strong className="text-emerald-300 font-mono">{t.courtsUsed || 4} quadras</strong> {venueObj && <span className="text-[10px] text-slate-500">({venueObj.courtsCount} no local)</span>}</p>
-                                <p className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" /> Período: <span className="font-mono text-slate-300">{new Date(t.startDate).toLocaleDateString('pt-BR')}</span> até <span className="font-mono text-slate-300">{new Date(t.endDate).toLocaleDateString('pt-BR')}</span></p>
+                              <div className="text-xs text-slate-500 space-y-1.5 pt-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                <p className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-amber-600 shrink-0" /> Organizador: <strong className="text-slate-800">{arenaObj?.name || 'Não informado'}</strong></p>
+                                <p className="flex items-center gap-1.5"><Building className="w-3.5 h-3.5 text-teal-600 shrink-0" /> Local: <strong className="text-teal-700">{venueObj?.name || t.venueName || 'Local a definir'}</strong></p>
+                                <p className="flex items-center gap-1.5"><Layers className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Quadras no evento: <strong className="text-emerald-700 font-mono">{t.courtsUsed || 4} quadras</strong> {venueObj && <span className="text-[10px] text-slate-500">({venueObj.courtsCount} no local)</span>}</p>
+                                <p className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" /> Período: <span className="font-mono text-slate-700">{new Date(t.startDate).toLocaleDateString('pt-BR')}</span> até <span className="font-mono text-slate-700">{new Date(t.endDate).toLocaleDateString('pt-BR')}</span></p>
                               </div>
                             </div>
                             
-                            <div className="flex items-center justify-between mt-5 pt-3 border-t border-slate-800">
+                            <div className="flex items-center justify-between mt-5 pt-3 border-t border-slate-200">
                               <button 
                                 onClick={() => setActiveTab('categories')}
-                                className="text-xs text-emerald-400 hover:text-emerald-300 font-bold transition flex items-center gap-1"
+                                className="text-xs text-emerald-600 hover:text-emerald-700 font-bold transition flex items-center gap-1"
                               >
                                 <Layers className="w-3 h-3" /> Categorias
                               </button>
                               <div className="flex items-center gap-1">
                                 <button 
                                   onClick={() => handleOpenTournamentEdit(t)} 
-                                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+                                  className="p-1.5 text-slate-500 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition"
                                   title="Editar Torneio"
                                 >
                                   <Edit2 className="w-4 h-4" />
                                 </button>
                                 <button 
                                   onClick={() => handleDeleteTournament(t.id)} 
-                                  className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-rose-950/20 transition"
+                                  className="p-1.5 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
                                   title="Excluir Torneio"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -3108,20 +3501,20 @@ export default function Home() {
               {/* VIEW 5: CATEGORIAS (ACESSO EXCLUSIVO SUPER ADMIN) */}
               {activeTab === 'categories' && (
                 session.role !== 'SUPER_ADMIN' ? (
-                  <motion.div key="cat-denied" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="my-12 max-w-lg mx-auto bg-[#0d1424] border border-rose-500/30 rounded-3xl p-8 text-center shadow-2xl">
-                    <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto mb-4 text-rose-400">
+                  <motion.div key="cat-denied" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="my-12 max-w-lg mx-auto bg-white border border-rose-200 rounded-3xl p-8 text-center shadow-xl">
+                    <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center mx-auto mb-4 text-rose-600">
                       <Shield className="w-8 h-8" />
                     </div>
-                    <span className="text-[10px] uppercase tracking-widest font-mono font-bold px-2.5 py-1 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 inline-block mb-3">
+                    <span className="text-[10px] uppercase tracking-widest font-mono font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-600 border border-rose-200 inline-block mb-3">
                       Acesso Restrito
                     </span>
-                    <h3 className="text-xl font-black text-white mb-2">Permissão Super Admin Obrigatória</h3>
-                    <p className="text-xs text-slate-400 mb-6 leading-relaxed">
+                    <h3 className="text-xl font-black text-slate-900 mb-2">Permissão Super Admin Obrigatória</h3>
+                    <p className="text-xs text-slate-500 mb-6 leading-relaxed">
                       Apenas o <strong>Administrador Geral (SUPER_ADMIN)</strong> possui permissão para cadastrar, editar e gerenciar as categorias do sistema.
                     </p>
                     <button 
                       onClick={() => setActiveTab('dashboard')} 
-                      className="py-2.5 px-6 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition cursor-pointer border border-slate-700 hover:border-slate-600"
+                      className="py-2.5 px-6 bg-slate-100 hover:bg-slate-100 text-slate-900 font-bold text-xs rounded-xl transition cursor-pointer border border-slate-200 hover:border-slate-300"
                     >
                       Voltar ao Painel Principal
                     </button>
@@ -3129,19 +3522,19 @@ export default function Home() {
                 ) : (
                   <motion.div key="cat" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
                     {/* Header */}
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                            <Shield className="w-3 h-3 text-amber-400" /> Super Admin
+                          <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                            <Shield className="w-3 h-3 text-amber-600" /> Super Admin
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono">Pré-Cadastro de Categorias Oficiais</span>
+                          <span className="text-[10px] text-slate-500 font-mono">Pré-Cadastro de Categorias Oficiais</span>
                         </div>
-                        <h2 className="text-xl font-black text-white flex items-center gap-2">
-                          <Layers className="w-6 h-6 text-emerald-400" />
+                        <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                          <Layers className="w-6 h-6 text-emerald-600" />
                           Cadastro e Gestão de Categorias
                         </h2>
-                        <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+                        <p className="text-xs text-slate-500 mt-1 max-w-2xl">
                           Cadastre previamente as categorias oficiais de disputa (níveis, tipos, taxas base e limite de vagas). Ao criar um torneio, os organizadores selecionam quais categorias cadastradas farão parte do evento.
                         </p>
                       </div>
@@ -3149,16 +3542,16 @@ export default function Home() {
                       <div className="flex items-center gap-2 w-full sm:w-auto">
                         <button 
                           onClick={handleResetCategoriesPresets}
-                          className="flex items-center justify-center gap-1.5 py-2.5 px-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs transition border border-slate-700 hover:border-slate-600 cursor-pointer"
+                          className="flex items-center justify-center gap-1.5 py-2.5 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition border border-slate-200 hover:border-slate-300 cursor-pointer"
                           title="Restaurar categorias oficiais padrão do Beach Tennis"
                         >
-                          <Sparkles className="w-4 h-4 text-amber-400" />
+                          <Sparkles className="w-4 h-4 text-amber-600" />
                           <span>Padrões Oficiais</span>
                         </button>
 
                         <button 
                           onClick={handleOpenCategoryCreate} 
-                          className="flex-1 sm:flex-initial flex items-center justify-center gap-2 py-2.5 px-5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition shadow-lg shadow-emerald-500/20 cursor-pointer"
+                          className="flex-1 sm:flex-initial flex items-center justify-center gap-2 py-2.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs transition shadow-lg shadow-emerald-600/15 cursor-pointer"
                         >
                           <Plus className="w-4 h-4 stroke-[3]" /> Cadastrar Categoria
                         </button>
@@ -3167,49 +3560,49 @@ export default function Home() {
 
                     {/* KPI Stats Cards */}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div className="bg-[#0d1424] border border-slate-800 p-4 rounded-2xl">
-                        <span className="text-[11px] text-slate-400 font-medium block mb-1">Total de Categorias</span>
+                      <div className="bg-white border border-slate-200 p-4 rounded-2xl">
+                        <span className="text-[11px] text-slate-500 font-medium block mb-1">Total de Categorias</span>
                         <div className="flex items-baseline gap-2">
-                          <span className="text-2xl font-black text-white font-mono">{categories.length}</span>
-                          <span className="text-[10px] text-emerald-400 font-semibold">cadastradas</span>
+                          <span className="text-2xl font-black text-slate-900 font-mono">{categories.length}</span>
+                          <span className="text-[10px] text-emerald-600 font-semibold">cadastradas</span>
                         </div>
                       </div>
 
-                      <div className="bg-[#0d1424] border border-slate-800 p-4 rounded-2xl">
-                        <span className="text-[11px] text-slate-400 font-medium block mb-1">Categorias Ativas</span>
+                      <div className="bg-white border border-slate-200 p-4 rounded-2xl">
+                        <span className="text-[11px] text-slate-500 font-medium block mb-1">Categorias Ativas</span>
                         <div className="flex items-baseline gap-2">
-                          <span className="text-2xl font-black text-emerald-400 font-mono">
+                          <span className="text-2xl font-black text-emerald-600 font-mono">
                             {categories.filter(c => c.status !== 'INATIVA').length}
                           </span>
-                          <span className="text-[10px] text-slate-400">para torneios</span>
+                          <span className="text-[10px] text-slate-500">para torneios</span>
                         </div>
                       </div>
 
-                      <div className="bg-[#0d1424] border border-slate-800 p-4 rounded-2xl">
-                        <span className="text-[11px] text-slate-400 font-medium block mb-1">Taxa Média Base</span>
+                      <div className="bg-white border border-slate-200 p-4 rounded-2xl">
+                        <span className="text-[11px] text-slate-500 font-medium block mb-1">Taxa Média Base</span>
                         <div className="flex items-baseline gap-2">
-                          <span className="text-2xl font-black text-white font-mono">
+                          <span className="text-2xl font-black text-slate-900 font-mono">
                             R$ {categories.length > 0 
                               ? (categories.reduce((acc, c) => acc + (c.price || 0), 0) / categories.length).toFixed(0)
                               : '0'}
                           </span>
-                          <span className="text-[10px] text-slate-400">por inscrição</span>
+                          <span className="text-[10px] text-slate-500">por inscrição</span>
                         </div>
                       </div>
 
-                      <div className="bg-[#0d1424] border border-slate-800 p-4 rounded-2xl">
-                        <span className="text-[11px] text-slate-400 font-medium block mb-1">Capacidade Padrão</span>
+                      <div className="bg-white border border-slate-200 p-4 rounded-2xl">
+                        <span className="text-[11px] text-slate-500 font-medium block mb-1">Capacidade Padrão</span>
                         <div className="flex items-baseline gap-2">
-                          <span className="text-2xl font-black text-amber-400 font-mono">
+                          <span className="text-2xl font-black text-amber-600 font-mono">
                             {categories.reduce((acc, c) => acc + (c.maxParticipants || 16), 0)}
                           </span>
-                          <span className="text-[10px] text-slate-400">vagas sugeridas</span>
+                          <span className="text-[10px] text-slate-500">vagas sugeridas</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Filters & Search Toolbar */}
-                    <div className="bg-[#0d1424] border border-slate-800 rounded-2xl p-4 space-y-3">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
                       <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
                         <div className="relative w-full md:w-80">
                           <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -3218,7 +3611,7 @@ export default function Home() {
                             placeholder="Buscar por nome, tipo ou nível..." 
                             value={searchCategory}
                             onChange={(e) => setSearchCategory(e.target.value)}
-                            className="w-full bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 pl-9 pr-4 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+                            className="w-full bg-white border border-slate-300 rounded-xl py-2 pl-9 pr-4 text-xs text-slate-800 placeholder:text-slate-500 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 transition"
                           />
                         </div>
 
@@ -3227,7 +3620,7 @@ export default function Home() {
                           <select 
                             value={filterCategoryType}
                             onChange={(e) => setFilterCategoryType(e.target.value)}
-                            className="bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                            className="bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-800 focus:outline-none focus:border-emerald-600"
                           >
                             <option value="ALL">Todos os Tipos</option>
                             <option value="MASCULINO">Masculino</option>
@@ -3240,7 +3633,7 @@ export default function Home() {
                           <select 
                             value={filterCategoryLevel}
                             onChange={(e) => setFilterCategoryLevel(e.target.value)}
-                            className="bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                            className="bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-800 focus:outline-none focus:border-emerald-600"
                           >
                             <option value="ALL">Todos os Níveis</option>
                             <option value="OPEN">Open / Livre</option>
@@ -3256,7 +3649,7 @@ export default function Home() {
                           <select 
                             value={filterCategoryStatus}
                             onChange={(e) => setFilterCategoryStatus(e.target.value)}
-                            className="bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                            className="bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-800 focus:outline-none focus:border-emerald-600"
                           >
                             <option value="ALL">Todos os Status</option>
                             <option value="ATIVA">Apenas Ativas</option>
@@ -3267,7 +3660,7 @@ export default function Home() {
                           <select 
                             value={filterCategoryTournament}
                             onChange={(e) => setFilterCategoryTournament(e.target.value)}
-                            className="bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                            className="bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-800 focus:outline-none focus:border-emerald-600"
                           >
                             <option value="ALL">Todos os Escopos</option>
                             <option value="GLOBAL">Pré-Cadastradas no Sistema</option>
@@ -3286,27 +3679,27 @@ export default function Home() {
                               setFilterCategoryLevel('ALL');
                               setFilterCategoryStatus('ALL');
                             }}
-                            className="text-xs text-rose-400 hover:text-rose-300 font-semibold whitespace-nowrap cursor-pointer px-2"
+                            className="text-xs text-rose-600 hover:text-rose-700 font-semibold whitespace-nowrap cursor-pointer px-2"
                           >
                             Limpar Filtros
                           </button>
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/60">
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-200">
                         <span>Exibindo <strong>{filteredCategories.length}</strong> de <strong>{categories.length}</strong> categorias cadastradas</span>
-                        <span className="text-emerald-400/90 font-medium flex items-center gap-1.5">
+                        <span className="text-emerald-700 font-medium flex items-center gap-1.5">
                           <Check className="w-3.5 h-3.5" /> Categorias prontas para vincular na criação de novos torneios
                         </span>
                       </div>
                     </div>
 
                     {/* Table View */}
-                    <div className="bg-[#0d1424] border border-slate-800 rounded-2xl overflow-hidden shadow-md">
+                    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-md">
                       <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse text-xs">
                           <thead>
-                            <tr className="bg-slate-800/50 border-b border-slate-800 text-slate-400 font-bold uppercase text-[11px] tracking-wider">
+                            <tr className="bg-slate-100 border-b border-slate-200 text-slate-500 font-bold uppercase text-[11px] tracking-wider">
                               <th className="p-4">Categoria & Nível</th>
                               <th className="p-4">Origem / Escopo</th>
                               <th className="p-4">Taxa Base</th>
@@ -3315,26 +3708,26 @@ export default function Home() {
                               <th className="p-4 text-right">Ações (Super Admin)</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-800/60">
+                          <tbody className="divide-y divide-slate-200">
                             {filteredCategories.length === 0 ? (
                               <tr>
-                                <td colSpan={6} className="p-12 text-center text-slate-400">
+                                <td colSpan={6} className="p-12 text-center text-slate-500">
                                   <div className="flex flex-col items-center justify-center gap-3">
                                     <Layers className="w-10 h-10 text-slate-600 mb-1" />
-                                    <p className="font-bold text-white text-sm">Nenhuma categoria encontrada com os filtros atuais.</p>
-                                    <p className="text-xs text-slate-400 max-w-md">
+                                    <p className="font-bold text-slate-900 text-sm">Nenhuma categoria encontrada com os filtros atuais.</p>
+                                    <p className="text-xs text-slate-500 max-w-md">
                                       Você pode sincronizar as categorias padrão oficiais do Beach Tennis com 1 clique ou cadastrar uma nova categoria manualmente.
                                     </p>
                                     <div className="flex gap-2 mt-2">
                                       <button 
                                         onClick={handleResetCategoriesPresets}
-                                        className="py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs transition border border-slate-700 flex items-center gap-1.5 cursor-pointer"
+                                        className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl text-xs transition border border-slate-200 flex items-center gap-1.5 cursor-pointer"
                                       >
-                                        <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Carregar Categorias Padrão
+                                        <Sparkles className="w-3.5 h-3.5 text-amber-600" /> Carregar Categorias Padrão
                                       </button>
                                       <button 
                                         onClick={handleOpenCategoryCreate}
-                                        className="py-2 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+                                        className="py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
                                       >
                                         <Plus className="w-3.5 h-3.5" /> Cadastrar Categoria
                                       </button>
@@ -3352,62 +3745,62 @@ export default function Home() {
                                 const getTypeBadge = (type: string) => {
                                   switch (type) {
                                     case 'MASCULINO':
-                                      return 'bg-blue-500/15 text-blue-300 border-blue-500/30';
+                                      return 'bg-blue-500/15 text-blue-700 border-blue-500/30';
                                     case 'FEMININO':
                                       return 'bg-pink-500/15 text-pink-300 border-pink-500/30';
                                     case 'MISTA':
-                                      return 'bg-purple-500/15 text-purple-300 border-purple-500/30';
+                                      return 'bg-purple-50 text-purple-700 border-purple-200';
                                     case 'SUPER 8':
-                                      return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+                                      return 'bg-amber-50 text-amber-700 border-amber-200';
                                     default:
-                                      return 'bg-slate-500/15 text-slate-300 border-slate-500/30';
+                                      return 'bg-slate-500/15 text-slate-700 border-slate-500/30';
                                   }
                                 };
 
                                 return (
-                                  <tr key={c.id} className="hover:bg-slate-800/30 transition group">
+                                  <tr key={c.id} className="hover:bg-slate-50 transition group">
                                     <td className="p-4">
                                       <div className="flex flex-col gap-1">
                                         <div className="flex items-center gap-2">
                                           <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black border uppercase font-mono ${getTypeBadge(c.type)}`}>
                                             {c.type}
                                           </span>
-                                          <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-mono font-bold">
+                                          <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200 text-xs font-mono font-bold">
                                             Nível {c.level}
                                           </span>
                                         </div>
-                                        <div className="font-bold text-white text-sm mt-0.5">
+                                        <div className="font-bold text-slate-900 text-sm mt-0.5">
                                           {c.name || `${c.type} ${c.level}`}
                                         </div>
                                         {c.description && (
-                                          <span className="text-[10px] text-slate-400 line-clamp-1">{c.description}</span>
+                                          <span className="text-[10px] text-slate-500 line-clamp-1">{c.description}</span>
                                         )}
                                       </div>
                                     </td>
 
                                     <td className="p-4">
                                       {isGlobal ? (
-                                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-semibold text-[11px]">
-                                          <Sparkles className="w-3 h-3 text-emerald-400" />
+                                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold text-[11px]">
+                                          <Sparkles className="w-3 h-3 text-emerald-600" />
                                           Pré-cadastrada no Sistema
                                         </div>
                                       ) : (
                                         <div>
-                                          <div className="font-semibold text-white leading-snug">{c.tournamentName}</div>
+                                          <div className="font-semibold text-slate-900 leading-snug">{c.tournamentName}</div>
                                           <span className="text-[10px] text-slate-500">Vinculada a torneio</span>
                                         </div>
                                       )}
                                     </td>
 
                                     <td className="p-4">
-                                      <div className="font-mono text-emerald-300 text-sm font-black">
+                                      <div className="font-mono text-emerald-700 text-sm font-black">
                                         R$ {c.price.toFixed(2)}
                                       </div>
                                       <span className="text-[10px] text-slate-500 font-medium">taxa padrão</span>
                                     </td>
 
                                     <td className="p-4">
-                                      <div className="font-mono text-white text-xs font-bold">
+                                      <div className="font-mono text-slate-900 text-xs font-bold">
                                         {c.maxParticipants || 16} vagas
                                       </div>
                                       <span className="text-[10px] text-slate-500">duplas / atletas</span>
@@ -3418,12 +3811,12 @@ export default function Home() {
                                         onClick={() => handleToggleCategoryStatus(c)}
                                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border transition cursor-pointer ${
                                           isAtiva 
-                                            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25' 
-                                            : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
+                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' 
+                                            : 'bg-slate-100 text-slate-500 border-slate-200 hover:text-slate-800'
                                         }`}
                                         title={isAtiva ? 'Clique para desativar esta categoria' : 'Clique para ativar esta categoria'}
                                       >
-                                        <span className={`w-1.5 h-1.5 rounded-full ${isAtiva ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+                                        <span className={`w-1.5 h-1.5 rounded-full ${isAtiva ? 'bg-emerald-500' : 'bg-slate-500'}`} />
                                         {isAtiva ? 'ATIVA' : 'INATIVA'}
                                       </button>
                                     </td>
@@ -3432,23 +3825,23 @@ export default function Home() {
                                       <div className="flex items-center justify-end gap-1.5">
                                         <button 
                                           onClick={() => handleOpenCategoryEdit(c)} 
-                                          className="py-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg text-[11px] transition flex items-center gap-1 border border-slate-700 hover:border-slate-600 cursor-pointer"
+                                          className="py-1 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg text-[11px] transition flex items-center gap-1 border border-slate-200 hover:border-slate-300 cursor-pointer"
                                           title="Editar Categoria"
                                         >
-                                          <Edit2 className="w-3 h-3 text-emerald-400" /> Editar
+                                          <Edit2 className="w-3 h-3 text-emerald-600" /> Editar
                                         </button>
 
                                         <button 
                                           onClick={() => handleDuplicateCategory(c)} 
-                                          className="py-1 px-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-lg text-[11px] transition flex items-center gap-1 border border-slate-700 hover:border-slate-600 cursor-pointer"
+                                          className="py-1 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg text-[11px] transition flex items-center gap-1 border border-slate-200 hover:border-slate-300 cursor-pointer"
                                           title="Duplicar como Nova Categoria"
                                         >
-                                          <Plus className="w-3 h-3 text-amber-400" /> Clonar
+                                          <Plus className="w-3 h-3 text-amber-600" /> Clonar
                                         </button>
 
                                         <button 
                                           onClick={() => handleDeleteCategory(c.id)} 
-                                          className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 rounded-lg transition border border-transparent hover:border-rose-800/40 cursor-pointer"
+                                          className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition border border-transparent hover:border-rose-200 cursor-pointer"
                                           title="Excluir Categoria"
                                         >
                                           <Trash2 className="w-3.5 h-3.5" />
@@ -3473,23 +3866,23 @@ export default function Home() {
                   {!selectedRegTournamentId ? (
                     /* PASSO 1: TELA DE BUSCA E SELEÇÃO DE TORNEIO */
                     <div className="space-y-5">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
                         <div>
-                          <h2 className="text-lg font-black text-white flex items-center gap-2">
-                            <ClipboardList className="w-5 h-5 text-emerald-400" />
+                          <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                            <ClipboardList className="w-5 h-5 text-emerald-600" />
                             Inscrições de Atletas · Selecionar Edição do Torneio
                           </h2>
-                          <p className="text-xs text-slate-400 mt-0.5">
+                          <p className="text-xs text-slate-500 mt-0.5">
                             Selecione a edição do torneio abaixo para visualizar a lista de atletas inscritos e cadastrar novas inscrições.
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
                           {session.role === 'SUPER_ADMIN' ? (
-                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5">
                               <Shield className="w-3.5 h-3.5" /> Super Admin · Todas as Arenas
                             </span>
                           ) : (
-                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
                               <Building className="w-3.5 h-3.5" /> Organização · {selectedArena?.name || session.name}
                             </span>
                           )}
@@ -3497,16 +3890,16 @@ export default function Home() {
                       </div>
 
                       {/* Filtro e Busca de Torneios */}
-                      <div className="bg-[#0d1424] border border-slate-800 p-4 rounded-2xl space-y-3">
+                      <div className="bg-white border border-slate-200 p-4 rounded-2xl space-y-3">
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                           <div className="relative md:col-span-6">
-                            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                             <input 
                               type="text"
                               placeholder="Buscar torneio por nome da edição ou série..."
                               value={searchRegTournamentTerm}
                               onChange={(e) => setSearchRegTournamentTerm(e.target.value)}
-                              className="w-full bg-[#090e1a] border border-slate-700/80 pl-10 pr-4 py-2.5 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                              className="w-full bg-white border border-slate-300 pl-10 pr-4 py-2.5 rounded-xl text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:border-emerald-600"
                             />
                           </div>
 
@@ -3515,7 +3908,7 @@ export default function Home() {
                               <select 
                                 value={filterRegArenaId} 
                                 onChange={(e) => setFilterRegArenaId(e.target.value)}
-                                className="w-full bg-[#090e1a] border border-slate-700/80 p-2.5 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                                className="w-full bg-white border border-slate-300 p-2.5 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-600 font-semibold"
                               >
                                 <option value="ALL">Todas as Arenas ({arenas.length})</option>
                                 {arenas.map(a => (
@@ -3526,14 +3919,14 @@ export default function Home() {
                           )}
 
                           <div className={session.role === 'SUPER_ADMIN' ? "md:col-span-3" : "md:col-span-6"}>
-                            <div className="flex rounded-xl bg-[#090e1a] p-1 border border-slate-800 text-xs">
+                            <div className="flex rounded-xl bg-slate-50 p-1 border border-slate-200 text-xs">
                               <button
                                 type="button"
                                 onClick={() => setFilterRegStatus('ALL')}
                                 className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
                                   filterRegStatus === 'ALL'
-                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                    : 'text-slate-400 hover:text-white'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-900'
                                 }`}
                               >
                                 Todos ({tournaments.length})
@@ -3543,8 +3936,8 @@ export default function Home() {
                                 onClick={() => setFilterRegStatus('VIGENTE')}
                                 className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
                                   filterRegStatus === 'VIGENTE'
-                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                    : 'text-slate-400 hover:text-white'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-900'
                                 }`}
                               >
                                 🟢 Vigentes ({tournaments.filter(t => isTournamentVigente(t)).length})
@@ -3554,8 +3947,8 @@ export default function Home() {
                                 onClick={() => setFilterRegStatus('EXPIRADO')}
                                 className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
                                   filterRegStatus === 'EXPIRADO'
-                                    ? 'bg-rose-500 text-white shadow-sm'
-                                    : 'text-slate-400 hover:text-white'
+                                    ? 'bg-rose-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-900'
                                 }`}
                               >
                                 🔴 Expirados ({tournaments.filter(t => !isTournamentVigente(t)).length})
@@ -3586,9 +3979,9 @@ export default function Home() {
 
                         if (filteredTournaments.length === 0) {
                           return (
-                            <div className="p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
+                            <div className="p-12 text-center text-slate-500 border border-slate-200 bg-slate-50 rounded-2xl space-y-3">
                               <ClipboardList className="w-10 h-10 text-slate-600 mx-auto" />
-                              <p className="font-semibold text-slate-300">Nenhum torneio encontrado para seleção.</p>
+                              <p className="font-semibold text-slate-700">Nenhum torneio encontrado para seleção.</p>
                               <p className="text-xs text-slate-500">
                                 {searchRegTournamentTerm ? 'Tente ajustar os termos da busca.' : 'Crie uma nova edição de torneio na aba Torneios.'}
                               </p>
@@ -3608,25 +4001,25 @@ export default function Home() {
                               return (
                                 <div 
                                   key={t.id} 
-                                  className={`bg-[#0d1424] border rounded-2xl p-5 space-y-4 transition shadow-sm hover:shadow-md flex flex-col justify-between ${
+                                  className={`bg-white border rounded-2xl p-5 space-y-4 transition shadow-sm hover:shadow-md flex flex-col justify-between ${
                                     vigente 
-                                      ? 'border-slate-800/80 hover:border-emerald-500/40' 
-                                      : 'border-rose-950/60 bg-[#0d1424]/80'
+                                      ? 'border-slate-200 hover:border-emerald-200' 
+                                      : 'border-rose-200 bg-white/90'
                                   }`}
                                 >
                                   <div className="space-y-3">
                                     <div className="flex items-center justify-between gap-2 flex-wrap">
-                                      <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                      <span className="text-[10px] text-amber-600 font-extrabold uppercase tracking-wider">
                                         {t.seriesName}
                                       </span>
                                       <div className="flex items-center gap-1.5">
-                                        <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                        <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                           🏟️ {arenaName}
                                         </span>
                                         <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
                                           t.isDuo 
-                                            ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
-                                            : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                            ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                            : 'bg-amber-50 text-amber-700 border border-amber-200'
                                         }`}>
                                           {t.isDuo ? 'Duplas' : 'Super 8 Indiv.'}
                                         </span>
@@ -3634,8 +4027,8 @@ export default function Home() {
                                     </div>
 
                                     <div>
-                                      <h3 className="text-base font-black text-white">{t.name}</h3>
-                                      <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1 font-mono">
+                                      <h3 className="text-base font-black text-slate-900">{t.name}</h3>
+                                      <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-1 font-mono">
                                         <Calendar className="w-3.5 h-3.5 text-slate-500" />
                                         <span>{new Date(t.startDate).toLocaleDateString('pt-BR')} até {new Date(t.endDate).toLocaleDateString('pt-BR')}</span>
                                       </p>
@@ -3643,36 +4036,36 @@ export default function Home() {
 
                                     <div>
                                       {vigente ? (
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                           🟢 Período Vigente (Inscrições Abertas)
                                         </span>
                                       ) : (
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
                                           🔴 Inscrições Encerradas (Expirou em {new Date(t.endDate).toLocaleDateString('pt-BR')})
                                         </span>
                                       )}
                                     </div>
 
                                     {/* Métricas rápidas */}
-                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
-                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
-                                        <span className="text-slate-400 block text-[10px]">Inscritos:</span>
-                                        <strong className="text-white font-mono text-sm">{tourRegistrations.length}</strong>
-                                        <span className="text-[10px] text-emerald-400 ml-1">({confirmedCount} conf.)</span>
+                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 text-[11px]">
+                                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                        <span className="text-slate-500 block text-[10px]">Inscritos:</span>
+                                        <strong className="text-slate-900 font-mono text-sm">{tourRegistrations.length}</strong>
+                                        <span className="text-[10px] text-emerald-600 ml-1">({confirmedCount} conf.)</span>
                                       </div>
-                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
-                                        <span className="text-slate-400 block text-[10px]">Categorias:</span>
-                                        <strong className="text-amber-300 font-mono text-sm">{tourCats.length}</strong>
-                                        <span className="text-[10px] text-slate-400 ml-1">ativas</span>
+                                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                        <span className="text-slate-500 block text-[10px]">Categorias:</span>
+                                        <strong className="text-amber-700 font-mono text-sm">{tourCats.length}</strong>
+                                        <span className="text-[10px] text-slate-500 ml-1">ativas</span>
                                       </div>
                                     </div>
                                   </div>
 
-                                  <div className="pt-3 border-t border-slate-800/80 space-y-2">
+                                  <div className="pt-3 border-t border-slate-200 space-y-2">
                                     <button 
                                       type="button"
                                       onClick={() => setSelectedRegTournamentId(t.id)}
-                                      className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                                      className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
                                     >
                                       <span>Acessar Inscrições</span>
                                       <ArrowRight className="w-3.5 h-3.5" />
@@ -3685,7 +4078,7 @@ export default function Home() {
                                           setSelectedRegTournamentId(t.id);
                                           handleOpenRegistrationCreate(t.id);
                                         }}
-                                        className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-emerald-400 font-bold rounded-xl text-xs border border-slate-800 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                                        className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-100 text-emerald-600 font-bold rounded-xl text-xs border border-slate-200 transition flex items-center justify-center gap-1.5 cursor-pointer"
                                       >
                                         <Plus className="w-3.5 h-3.5" /> Inscrever Novo Atleta
                                       </button>
@@ -3722,7 +4115,7 @@ export default function Home() {
                       return (
                         <div className="space-y-4">
                           {/* Banner de Identificação do Torneio Selecionado */}
-                          <div className="bg-[#0d1424] border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
+                          <div className="bg-white border border-slate-200 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
                             <div className="space-y-1.5">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <button
@@ -3732,38 +4125,38 @@ export default function Home() {
                                     setFilterRegCategory('ALL');
                                     setFilterRegPaymentStatus('ALL');
                                   }}
-                                  className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition border border-slate-700 cursor-pointer"
+                                  className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition border border-slate-200 cursor-pointer"
                                 >
                                   <ArrowLeft className="w-3.5 h-3.5" /> Trocar de Torneio
                                 </button>
-                                <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                <span className="text-[10px] text-amber-600 font-extrabold uppercase tracking-wider">
                                   {currentTour?.seriesName}
                                 </span>
-                                <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                   🏟️ {currentArenaName}
                                 </span>
                                 <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
                                   currentTour?.isDuo 
-                                    ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
-                                    : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
                                 }`}>
                                   {currentTour?.isDuo ? 'Duplas' : 'Super 8 Individual'}
                                 </span>
                               </div>
 
-                              <h2 className="text-xl font-black text-white">{currentTour?.name}</h2>
+                              <h2 className="text-xl font-black text-slate-900">{currentTour?.name}</h2>
 
-                              <div className="flex items-center gap-3 flex-wrap text-xs text-slate-400">
+                              <div className="flex items-center gap-3 flex-wrap text-xs text-slate-500">
                                 <span className="font-mono flex items-center gap-1">
                                   <Calendar className="w-3.5 h-3.5 text-slate-500" />
                                   {currentTour?.startDate && new Date(currentTour.startDate).toLocaleDateString('pt-BR')} até {currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')}
                                 </span>
                                 {isVigente ? (
-                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                     🟢 Período Vigente (Inscrições Abertas)
                                   </span>
                                 ) : (
-                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30">
+                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
                                     🔴 Inscrições Encerradas (Expirou em {currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')})
                                   </span>
                                 )}
@@ -3778,7 +4171,7 @@ export default function Home() {
                                   setSelectedRegTournamentId(e.target.value);
                                   setFilterRegCategory('ALL');
                                 }}
-                                className="bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-semibold"
+                                className="bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 font-semibold"
                               >
                                 {tournaments.map(t => (
                                   <option key={t.id} value={t.id}>
@@ -3791,17 +4184,17 @@ export default function Home() {
                               {isVigente ? (
                                 <button 
                                   onClick={() => handleOpenRegistrationCreate(selectedRegTournamentId)}
-                                  className="flex items-center gap-2 py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-md shadow-emerald-500/20 cursor-pointer"
+                                  className="flex items-center gap-2 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition shadow-md shadow-emerald-600/15 cursor-pointer"
                                 >
                                   <Plus className="w-3.5 h-3.5" /> Inscrever Atleta
                                 </button>
                               ) : (
                                 <button 
                                   onClick={() => showError(`Inscrições encerradas. O período vigente deste torneio expirou em ${currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')}. Não é mais permitido registrar inscrições nesta edição. Gere uma nova edição para receber inscrições.`)}
-                                  className="flex items-center gap-2 py-2.5 px-4 bg-slate-800 text-slate-400 font-bold rounded-xl text-xs border border-slate-700 hover:bg-slate-750 transition cursor-pointer"
+                                  className="flex items-center gap-2 py-2.5 px-4 bg-slate-100 text-slate-500 font-bold rounded-xl text-xs border border-slate-200 hover:bg-slate-100 transition cursor-pointer"
                                   title="Período expirado"
                                 >
-                                  <AlertCircle className="w-3.5 h-3.5 text-amber-400" /> Inscrições Fechadas
+                                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" /> Inscrições Fechadas
                                 </button>
                               )}
                             </div>
@@ -3809,16 +4202,16 @@ export default function Home() {
 
                           {/* Alerta de Período Expirado caso não seja vigente */}
                           {!isVigente && (
-                            <div className="p-3.5 bg-rose-950/40 border border-rose-500/30 rounded-2xl text-rose-300 text-xs flex items-center justify-between gap-3">
+                            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs flex items-center justify-between gap-3">
                               <div className="flex items-center gap-2.5">
-                                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
                                 <span>
                                   <strong>Atenção:</strong> O período vigente deste torneio encerrou em {currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')}. Novas inscrições estão bloqueadas. Para continuar cadastrando atletas, gere uma nova edição deste torneio.
                                 </span>
                               </div>
                               <button 
                                 onClick={handleOpenTournamentCreate}
-                                className="py-1 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-[11px] shrink-0 transition cursor-pointer"
+                                className="py-1 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[11px] shrink-0 transition cursor-pointer"
                               >
                                 Criar Nova Edição
                               </button>
@@ -3827,14 +4220,14 @@ export default function Home() {
 
                           {/* SEGUNDO FILTRO: CATEGORIAS DO TORNEIO (Quando possui mais de 1 categoria) */}
                           {tourCategories.length > 1 ? (
-                            <div className="bg-[#0d1424] border border-emerald-500/30 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
+                            <div className="bg-white border border-emerald-200 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
                               <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
                                   <Layers className="w-4 h-4" />
                                 </div>
                                 <div>
-                                  <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Filtro de Categoria</span>
-                                  <p className="text-xs text-slate-300 font-bold">Este torneio possui {tourCategories.length} categorias. Selecione a categoria que deseja visualizar:</p>
+                                  <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Filtro de Categoria</span>
+                                  <p className="text-xs text-slate-700 font-bold">Este torneio possui {tourCategories.length} categorias. Selecione a categoria que deseja visualizar:</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -3843,12 +4236,12 @@ export default function Home() {
                                   onClick={() => setFilterRegCategory('ALL')}
                                   className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                                     filterRegCategory === 'ALL'
-                                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                      : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                      ? 'bg-emerald-600 text-white shadow-sm'
+                                      : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
                                   }`}
                                 >
                                   <span>Todas as Categorias</span>
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-800 font-mono tabular-nums">
                                     {registrations.filter(r => r.tournamentId === selectedRegTournamentId && r.status !== 'CANCELADA').length}
                                   </span>
                                 </button>
@@ -3861,12 +4254,12 @@ export default function Home() {
                                       onClick={() => setFilterRegCategory(cat.id)}
                                       className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                                         filterRegCategory === cat.id
-                                          ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                          : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                          ? 'bg-emerald-600 text-white shadow-sm'
+                                          : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
                                       }`}
                                     >
                                       <span>{cat.type} {cat.level} {cat.name ? `(${cat.name})` : ''}</span>
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-800 font-mono tabular-nums">
                                         {catCount}
                                       </span>
                                     </button>
@@ -3875,33 +4268,33 @@ export default function Home() {
                               </div>
                             </div>
                           ) : tourCategories.length === 1 ? (
-                            <div className="bg-[#0d1424] border border-slate-800 p-3 rounded-xl flex items-center justify-between text-xs text-slate-300">
+                            <div className="bg-white border border-slate-200 p-3 rounded-xl flex items-center justify-between text-xs text-slate-700">
                               <span className="flex items-center gap-2">
-                                <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                                Categoria Única: <strong className="text-white">{tourCategories[0].type} {tourCategories[0].level} {tourCategories[0].name ? `(${tourCategories[0].name})` : ''}</strong>
+                                <Layers className="w-3.5 h-3.5 text-emerald-600" />
+                                Categoria Única: <strong className="text-slate-900">{tourCategories[0].type} {tourCategories[0].level} {tourCategories[0].name ? `(${tourCategories[0].name})` : ''}</strong>
                               </span>
                               <span className="text-slate-500 text-[11px] font-mono">1 categoria configurada</span>
                             </div>
                           ) : null}
 
                           {/* Barra de Filtros Interna da Tabela */}
-                          <div className="bg-[#0d1424] border border-slate-800 p-3.5 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                          <div className="bg-white border border-slate-200 p-3.5 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                             <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
                               <div className="relative flex-1 sm:flex-none">
-                                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                                 <input 
                                   type="text"
                                   placeholder="Filtrar atleta..."
                                   value={searchRegAthleteTerm}
                                   onChange={(e) => setSearchRegAthleteTerm(e.target.value)}
-                                  className="bg-[#090e1a] border border-slate-700/80 pl-8 pr-3 py-1.5 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                                  className="bg-white border border-slate-300 pl-8 pr-3 py-1.5 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-600"
                                 />
                               </div>
 
                               <select 
                                 value={filterRegCategory} 
                                 onChange={(e) => setFilterRegCategory(e.target.value)}
-                                className="bg-[#090e1a] border border-slate-700/80 py-1.5 px-3 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                                className="bg-white border border-slate-300 py-1.5 px-3 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-600"
                               >
                                 <option value="ALL">Todas as Categorias ({tourCategories.length})</option>
                                 {tourCategories.map(c => (
@@ -3912,7 +4305,7 @@ export default function Home() {
                               <select 
                                 value={filterRegPaymentStatus} 
                                 onChange={(e) => setFilterRegPaymentStatus(e.target.value)}
-                                className="bg-[#090e1a] border border-slate-700/80 py-1.5 px-3 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                                className="bg-white border border-slate-300 py-1.5 px-3 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-600"
                               >
                                 <option value="ALL">Todos os Status</option>
                                 <option value="CONFIRMADA">Confirmadas</option>
@@ -3921,16 +4314,16 @@ export default function Home() {
                               </select>
                             </div>
 
-                            <span className="text-xs text-slate-400 font-medium">
-                              Inscrições nesta edição: <strong className="text-white font-mono">{tourRegs.length}</strong>
+                            <span className="text-xs text-slate-500 font-medium">
+                              Inscrições nesta edição: <strong className="text-slate-900 font-mono">{tourRegs.length}</strong>
                             </span>
                           </div>
 
                           {/* Tabela de Inscrições */}
-                          <div className="bg-[#0d1424] border border-slate-800 rounded-2xl overflow-x-auto shadow-md">
+                          <div className="bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-md">
                             <table className="w-full min-w-[600px] text-left border-collapse text-xs">
                               <thead>
-                                <tr className="bg-slate-800/40 border-b border-slate-800 text-slate-400 font-bold uppercase text-[11px]">
+                                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[11px]">
                                   <th className="p-4">Atleta</th>
                                   <th className="p-4">Categoria</th>
                                   <th className="p-4">Data Inscrição</th>
@@ -3938,16 +4331,16 @@ export default function Home() {
                                   <th className="p-4 text-right">Ação</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-slate-800/60">
+                              <tbody className="divide-y divide-slate-200">
                                 {tourRegs.length === 0 ? (
                                   <tr>
-                                    <td colSpan={5} className="p-12 text-center text-slate-400 space-y-2">
-                                      <p className="font-semibold text-slate-300">Nenhuma inscrição encontrada para este torneio.</p>
+                                    <td colSpan={5} className="p-12 text-center text-slate-500 space-y-2">
+                                      <p className="font-semibold text-slate-700">Nenhuma inscrição encontrada para este torneio.</p>
                                       {isVigente && (
                                         <button 
                                           type="button"
                                           onClick={() => handleOpenRegistrationCreate(selectedRegTournamentId)}
-                                          className="text-xs text-emerald-400 hover:underline"
+                                          className="text-xs text-emerald-600 hover:underline"
                                         >
                                           + Clique aqui para inscrever o primeiro atleta
                                         </button>
@@ -3956,21 +4349,21 @@ export default function Home() {
                                   </tr>
                                 ) : (
                                   tourRegs.map(r => (
-                                    <tr key={r.id} className="hover:bg-slate-800/30 transition">
-                                      <td className="p-4 font-bold text-white">{r.athleteName}</td>
-                                      <td className="p-4 font-semibold text-emerald-300">{r.categoryName}</td>
-                                      <td className="p-4 font-mono text-slate-400">{new Date(r.createdAt).toLocaleDateString('pt-BR')}</td>
+                                    <tr key={r.id} className="hover:bg-slate-50 transition">
+                                      <td className="p-4 font-bold text-slate-900">{r.athleteName}</td>
+                                      <td className="p-4 font-semibold text-emerald-700">{r.categoryName}</td>
+                                      <td className="p-4 font-mono text-slate-500">{new Date(r.createdAt).toLocaleDateString('pt-BR')}</td>
                                       <td className="p-4">
                                         {r.status === 'CONFIRMADA' ? (
-                                          <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wide">
+                                          <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-600 border border-emerald-200 uppercase tracking-wide">
                                             Confirmada
                                           </span>
                                         ) : r.status === 'PENDENTE_PAGAMENTO' ? (
-                                          <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-500/10 text-amber-400 border border-amber-500/30 uppercase tracking-wide">
+                                          <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-50 text-amber-600 border border-amber-200 uppercase tracking-wide">
                                             Pendente de Pagamento
                                           </span>
                                         ) : (
-                                          <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-500/10 text-rose-400 border border-rose-500/30 uppercase tracking-wide">
+                                          <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-600 border border-rose-200 uppercase tracking-wide">
                                             Cancelada
                                           </span>
                                         )}
@@ -3980,7 +4373,7 @@ export default function Home() {
                                           {r.status === 'PENDENTE_PAGAMENTO' && (
                                             <button 
                                               onClick={() => handleUpdateRegistrationStatus(r.id, 'CONFIRMADA')}
-                                              className="py-1 px-2.5 bg-emerald-500 text-slate-950 font-bold rounded-lg text-[10px] hover:bg-emerald-400 transition flex items-center gap-1 shadow-sm cursor-pointer"
+                                              className="py-1 px-2.5 bg-emerald-600 text-white font-bold rounded-lg text-[10px] hover:bg-emerald-700 transition flex items-center gap-1 shadow-sm cursor-pointer"
                                               title="Confirmar Pagamento e Inscrição"
                                             >
                                               <Check className="w-3 h-3" /> Confirmar Pagamento
@@ -3989,7 +4382,7 @@ export default function Home() {
                                           {r.status === 'CONFIRMADA' && (
                                             <button 
                                               onClick={() => handleUpdateRegistrationStatus(r.id, 'PENDENTE_PAGAMENTO')}
-                                              className="py-1 px-2 bg-slate-800 text-amber-400 hover:text-white rounded-lg text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
+                                              className="py-1 px-2 bg-slate-100 text-amber-600 hover:text-slate-900 rounded-lg text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
                                               title="Mudar Status para Pendente de Pagamento"
                                             >
                                               <AlertCircle className="w-3 h-3" /> Marcar Pendente
@@ -3998,7 +4391,7 @@ export default function Home() {
                                           {r.status !== 'CANCELADA' && (
                                             <button 
                                               onClick={() => handleCancelRegistration(r.id)}
-                                              className="p-1.5 text-slate-500 hover:text-rose-400 rounded hover:bg-rose-950/20 transition cursor-pointer"
+                                              className="p-1.5 text-slate-500 hover:text-rose-600 rounded hover:bg-rose-50 transition cursor-pointer"
                                               title="Cancelar Inscrição"
                                             >
                                               <X className="w-4 h-4" />
@@ -4025,23 +4418,23 @@ export default function Home() {
                   {!selectedDuoTournamentId ? (
                     /* PASSO 1: TELA DE BUSCA E SELEÇÃO DE TORNEIO (DUPLAS) */
                     <div className="space-y-5">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
                         <div>
-                          <h2 className="text-lg font-black text-white flex items-center gap-2">
-                            <Users className="w-5 h-5 text-emerald-400" />
+                          <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                            <Users className="w-5 h-5 text-emerald-600" />
                             Formação de Duplas · Selecionar Edição do Torneio
                           </h2>
-                          <p className="text-xs text-slate-400 mt-0.5">
+                          <p className="text-xs text-slate-500 mt-0.5">
                             Selecione a edição do torneio abaixo para visualizar as duplas formadas ou criar novas parcerias.
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
                           {session.role === 'SUPER_ADMIN' ? (
-                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5">
                               <Shield className="w-3.5 h-3.5" /> Super Admin · Todas as Arenas
                             </span>
                           ) : (
-                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
                               <Building className="w-3.5 h-3.5" /> Organização · {selectedArena?.name || session.name}
                             </span>
                           )}
@@ -4049,16 +4442,16 @@ export default function Home() {
                       </div>
 
                       {/* Filtros e Busca de Torneios */}
-                      <div className="bg-[#0d1424] border border-slate-800 p-4 rounded-2xl space-y-3">
+                      <div className="bg-white border border-slate-200 p-4 rounded-2xl space-y-3">
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                           <div className="relative md:col-span-6">
-                            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                             <input 
                               type="text"
                               placeholder="Buscar torneio por nome da edição ou série..."
                               value={searchDuoTournamentTerm}
                               onChange={(e) => setSearchDuoTournamentTerm(e.target.value)}
-                              className="w-full bg-[#090e1a] border border-slate-700/80 pl-10 pr-4 py-2.5 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                              className="w-full bg-white border border-slate-300 pl-10 pr-4 py-2.5 rounded-xl text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:border-emerald-600"
                             />
                           </div>
 
@@ -4067,7 +4460,7 @@ export default function Home() {
                               <select 
                                 value={filterDuoArenaId} 
                                 onChange={(e) => setFilterDuoArenaId(e.target.value)}
-                                className="w-full bg-[#090e1a] border border-slate-700/80 p-2.5 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                                className="w-full bg-white border border-slate-300 p-2.5 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-600 font-semibold"
                               >
                                 <option value="ALL">Todas as Arenas ({arenas.length})</option>
                                 {arenas.map(a => (
@@ -4078,14 +4471,14 @@ export default function Home() {
                           )}
 
                           <div className={session.role === 'SUPER_ADMIN' ? "md:col-span-3" : "md:col-span-6"}>
-                            <div className="flex rounded-xl bg-[#090e1a] p-1 border border-slate-800 text-xs">
+                            <div className="flex rounded-xl bg-slate-50 p-1 border border-slate-200 text-xs">
                               <button
                                 type="button"
                                 onClick={() => setFilterDuoStatus('ALL')}
                                 className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
                                   filterDuoStatus === 'ALL'
-                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                    : 'text-slate-400 hover:text-white'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-900'
                                 }`}
                               >
                                 Todos ({tournaments.length})
@@ -4095,8 +4488,8 @@ export default function Home() {
                                 onClick={() => setFilterDuoStatus('VIGENTE')}
                                 className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
                                   filterDuoStatus === 'VIGENTE'
-                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                    : 'text-slate-400 hover:text-white'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-900'
                                 }`}
                               >
                                 🟢 Vigentes
@@ -4106,8 +4499,8 @@ export default function Home() {
                                 onClick={() => setFilterDuoStatus('EXPIRADO')}
                                 className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
                                   filterDuoStatus === 'EXPIRADO'
-                                    ? 'bg-rose-500 text-white shadow-sm'
-                                    : 'text-slate-400 hover:text-white'
+                                    ? 'bg-rose-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-900'
                                 }`}
                               >
                                 🔴 Expirados
@@ -4138,9 +4531,9 @@ export default function Home() {
 
                         if (filteredTournaments.length === 0) {
                           return (
-                            <div className="p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
+                            <div className="p-12 text-center text-slate-500 border border-slate-200 bg-slate-50 rounded-2xl space-y-3">
                               <Users className="w-10 h-10 text-slate-600 mx-auto" />
-                              <p className="font-semibold text-slate-300">Nenhum torneio encontrado para seleção de duplas.</p>
+                              <p className="font-semibold text-slate-700">Nenhum torneio encontrado para seleção de duplas.</p>
                               <p className="text-xs text-slate-500">
                                 {searchDuoTournamentTerm ? 'Tente ajustar os termos da busca.' : 'Cadastre ou aguarde torneios serem criados.'}
                               </p>
@@ -4159,25 +4552,25 @@ export default function Home() {
                               return (
                                 <div 
                                   key={t.id} 
-                                  className={`bg-[#0d1424] border rounded-2xl p-5 space-y-4 transition shadow-sm hover:shadow-md flex flex-col justify-between ${
+                                  className={`bg-white border rounded-2xl p-5 space-y-4 transition shadow-sm hover:shadow-md flex flex-col justify-between ${
                                     vigente 
-                                      ? 'border-slate-800/80 hover:border-emerald-500/40' 
-                                      : 'border-slate-800/50 bg-[#0d1424]/80'
+                                      ? 'border-slate-200 hover:border-emerald-200' 
+                                      : 'border-slate-200 bg-white/90'
                                   }`}
                                 >
                                   <div className="space-y-3">
                                     <div className="flex items-center justify-between gap-2 flex-wrap">
-                                      <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                      <span className="text-[10px] text-amber-600 font-extrabold uppercase tracking-wider">
                                         {t.seriesName}
                                       </span>
                                       <div className="flex items-center gap-1.5">
-                                        <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                        <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                           🏟️ {arenaName}
                                         </span>
                                         <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
                                           t.isDuo 
-                                            ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
-                                            : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                            ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                            : 'bg-amber-50 text-amber-700 border border-amber-200'
                                         }`}>
                                           {t.isDuo ? 'Duplas' : 'Super 8 Indiv.'}
                                         </span>
@@ -4185,35 +4578,35 @@ export default function Home() {
                                     </div>
 
                                     <div>
-                                      <h3 className="text-base font-black text-white">{t.name}</h3>
-                                      <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1 font-mono">
+                                      <h3 className="text-base font-black text-slate-900">{t.name}</h3>
+                                      <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-1 font-mono">
                                         <Calendar className="w-3.5 h-3.5 text-slate-500" />
                                         <span>{new Date(t.startDate).toLocaleDateString('pt-BR')} até {new Date(t.endDate).toLocaleDateString('pt-BR')}</span>
                                       </p>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
-                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
-                                        <span className="text-slate-400 block text-[10px]">Duplas Formadas:</span>
-                                        <strong className="text-white font-mono text-sm">
+                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 text-[11px]">
+                                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                        <span className="text-slate-500 block text-[10px]">Duplas Formadas:</span>
+                                        <strong className="text-slate-900 font-mono text-sm">
                                           {t.isDuo ? tourDuos.length : 'N/A (Super 8)'}
                                         </strong>
                                       </div>
-                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
-                                        <span className="text-slate-400 block text-[10px]">Categorias:</span>
-                                        <strong className="text-amber-300 font-mono text-sm">{tourCats.length}</strong>
+                                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                        <span className="text-slate-500 block text-[10px]">Categorias:</span>
+                                        <strong className="text-amber-700 font-mono text-sm">{tourCats.length}</strong>
                                       </div>
                                     </div>
                                   </div>
 
-                                  <div className="pt-3 border-t border-slate-800/80">
+                                  <div className="pt-3 border-t border-slate-200">
                                     <button 
                                       type="button"
                                       onClick={() => {
                                         setSelectedDuoTournamentId(t.id);
                                         setFilterDuoCategory('ALL');
                                       }}
-                                      className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                                      className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
                                     >
                                       <span>Acessar Duplas</span>
                                       <ArrowRight className="w-3.5 h-3.5" />
@@ -4243,7 +4636,7 @@ export default function Home() {
                       return (
                         <div className="space-y-4">
                           {/* Banner de Identificação do Torneio Selecionado */}
-                          <div className="bg-[#0d1424] border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
+                          <div className="bg-white border border-slate-200 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
                             <div className="space-y-1.5">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <button
@@ -4252,28 +4645,28 @@ export default function Home() {
                                     setSelectedDuoTournamentId('');
                                     setFilterDuoCategory('ALL');
                                   }}
-                                  className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition border border-slate-700 cursor-pointer"
+                                  className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition border border-slate-200 cursor-pointer"
                                 >
                                   <ArrowLeft className="w-3.5 h-3.5" /> Trocar de Torneio
                                 </button>
-                                <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                <span className="text-[10px] text-amber-600 font-extrabold uppercase tracking-wider">
                                   {currentTour?.seriesName}
                                 </span>
-                                <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                   🏟️ {currentArenaName}
                                 </span>
                                 <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
                                   currentTour?.isDuo 
-                                    ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
-                                    : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
                                 }`}>
                                   {currentTour?.isDuo ? 'Duplas' : 'Super 8 Individual'}
                                 </span>
                               </div>
 
-                              <h2 className="text-xl font-black text-white">{currentTour?.name}</h2>
+                              <h2 className="text-xl font-black text-slate-900">{currentTour?.name}</h2>
 
-                              <p className="text-xs text-slate-400 flex items-center gap-2 font-mono">
+                              <p className="text-xs text-slate-500 flex items-center gap-2 font-mono">
                                 <Calendar className="w-3.5 h-3.5 text-slate-500" />
                                 <span>{currentTour?.startDate && new Date(currentTour.startDate).toLocaleDateString('pt-BR')} até {currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')}</span>
                               </p>
@@ -4287,7 +4680,7 @@ export default function Home() {
                                   setSelectedDuoTournamentId(e.target.value);
                                   setFilterDuoCategory('ALL');
                                 }}
-                                className="bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-semibold"
+                                className="bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 font-semibold"
                               >
                                 {tournaments.map(t => (
                                   <option key={t.id} value={t.id}>
@@ -4299,7 +4692,7 @@ export default function Home() {
                               {currentTour?.isDuo !== false && (
                                 <button 
                                   onClick={() => handleOpenDuoCreate(selectedDuoTournamentId)}
-                                  className="flex items-center gap-2 py-2.5 px-4 bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs hover:bg-emerald-400 transition shadow-md shadow-emerald-500/10 cursor-pointer"
+                                  className="flex items-center gap-2 py-2.5 px-4 bg-emerald-600 text-white font-bold rounded-xl text-xs hover:bg-emerald-700 transition shadow-md shadow-emerald-600/10 cursor-pointer"
                                 >
                                   <Plus className="w-4 h-4" /> Formar Dupla
                                 </button>
@@ -4309,14 +4702,14 @@ export default function Home() {
 
                           {/* SEGUNDO FILTRO: CATEGORIAS DO TORNEIO (Quando possui mais de 1 categoria) */}
                           {tourCategories.length > 1 ? (
-                            <div className="bg-[#0d1424] border border-emerald-500/30 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
+                            <div className="bg-white border border-emerald-200 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
                               <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
                                   <Layers className="w-4 h-4" />
                                 </div>
                                 <div>
-                                  <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Filtro de Categoria</span>
-                                  <p className="text-xs text-slate-300 font-bold">Este torneio possui {tourCategories.length} categorias. Selecione a categoria que deseja visualizar:</p>
+                                  <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Filtro de Categoria</span>
+                                  <p className="text-xs text-slate-700 font-bold">Este torneio possui {tourCategories.length} categorias. Selecione a categoria que deseja visualizar:</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -4325,12 +4718,12 @@ export default function Home() {
                                   onClick={() => setFilterDuoCategory('ALL')}
                                   className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                                     filterDuoCategory === 'ALL'
-                                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                      : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                      ? 'bg-emerald-600 text-white shadow-sm'
+                                      : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
                                   }`}
                                 >
                                   <span>Todas as Categorias</span>
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-800 font-mono tabular-nums">
                                     {duos.filter(d => d.tournamentId === selectedDuoTournamentId).length}
                                   </span>
                                 </button>
@@ -4343,12 +4736,12 @@ export default function Home() {
                                       onClick={() => setFilterDuoCategory(cat.id)}
                                       className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                                         filterDuoCategory === cat.id
-                                          ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                          : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                          ? 'bg-emerald-600 text-white shadow-sm'
+                                          : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
                                       }`}
                                     >
                                       <span>{cat.type} {cat.level} {cat.name ? `(${cat.name})` : ''}</span>
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-800 font-mono tabular-nums">
                                         {catCount}
                                       </span>
                                     </button>
@@ -4357,10 +4750,10 @@ export default function Home() {
                               </div>
                             </div>
                           ) : tourCategories.length === 1 ? (
-                            <div className="bg-[#0d1424] border border-slate-800 p-3 rounded-xl flex items-center justify-between text-xs text-slate-300">
+                            <div className="bg-white border border-slate-200 p-3 rounded-xl flex items-center justify-between text-xs text-slate-700">
                               <span className="flex items-center gap-2">
-                                <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                                Categoria Única: <strong className="text-white">{tourCategories[0].type} {tourCategories[0].level} {tourCategories[0].name ? `(${tourCategories[0].name})` : ''}</strong>
+                                <Layers className="w-3.5 h-3.5 text-emerald-600" />
+                                Categoria Única: <strong className="text-slate-900">{tourCategories[0].type} {tourCategories[0].level} {tourCategories[0].name ? `(${tourCategories[0].name})` : ''}</strong>
                               </span>
                               <span className="text-slate-500 text-[11px] font-mono">1 categoria configurada</span>
                             </div>
@@ -4368,42 +4761,42 @@ export default function Home() {
 
                           {/* Se for Super 8, mostrar aviso esclarecedor */}
                           {currentTour?.isDuo === false ? (
-                            <div className="p-4 bg-amber-950/30 border border-amber-500/30 rounded-2xl text-amber-300 text-xs flex items-center gap-3">
-                              <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-700 text-xs flex items-center gap-3">
+                              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
                               <div>
-                                <strong className="block text-sm text-white">Torneio Super 8 (Individual)</strong>
+                                <strong className="block text-sm text-slate-900">Torneio Super 8 (Individual)</strong>
                                 No formato Super 8 não existem duplas fixas cadastradas. As parcerias de duplas são formadas de maneira 100% dinâmica e temporária pelo sistema em cada uma das 7 rodadas. Para visualizar os jogos gerados com cada dupla temporária e o placar, acesse a aba <strong>Jogos / Quadras</strong>.
                               </div>
                             </div>
                           ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {displayedDuos.length === 0 ? (
-                                <div className="col-span-full p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
+                                <div className="col-span-full p-12 text-center text-slate-500 border border-slate-200 bg-slate-50 rounded-2xl space-y-3">
                                   <Users className="w-10 h-10 text-slate-600 mx-auto" />
-                                  <p className="font-semibold text-slate-300">Nenhuma dupla encontrada nesta categoria/torneio.</p>
+                                  <p className="font-semibold text-slate-700">Nenhuma dupla encontrada nesta categoria/torneio.</p>
                                   <p className="text-xs text-slate-500">Clique em &quot;Formar Dupla&quot; acima para combinar dois atletas já inscritos.</p>
                                 </div>
                               ) : (
                                 displayedDuos.map(d => (
-                                  <div key={d.id} className="bg-[#0d1424] border border-slate-800/80 hover:border-slate-700/80 p-5 rounded-2xl flex justify-between items-center transition shadow-sm hover:shadow-md">
+                                  <div key={d.id} className="bg-white border border-slate-200 hover:border-slate-200 p-5 rounded-2xl flex justify-between items-center transition shadow-sm hover:shadow-md">
                                     <div className="space-y-1">
-                                      <span className="text-[10px] font-extrabold text-emerald-300 bg-emerald-950/60 border border-emerald-500/20 px-2.5 py-0.5 rounded uppercase tracking-wider">
+                                      <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded uppercase tracking-wider">
                                         {d.categoryName}
                                       </span>
-                                      <p className="text-sm font-bold text-white mt-2 flex items-center gap-1.5">
+                                      <p className="text-sm font-bold text-slate-900 mt-2 flex items-center gap-1.5">
                                         <span>{d.player1Name}</span>
-                                        <span className="text-amber-400 font-extrabold">&</span>
+                                        <span className="text-amber-600 font-extrabold">&</span>
                                         <span>{d.player2Name}</span>
                                       </p>
-                                      <span className="text-[11px] text-slate-400 block">Torneio: <strong className="text-slate-300">{d.tournamentName}</strong></span>
+                                      <span className="text-[11px] text-slate-500 block">Torneio: <strong className="text-slate-700">{d.tournamentName}</strong></span>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                      <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg">
+                                      <span className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
                                         {d.status}
                                       </span>
                                       <button 
                                         onClick={() => handleDeleteDuo(d.id)}
-                                        className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/20 rounded-xl transition cursor-pointer"
+                                        className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
                                         title="Desfazer Dupla"
                                       >
                                         <Trash2 className="w-4 h-4" />
@@ -4427,23 +4820,23 @@ export default function Home() {
                   {!selectedMatchTournamentId ? (
                     /* PASSO 1: TELA DE BUSCA E SELEÇÃO DE TORNEIO (JOGOS) */
                     <div className="space-y-5">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
                         <div>
-                          <h2 className="text-lg font-black text-white flex items-center gap-2">
-                            <Activity className="w-5 h-5 text-emerald-400" />
+                          <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                            <Activity className="w-5 h-5 text-emerald-600" />
                             Grade de Jogos e Quadras · Selecionar Edição do Torneio
                           </h2>
-                          <p className="text-xs text-slate-400 mt-0.5">
+                          <p className="text-xs text-slate-500 mt-0.5">
                             Selecione a edição do torneio abaixo para visualizar a grade de confrontos, gerar jogos e gerenciar as quadras.
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
                           {session.role === 'SUPER_ADMIN' ? (
-                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5">
                               <Shield className="w-3.5 h-3.5" /> Super Admin · Todas as Arenas
                             </span>
                           ) : (
-                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
                               <Building className="w-3.5 h-3.5" /> Organização · {selectedArena?.name || session.name}
                             </span>
                           )}
@@ -4451,16 +4844,16 @@ export default function Home() {
                       </div>
 
                       {/* Filtros e Busca de Torneios */}
-                      <div className="bg-[#0d1424] border border-slate-800 p-4 rounded-2xl space-y-3">
+                      <div className="bg-white border border-slate-200 p-4 rounded-2xl space-y-3">
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                           <div className="relative md:col-span-6">
-                            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                             <input 
                               type="text"
                               placeholder="Buscar torneio por nome da edição ou série..."
                               value={searchMatchTournamentTerm}
                               onChange={(e) => setSearchMatchTournamentTerm(e.target.value)}
-                              className="w-full bg-[#090e1a] border border-slate-700/80 pl-10 pr-4 py-2.5 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                              className="w-full bg-white border border-slate-300 pl-10 pr-4 py-2.5 rounded-xl text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:border-emerald-600"
                             />
                           </div>
 
@@ -4469,7 +4862,7 @@ export default function Home() {
                               <select 
                                 value={filterMatchArenaId} 
                                 onChange={(e) => setFilterMatchArenaId(e.target.value)}
-                                className="w-full bg-[#090e1a] border border-slate-700/80 p-2.5 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                                className="w-full bg-white border border-slate-300 p-2.5 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-600 font-semibold"
                               >
                                 <option value="ALL">Todas as Arenas ({arenas.length})</option>
                                 {arenas.map(a => (
@@ -4480,14 +4873,14 @@ export default function Home() {
                           )}
 
                           <div className={session.role === 'SUPER_ADMIN' ? "md:col-span-3" : "md:col-span-6"}>
-                            <div className="flex rounded-xl bg-[#090e1a] p-1 border border-slate-800 text-xs">
+                            <div className="flex rounded-xl bg-slate-50 p-1 border border-slate-200 text-xs">
                               <button
                                 type="button"
                                 onClick={() => setFilterMatchStatus('ALL')}
                                 className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
                                   filterMatchStatus === 'ALL'
-                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                    : 'text-slate-400 hover:text-white'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-900'
                                 }`}
                               >
                                 Todos ({tournaments.length})
@@ -4497,8 +4890,8 @@ export default function Home() {
                                 onClick={() => setFilterMatchStatus('VIGENTE')}
                                 className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
                                   filterMatchStatus === 'VIGENTE'
-                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                    : 'text-slate-400 hover:text-white'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-900'
                                 }`}
                               >
                                 🟢 Vigentes
@@ -4508,8 +4901,8 @@ export default function Home() {
                                 onClick={() => setFilterMatchStatus('EXPIRADO')}
                                 className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
                                   filterMatchStatus === 'EXPIRADO'
-                                    ? 'bg-rose-500 text-white shadow-sm'
-                                    : 'text-slate-400 hover:text-white'
+                                    ? 'bg-rose-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-900'
                                 }`}
                               >
                                 🔴 Expirados
@@ -4540,9 +4933,9 @@ export default function Home() {
 
                         if (filteredTournaments.length === 0) {
                           return (
-                            <div className="p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
+                            <div className="p-12 text-center text-slate-500 border border-slate-200 bg-slate-50 rounded-2xl space-y-3">
                               <Activity className="w-10 h-10 text-slate-600 mx-auto" />
-                              <p className="font-semibold text-slate-300">Nenhum torneio encontrado para jogos.</p>
+                              <p className="font-semibold text-slate-700">Nenhum torneio encontrado para jogos.</p>
                               <p className="text-xs text-slate-500">
                                 {searchMatchTournamentTerm ? 'Tente ajustar os termos da busca.' : 'Aguarde torneios serem criados.'}
                               </p>
@@ -4561,25 +4954,25 @@ export default function Home() {
                               return (
                                 <div 
                                   key={t.id} 
-                                  className={`bg-[#0d1424] border rounded-2xl p-5 space-y-4 transition shadow-sm hover:shadow-md flex flex-col justify-between ${
+                                  className={`bg-white border rounded-2xl p-5 space-y-4 transition shadow-sm hover:shadow-md flex flex-col justify-between ${
                                     vigente 
-                                      ? 'border-slate-800/80 hover:border-emerald-500/40' 
-                                      : 'border-slate-800/50 bg-[#0d1424]/80'
+                                      ? 'border-slate-200 hover:border-emerald-200' 
+                                      : 'border-slate-200 bg-white/90'
                                   }`}
                                 >
                                   <div className="space-y-3">
                                     <div className="flex items-center justify-between gap-2 flex-wrap">
-                                      <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                      <span className="text-[10px] text-amber-600 font-extrabold uppercase tracking-wider">
                                         {t.seriesName}
                                       </span>
                                       <div className="flex items-center gap-1.5">
-                                        <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                        <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                           🏟️ {arenaName}
                                         </span>
                                         <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
                                           t.isDuo 
-                                            ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
-                                            : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                            ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                            : 'bg-amber-50 text-amber-700 border border-amber-200'
                                         }`}>
                                           {t.isDuo ? 'Duplas' : 'Super 8 Indiv.'}
                                         </span>
@@ -4587,28 +4980,28 @@ export default function Home() {
                                     </div>
 
                                     <div>
-                                      <h3 className="text-base font-black text-white">{t.name}</h3>
-                                      <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1 font-mono">
+                                      <h3 className="text-base font-black text-slate-900">{t.name}</h3>
+                                      <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-1 font-mono">
                                         <Calendar className="w-3.5 h-3.5 text-slate-500" />
                                         <span>{new Date(t.startDate).toLocaleDateString('pt-BR')} até {new Date(t.endDate).toLocaleDateString('pt-BR')}</span>
                                       </p>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
-                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
-                                        <span className="text-slate-400 block text-[10px]">Partidas Geradas:</span>
-                                        <strong className="text-white font-mono text-sm">
+                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 text-[11px]">
+                                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                        <span className="text-slate-500 block text-[10px]">Partidas Geradas:</span>
+                                        <strong className="text-slate-900 font-mono text-sm">
                                           {tourMatches.length}
                                         </strong>
                                       </div>
-                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
-                                        <span className="text-slate-400 block text-[10px]">Categorias:</span>
-                                        <strong className="text-amber-300 font-mono text-sm">{tourCats.length}</strong>
+                                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                        <span className="text-slate-500 block text-[10px]">Categorias:</span>
+                                        <strong className="text-amber-700 font-mono text-sm">{tourCats.length}</strong>
                                       </div>
                                     </div>
                                   </div>
 
-                                  <div className="pt-3 border-t border-slate-800/80">
+                                  <div className="pt-3 border-t border-slate-200">
                                     <button 
                                       type="button"
                                       onClick={() => {
@@ -4616,7 +5009,7 @@ export default function Home() {
                                         setFilterMatchCategory('ALL');
                                         setFilterSuper8Round('ALL');
                                       }}
-                                      className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                                      className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
                                     >
                                       <span>Acessar Jogos / Quadras</span>
                                       <ArrowRight className="w-3.5 h-3.5" />
@@ -4640,7 +5033,7 @@ export default function Home() {
                       return (
                         <div className="space-y-4">
                           {/* Banner de Identificação do Torneio Selecionado */}
-                          <div className="bg-[#0d1424] border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
+                          <div className="bg-white border border-slate-200 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
                             <div className="space-y-1.5">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <button
@@ -4650,28 +5043,28 @@ export default function Home() {
                                     setFilterMatchCategory('ALL');
                                     setFilterSuper8Round('ALL');
                                   }}
-                                  className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition border border-slate-700 cursor-pointer"
+                                  className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition border border-slate-200 cursor-pointer"
                                 >
                                   <ArrowLeft className="w-3.5 h-3.5" /> Trocar de Torneio
                                 </button>
-                                <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                <span className="text-[10px] text-amber-600 font-extrabold uppercase tracking-wider">
                                   {currentTour?.seriesName}
                                 </span>
-                                <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                   🏟️ {currentArenaName}
                                 </span>
                                 <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
                                   currentTour?.isDuo 
-                                    ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
-                                    : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
                                 }`}>
                                   {currentTour?.isDuo ? 'Duplas' : 'Super 8 Individual'}
                                 </span>
                               </div>
 
-                              <h2 className="text-xl font-black text-white">{currentTour?.name}</h2>
+                              <h2 className="text-xl font-black text-slate-900">{currentTour?.name}</h2>
 
-                              <p className="text-xs text-slate-400 flex items-center gap-2 font-mono">
+                              <p className="text-xs text-slate-500 flex items-center gap-2 font-mono">
                                 <Calendar className="w-3.5 h-3.5 text-slate-500" />
                                 <span>{currentTour?.startDate && new Date(currentTour.startDate).toLocaleDateString('pt-BR')} até {currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')}</span>
                               </p>
@@ -4686,7 +5079,7 @@ export default function Home() {
                                   setFilterMatchCategory('ALL');
                                   setFilterSuper8Round('ALL');
                                 }}
-                                className="bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-semibold"
+                                className="bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 font-semibold"
                               >
                                 {tournaments.map(t => (
                                   <option key={t.id} value={t.id}>
@@ -4697,14 +5090,14 @@ export default function Home() {
 
                               <button 
                                 onClick={() => handleOpenGenMatches(selectedMatchTournamentId)}
-                                className="flex items-center gap-2 py-2 px-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-xs transition shadow-md shadow-amber-500/10 cursor-pointer"
+                                className="flex items-center gap-2 py-2 px-3.5 bg-amber-600 hover:bg-amber-700 text-white font-black rounded-xl text-xs transition shadow-md shadow-amber-500/15 cursor-pointer"
                               >
                                 <Activity className="w-4 h-4" /> Gerar Jogos Automaticamente
                               </button>
 
                               <button 
                                 onClick={() => handleOpenMatchCreate(selectedMatchTournamentId)}
-                                className="flex items-center gap-2 py-2 px-3.5 bg-emerald-500 text-slate-950 font-bold rounded-xl text-xs hover:bg-emerald-400 transition shadow-md shadow-emerald-500/10 cursor-pointer"
+                                className="flex items-center gap-2 py-2 px-3.5 bg-emerald-600 text-white font-bold rounded-xl text-xs hover:bg-emerald-700 transition shadow-md shadow-emerald-600/10 cursor-pointer"
                               >
                                 <Plus className="w-4 h-4" /> Agendar Jogo Manual
                               </button>
@@ -4713,14 +5106,14 @@ export default function Home() {
 
                           {/* SEGUNDO FILTRO: CATEGORIAS DO TORNEIO (Quando possui mais de 1 categoria) */}
                           {tourCategories.length > 1 ? (
-                            <div className="bg-[#0d1424] border border-emerald-500/30 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
+                            <div className="bg-white border border-emerald-200 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
                               <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
                                   <Layers className="w-4 h-4" />
                                 </div>
                                 <div>
-                                  <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Filtro de Categoria</span>
-                                  <p className="text-xs text-slate-300 font-bold">Este torneio possui {tourCategories.length} categorias. Selecione a categoria que deseja visualizar:</p>
+                                  <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Filtro de Categoria</span>
+                                  <p className="text-xs text-slate-700 font-bold">Este torneio possui {tourCategories.length} categorias. Selecione a categoria que deseja visualizar:</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -4732,12 +5125,12 @@ export default function Home() {
                                   }}
                                   className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                                     filterMatchCategory === 'ALL'
-                                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                      : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                      ? 'bg-emerald-600 text-white shadow-sm'
+                                      : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
                                   }`}
                                 >
                                   <span>Todas as Categorias</span>
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-800 font-mono tabular-nums">
                                     {matches.filter(m => m.tournamentId === selectedMatchTournamentId).length}
                                   </span>
                                 </button>
@@ -4753,12 +5146,12 @@ export default function Home() {
                                       }}
                                       className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                                         filterMatchCategory === cat.id
-                                          ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                          : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                          ? 'bg-emerald-600 text-white shadow-sm'
+                                          : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
                                       }`}
                                     >
                                       <span>{cat.type} {cat.level} {cat.name ? `(${cat.name})` : ''}</span>
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-800 font-mono tabular-nums">
                                         {catCount}
                                       </span>
                                     </button>
@@ -4767,17 +5160,17 @@ export default function Home() {
                               </div>
                             </div>
                           ) : tourCategories.length === 1 ? (
-                            <div className="bg-[#0d1424] border border-slate-800 p-3 rounded-xl flex items-center justify-between text-xs text-slate-300">
+                            <div className="bg-white border border-slate-200 p-3 rounded-xl flex items-center justify-between text-xs text-slate-700">
                               <span className="flex items-center gap-2">
-                                <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                                Categoria Única: <strong className="text-white">{tourCategories[0].type} {tourCategories[0].level} {tourCategories[0].name ? `(${tourCategories[0].name})` : ''}</strong>
+                                <Layers className="w-3.5 h-3.5 text-emerald-600" />
+                                Categoria Única: <strong className="text-slate-900">{tourCategories[0].type} {tourCategories[0].level} {tourCategories[0].name ? `(${tourCategories[0].name})` : ''}</strong>
                               </span>
                               <span className="text-slate-500 text-[11px] font-mono">1 categoria configurada</span>
                             </div>
                           ) : null}
 
                           {/* Toolbar de Rodadas Super 8 & Classificação */}
-                          <div className="bg-[#0d1424] border border-slate-800 rounded-2xl p-4 space-y-3">
+                          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                               <div className="flex items-center gap-2.5 flex-wrap">
                                 <button 
@@ -4785,8 +5178,8 @@ export default function Home() {
                                   onClick={() => setShowSuper8Standings(!showSuper8Standings)}
                                   className={`flex items-center gap-1.5 py-2 px-3.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
                                     showSuper8Standings
-                                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
-                                      : 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
+                                      ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                                      : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50'
                                   }`}
                                 >
                                   <Award className="w-3.5 h-3.5" />
@@ -4794,8 +5187,8 @@ export default function Home() {
                                 </button>
                               </div>
 
-                              <span className="text-xs text-slate-400">
-                                Total de Jogos: <strong className="text-white font-mono">{
+                              <span className="text-xs text-slate-500">
+                                Total de Jogos: <strong className="text-slate-900 font-mono">{
                                   matches.filter(m => m.tournamentId === selectedMatchTournamentId && (filterMatchCategory === 'ALL' || m.categoryId === filterMatchCategory)).length
                                 }</strong>
                               </span>
@@ -4803,8 +5196,8 @@ export default function Home() {
 
                     {/* Filter by Round for Super 8 */}
                     {matches.some(m => m.format === 'SUPER_8' || m.isSuper8 || m.round) && (
-                      <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 overflow-x-auto pb-1">
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider shrink-0 mr-1">Filtrar Rodada:</span>
+                      <div className="pt-2 border-t border-slate-200 flex items-center gap-1.5 overflow-x-auto pb-1">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider shrink-0 mr-1">Filtrar Rodada:</span>
                         {(['ALL', 1, 2, 3, 4, 5, 6, 7] as const).map(rnd => (
                           <button
                             key={`btn-rnd-${rnd}`}
@@ -4812,8 +5205,8 @@ export default function Home() {
                             onClick={() => setFilterSuper8Round(rnd)}
                             className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition border shrink-0 cursor-pointer ${
                               filterSuper8Round === rnd
-                                ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
-                                : 'bg-[#090e1a] text-slate-400 border-slate-800 hover:text-white'
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                : 'bg-slate-50 text-slate-500 border-slate-200 hover:text-slate-900'
                             }`}
                           >
                             {rnd === 'ALL' ? 'Todas' : `R${rnd}`}
@@ -4830,19 +5223,19 @@ export default function Home() {
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="bg-[#0d1424] border border-amber-500/40 rounded-2xl p-5 space-y-4 shadow-xl overflow-hidden"
+                        className="bg-white border border-amber-200 rounded-2xl p-5 space-y-4 shadow-xl overflow-hidden"
                       >
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800/80 pb-3">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 pb-3">
                           <div>
-                            <h3 className="text-base font-black text-white flex items-center gap-2">
-                              <Award className="w-5 h-5 text-amber-400" />
+                            <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                              <Award className="w-5 h-5 text-amber-600" />
                               Classificação Individual Oficial · Formato Super 8
                             </h3>
-                            <p className="text-xs text-slate-400 mt-0.5">
+                            <p className="text-xs text-slate-500 mt-0.5">
                               Pontuação atribuída individualmente a cada um dos 8 atletas pelas partidas de 4 games disputadas.
                             </p>
                           </div>
-                          <span className="text-[10px] px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono font-bold">
+                          <span className="text-[10px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-mono font-bold">
                             Critérios: Vitórias &gt; Saldo Games &gt; Games Pró
                           </span>
                         </div>
@@ -4871,43 +5264,43 @@ export default function Home() {
                           const standings = calculateSuper8Standings(s8Matches as any, s8Athletes);
 
                           return standings.length === 0 ? (
-                            <div className="p-8 text-center text-slate-400 text-xs">
+                            <div className="p-8 text-center text-slate-500 text-xs">
                               Nenhuma partida do Super 8 com resultado finalizado ainda. Lance os placares das partidas abaixo.
                             </div>
                           ) : (
                             <div className="overflow-x-auto">
                               <table className="w-full text-left text-xs border-collapse">
                                 <thead>
-                                  <tr className="bg-slate-800/60 text-slate-400 font-bold uppercase text-[10px] tracking-wider border-b border-slate-800">
+                                  <tr className="bg-slate-100 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
                                     <th className="p-3">Posição</th>
                                     <th className="p-3">Atleta</th>
                                     <th className="p-3 text-center">Partidas (J)</th>
-                                    <th className="p-3 text-center text-emerald-400">Vitórias (V)</th>
-                                    <th className="p-3 text-center text-rose-400">Derrotas (D)</th>
+                                    <th className="p-3 text-center text-emerald-600">Vitórias (V)</th>
+                                    <th className="p-3 text-center text-rose-600">Derrotas (D)</th>
                                     <th className="p-3 text-center">Games Pró (GP)</th>
                                     <th className="p-3 text-center">Games Contra (GC)</th>
-                                    <th className="p-3 text-center text-amber-400">Saldo (SG)</th>
+                                    <th className="p-3 text-center text-amber-600">Saldo (SG)</th>
                                     <th className="p-3 text-right">Aprov. (%)</th>
                                   </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-800/60">
+                                <tbody className="divide-y divide-slate-200">
                                   {standings.map((st) => (
-                                    <tr key={st.athleteId} className="hover:bg-slate-800/40 transition">
+                                    <tr key={st.athleteId} className="hover:bg-slate-50 transition">
                                       <td className="p-3 font-mono font-bold text-sm">
                                         {st.rank === 1 ? '🥇 1º' : st.rank === 2 ? '🥈 2º' : st.rank === 3 ? '🥉 3º' : `${st.rank}º`}
                                       </td>
-                                      <td className="p-3 font-bold text-white text-sm">
+                                      <td className="p-3 font-bold text-slate-900 text-sm">
                                         {st.athleteName}
                                       </td>
-                                      <td className="p-3 text-center font-mono text-slate-300">{st.played} / 7</td>
-                                      <td className="p-3 text-center font-mono font-bold text-emerald-400">{st.wins}</td>
-                                      <td className="p-3 text-center font-mono text-slate-400">{st.losses}</td>
-                                      <td className="p-3 text-center font-mono text-slate-300">{st.gamesFor}</td>
-                                      <td className="p-3 text-center font-mono text-slate-400">{st.gamesAgainst}</td>
-                                      <td className="p-3 text-center font-mono font-black text-amber-300">
+                                      <td className="p-3 text-center font-mono text-slate-700">{st.played} / 7</td>
+                                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{st.wins}</td>
+                                      <td className="p-3 text-center font-mono text-slate-500">{st.losses}</td>
+                                      <td className="p-3 text-center font-mono text-slate-700">{st.gamesFor}</td>
+                                      <td className="p-3 text-center font-mono text-slate-500">{st.gamesAgainst}</td>
+                                      <td className="p-3 text-center font-mono font-black text-amber-700">
                                         {st.gameDiff > 0 ? `+${st.gameDiff}` : st.gameDiff}
                                       </td>
-                                      <td className="p-3 text-right font-mono font-bold text-emerald-400">
+                                      <td className="p-3 text-right font-mono font-bold text-emerald-600">
                                         {st.winRate}%
                                       </td>
                                     </tr>
@@ -4933,9 +5326,9 @@ export default function Home() {
 
                       if (displayedMatches.length === 0) {
                         return (
-                          <div className="p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
+                          <div className="p-12 text-center text-slate-500 border border-slate-200 bg-slate-50 rounded-2xl space-y-3">
                             <Activity className="w-10 h-10 text-slate-600 mx-auto" />
-                            <p className="font-semibold text-slate-300">Nenhum jogo encontrado com os filtros selecionados.</p>
+                            <p className="font-semibold text-slate-700">Nenhum jogo encontrado com os filtros selecionados.</p>
                             <p className="text-xs text-slate-500">Utilize o gerador automático acima para criar os confrontos da chave ou agende manualmente.</p>
                           </div>
                         );
@@ -4960,13 +5353,13 @@ export default function Home() {
                             {sortedRounds.map(rnd => {
                               const rndMatches = roundsMap.get(rnd) || [];
                               return (
-                                <div key={`round-group-${rnd}`} className="bg-[#090e1a]/80 border border-slate-800/90 rounded-2xl p-4 sm:p-5 space-y-3.5">
-                                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                                <div key={`round-group-${rnd}`} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3.5">
+                                  <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
                                     <div className="flex items-center gap-2">
-                                      <span className="font-mono text-xs font-black uppercase text-amber-300 bg-amber-500/15 border border-amber-500/30 px-3 py-1 rounded-xl">
+                                      <span className="font-mono text-xs font-black uppercase text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-xl">
                                         Rodada {rnd}
                                       </span>
-                                      <span className="text-[11px] text-slate-400 font-medium">
+                                      <span className="text-[11px] text-slate-500 font-medium">
                                         Super 8 · 2 Partidas ({rndMatches.length} exibidas)
                                       </span>
                                     </div>
@@ -4977,32 +5370,32 @@ export default function Home() {
 
                                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     {rndMatches.map(m => (
-                                      <div key={m.id} className="bg-[#0d1424] border border-slate-800/90 hover:border-slate-700 p-4 rounded-xl flex flex-col justify-between gap-3 transition shadow-sm">
+                                      <div key={m.id} className="bg-white border border-slate-200 hover:border-slate-200 p-4 rounded-xl flex flex-col justify-between gap-3 transition shadow-sm">
                                         <div>
                                           <div className="flex items-center justify-between gap-2 mb-2">
-                                            <span className="text-[10px] font-bold text-amber-400 font-mono">
+                                            <span className="text-[10px] font-bold text-amber-600 font-mono">
                                               Jogo {m.matchNumber || m.stage}
                                             </span>
                                             <div className="flex items-center gap-1.5">
                                               <button 
                                                 type="button"
                                                 onClick={() => handleOpenChangeCourt(m)}
-                                                className="text-[10px] text-emerald-400 font-mono bg-emerald-950/40 border border-emerald-500/20 px-2 py-0.5 rounded hover:bg-emerald-900/40 transition flex items-center gap-1"
+                                                className="text-[10px] text-emerald-600 font-mono bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded hover:bg-emerald-100 transition flex items-center gap-1"
                                                 title="Trocar quadra"
                                               >
                                                 <MapPin className="w-3 h-3" /> {m.court}
                                               </button>
-                                              <span className="text-[10px] font-mono text-slate-400">@ {m.time}</span>
+                                              <span className="text-[10px] font-mono text-slate-500">@ {m.time}</span>
                                             </div>
                                           </div>
 
                                           {/* Matchup Team A vs Team B */}
-                                          <div className="bg-[#090e1a] p-3 rounded-xl border border-slate-800/80 space-y-2">
+                                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
                                             <div className="flex justify-between items-center text-xs">
-                                              <span className="font-bold text-white truncate">
+                                              <span className="font-bold text-slate-900 truncate">
                                                 {m.teamA ? `${m.teamA.player1Name} + ${m.teamA.player2Name}` : m.duo1Name}
                                               </span>
-                                              <span className="font-mono text-sm font-black text-emerald-400 px-2 py-0.5 bg-slate-900 rounded">
+                                              <span className="font-mono text-sm font-black text-emerald-600 px-2 py-0.5 bg-slate-100 rounded">
                                                 {m.scoreA !== undefined ? m.scoreA : (m.score?.split('x')[0] || '-')}
                                               </span>
                                             </div>
@@ -5012,10 +5405,10 @@ export default function Home() {
                                             </div>
 
                                             <div className="flex justify-between items-center text-xs">
-                                              <span className="font-bold text-white truncate">
+                                              <span className="font-bold text-slate-900 truncate">
                                                 {m.teamB ? `${m.teamB.player1Name} + ${m.teamB.player2Name}` : m.duo2Name}
                                               </span>
-                                              <span className="font-mono text-sm font-black text-amber-400 px-2 py-0.5 bg-slate-900 rounded">
+                                              <span className="font-mono text-sm font-black text-amber-600 px-2 py-0.5 bg-slate-100 rounded">
                                                 {m.scoreB !== undefined ? m.scoreB : (m.score?.split('x')[1] || '-')}
                                               </span>
                                             </div>
@@ -5023,12 +5416,12 @@ export default function Home() {
                                         </div>
 
                                         {/* Card Actions */}
-                                        <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
+                                        <div className="flex items-center justify-between pt-2 border-t border-slate-200">
                                           <div>
                                             <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                                              m.status === 'FINALIZADA' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 
-                                              m.status === 'WO' ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30' : 
-                                              'bg-slate-800 text-slate-400 border border-slate-700'
+                                              m.status === 'FINALIZADA' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 
+                                              m.status === 'WO' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 
+                                              'bg-slate-100 text-slate-500 border border-slate-200'
                                             }`}>
                                               {m.status === 'FINALIZADA' && m.score ? (m.isDraw ? `Empate ${m.score}` : m.score) : m.status}
                                             </span>
@@ -5037,19 +5430,19 @@ export default function Home() {
                                           <div className="flex items-center gap-1.5">
                                             <button 
                                               onClick={() => handleLaunchResult(m)} 
-                                              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-2.5 py-1 rounded-lg text-xs transition shadow-sm cursor-pointer"
+                                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs transition shadow-sm cursor-pointer"
                                             >
                                               {m.status === 'FINALIZADA' ? 'Alterar' : 'Placar'}
                                             </button>
                                             <button 
                                               onClick={() => handleToggleWO(m)} 
-                                              className="bg-slate-800 hover:bg-rose-950/40 text-slate-300 hover:text-rose-400 font-bold px-2 py-1 rounded-lg text-xs border border-slate-700 transition cursor-pointer"
+                                              className="bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-600 font-bold px-2 py-1 rounded-lg text-xs border border-slate-200 transition cursor-pointer"
                                             >
                                               W.O.
                                             </button>
                                             <button 
                                               onClick={() => handleDeleteMatch(m.id)}
-                                              className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg transition"
+                                              className="p-1.5 text-slate-500 hover:text-rose-600 rounded-lg transition"
                                               title="Excluir partida"
                                             >
                                               <Trash2 className="w-3.5 h-3.5" />
@@ -5070,37 +5463,37 @@ export default function Home() {
                       return (
                         <div className="space-y-3">
                           {displayedMatches.map(m => (
-                            <div key={m.id} className="bg-[#0d1424] border border-slate-800/80 hover:border-slate-700/80 p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition shadow-sm hover:shadow-md">
+                            <div key={m.id} className="bg-white border border-slate-200 hover:border-slate-200 p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition shadow-sm hover:shadow-md">
                               <div className="space-y-1.5">
-                                <span className="text-[10px] font-extrabold text-emerald-300 bg-emerald-950/60 border border-emerald-500/20 px-2.5 py-0.5 rounded uppercase tracking-wider">
+                                <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded uppercase tracking-wider">
                                   {m.stage} {m.groupName && `· ${m.groupName}`}
                                 </span>
-                                <p className="text-sm font-bold text-white mt-1.5">
-                                  {m.duo1Name} <span className="text-amber-400 font-extrabold mx-1">VS</span> {m.duo2Name}
+                                <p className="text-sm font-bold text-slate-900 mt-1.5">
+                                  {m.duo1Name} <span className="text-amber-600 font-extrabold mx-1">VS</span> {m.duo2Name}
                                 </p>
-                                <p className="text-xs text-slate-400 font-medium">{m.categoryName}</p>
-                                <p className="text-[11px] text-slate-500">Torneio: <strong className="text-slate-400">{m.tournamentName}</strong></p>
+                                <p className="text-xs text-slate-500 font-medium">{m.categoryName}</p>
+                                <p className="text-[11px] text-slate-500">Torneio: <strong className="text-slate-500">{m.tournamentName}</strong></p>
                               </div>
                               <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                                <div className="text-left sm:text-right text-xs text-slate-400 space-y-1.5">
+                                <div className="text-left sm:text-right text-xs text-slate-500 space-y-1.5">
                                   <div className="flex items-center sm:justify-end gap-2 flex-wrap">
                                     <button 
                                       type="button"
                                       onClick={() => handleOpenChangeCourt(m)}
-                                      className="flex items-center gap-1.5 py-1 px-2.5 bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/30 text-emerald-300 rounded-lg text-xs font-mono font-bold transition shadow-sm group"
+                                      className="flex items-center gap-1.5 py-1 px-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-mono font-bold transition shadow-sm group"
                                       title="Clique para transferir esta partida para outra quadra"
                                     >
-                                      <MapPin className="w-3.5 h-3.5 text-emerald-400 group-hover:scale-110 transition-transform" />
+                                      <MapPin className="w-3.5 h-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
                                       <span>{m.court}</span>
-                                      <span className="text-[10px] text-emerald-400/80 font-sans font-medium underline ml-0.5">Trocar</span>
+                                      <span className="text-[10px] text-emerald-700 font-sans font-medium underline ml-0.5">Trocar</span>
                                     </button>
-                                    <span className="font-mono text-slate-300 font-semibold">@ {m.time}</span>
+                                    <span className="font-mono text-slate-700 font-semibold">@ {m.time}</span>
                                   </div>
                                   <div>
                                     <span className={`inline-block text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
-                                      m.status === 'FINALIZADA' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 
-                                      m.status === 'WO' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' : 
-                                      'bg-slate-800/80 text-slate-300 border border-slate-700'
+                                      m.status === 'FINALIZADA' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 
+                                      m.status === 'WO' ? 'bg-amber-50 text-amber-600 border border-amber-200' : 
+                                      'bg-slate-100 text-slate-700 border border-slate-200'
                                     }`}>
                                       {m.status} {m.score && `(${m.score})`}
                                     </span>
@@ -5109,13 +5502,13 @@ export default function Home() {
                                 <div className="flex items-center gap-1.5">
                                   <button 
                                     onClick={() => handleLaunchResult(m)} 
-                                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-2.5 py-1 rounded-lg text-xs transition shadow-sm cursor-pointer"
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs transition shadow-sm cursor-pointer"
                                   >
                                     Placar
                                   </button>
                                   <button 
                                     onClick={() => handleDeleteMatch(m.id)}
-                                    className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/20 rounded-xl transition"
+                                    className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
                                     title="Excluir Jogo"
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -5141,23 +5534,23 @@ export default function Home() {
                   {!selectedResultTournamentId ? (
                     /* PASSO 1: TELA DE BUSCA E SELEÇÃO DE TORNEIO (RESULTADOS) */
                     <div className="space-y-5">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
                         <div>
-                          <h2 className="text-lg font-black text-white flex items-center gap-2">
-                            <Trophy className="w-5 h-5 text-amber-400" />
+                          <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                            <Trophy className="w-5 h-5 text-amber-600" />
                             Lançamento de Resultados & W.O. · Selecionar Edição do Torneio
                           </h2>
-                          <p className="text-xs text-slate-400 mt-0.5">
+                          <p className="text-xs text-slate-500 mt-0.5">
                             Selecione a edição do torneio abaixo para registrar placares oficiais e lançar ausências (W.O.).
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
                           {session.role === 'SUPER_ADMIN' ? (
-                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5">
                               <Shield className="w-3.5 h-3.5" /> Super Admin · Todas as Arenas
                             </span>
                           ) : (
-                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
                               <Building className="w-3.5 h-3.5" /> Organização · {selectedArena?.name || session.name}
                             </span>
                           )}
@@ -5165,16 +5558,16 @@ export default function Home() {
                       </div>
 
                       {/* Filtros e Busca de Torneios */}
-                      <div className="bg-[#0d1424] border border-slate-800 p-4 rounded-2xl space-y-3">
+                      <div className="bg-white border border-slate-200 p-4 rounded-2xl space-y-3">
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                           <div className="relative md:col-span-6">
-                            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                             <input 
                               type="text"
                               placeholder="Buscar torneio por nome da edição ou série..."
                               value={searchResultTournamentTerm}
                               onChange={(e) => setSearchResultTournamentTerm(e.target.value)}
-                              className="w-full bg-[#090e1a] border border-slate-700/80 pl-10 pr-4 py-2.5 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                              className="w-full bg-white border border-slate-300 pl-10 pr-4 py-2.5 rounded-xl text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:border-emerald-600"
                             />
                           </div>
 
@@ -5183,7 +5576,7 @@ export default function Home() {
                               <select 
                                 value={filterResultArenaId} 
                                 onChange={(e) => setFilterResultArenaId(e.target.value)}
-                                className="w-full bg-[#090e1a] border border-slate-700/80 p-2.5 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                                className="w-full bg-white border border-slate-300 p-2.5 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-600 font-semibold"
                               >
                                 <option value="ALL">Todas as Arenas ({arenas.length})</option>
                                 {arenas.map(a => (
@@ -5194,14 +5587,14 @@ export default function Home() {
                           )}
 
                           <div className={session.role === 'SUPER_ADMIN' ? "md:col-span-3" : "md:col-span-6"}>
-                            <div className="flex rounded-xl bg-[#090e1a] p-1 border border-slate-800 text-xs">
+                            <div className="flex rounded-xl bg-slate-50 p-1 border border-slate-200 text-xs">
                               <button
                                 type="button"
                                 onClick={() => setFilterResultStatus('ALL')}
                                 className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
                                   filterResultStatus === 'ALL'
-                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                    : 'text-slate-400 hover:text-white'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-900'
                                 }`}
                               >
                                 Todos ({tournaments.length})
@@ -5211,8 +5604,8 @@ export default function Home() {
                                 onClick={() => setFilterResultStatus('VIGENTE')}
                                 className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
                                   filterResultStatus === 'VIGENTE'
-                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                    : 'text-slate-400 hover:text-white'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-900'
                                 }`}
                               >
                                 🟢 Vigentes
@@ -5222,8 +5615,8 @@ export default function Home() {
                                 onClick={() => setFilterResultStatus('EXPIRADO')}
                                 className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
                                   filterResultStatus === 'EXPIRADO'
-                                    ? 'bg-rose-500 text-white shadow-sm'
-                                    : 'text-slate-400 hover:text-white'
+                                    ? 'bg-rose-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-900'
                                 }`}
                               >
                                 🔴 Expirados
@@ -5254,9 +5647,9 @@ export default function Home() {
 
                         if (filteredTournaments.length === 0) {
                           return (
-                            <div className="p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
+                            <div className="p-12 text-center text-slate-500 border border-slate-200 bg-slate-50 rounded-2xl space-y-3">
                               <Trophy className="w-10 h-10 text-slate-600 mx-auto" />
-                              <p className="font-semibold text-slate-300">Nenhum torneio encontrado para lançamento de resultados.</p>
+                              <p className="font-semibold text-slate-700">Nenhum torneio encontrado para lançamento de resultados.</p>
                               <p className="text-xs text-slate-500">
                                 {searchResultTournamentTerm ? 'Tente ajustar os termos da busca.' : 'Gere jogos primeiro na aba Jogos / Quadras.'}
                               </p>
@@ -5276,25 +5669,25 @@ export default function Home() {
                               return (
                                 <div 
                                   key={t.id} 
-                                  className={`bg-[#0d1424] border rounded-2xl p-5 space-y-4 transition shadow-sm hover:shadow-md flex flex-col justify-between ${
+                                  className={`bg-white border rounded-2xl p-5 space-y-4 transition shadow-sm hover:shadow-md flex flex-col justify-between ${
                                     vigente 
-                                      ? 'border-slate-800/80 hover:border-emerald-500/40' 
-                                      : 'border-slate-800/50 bg-[#0d1424]/80'
+                                      ? 'border-slate-200 hover:border-emerald-200' 
+                                      : 'border-slate-200 bg-white/90'
                                   }`}
                                 >
                                   <div className="space-y-3">
                                     <div className="flex items-center justify-between gap-2 flex-wrap">
-                                      <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                      <span className="text-[10px] text-amber-600 font-extrabold uppercase tracking-wider">
                                         {t.seriesName}
                                       </span>
                                       <div className="flex items-center gap-1.5">
-                                        <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                        <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                           🏟️ {arenaName}
                                         </span>
                                         <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
                                           t.isDuo 
-                                            ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
-                                            : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                            ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                            : 'bg-amber-50 text-amber-700 border border-amber-200'
                                         }`}>
                                           {t.isDuo ? 'Duplas' : 'Super 8 Indiv.'}
                                         </span>
@@ -5302,35 +5695,35 @@ export default function Home() {
                                     </div>
 
                                     <div>
-                                      <h3 className="text-base font-black text-white">{t.name}</h3>
-                                      <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1 font-mono">
+                                      <h3 className="text-base font-black text-slate-900">{t.name}</h3>
+                                      <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-1 font-mono">
                                         <Calendar className="w-3.5 h-3.5 text-slate-500" />
                                         <span>{new Date(t.startDate).toLocaleDateString('pt-BR')} até {new Date(t.endDate).toLocaleDateString('pt-BR')}</span>
                                       </p>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
-                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
-                                        <span className="text-slate-400 block text-[10px]">Concluídos / Total:</span>
-                                        <strong className="text-white font-mono text-sm">
+                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 text-[11px]">
+                                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                        <span className="text-slate-500 block text-[10px]">Concluídos / Total:</span>
+                                        <strong className="text-slate-900 font-mono text-sm">
                                           {finalizedCount} / {tourMatches.length}
                                         </strong>
                                       </div>
-                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
-                                        <span className="text-slate-400 block text-[10px]">Categorias:</span>
-                                        <strong className="text-amber-300 font-mono text-sm">{tourCats.length}</strong>
+                                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                        <span className="text-slate-500 block text-[10px]">Categorias:</span>
+                                        <strong className="text-amber-700 font-mono text-sm">{tourCats.length}</strong>
                                       </div>
                                     </div>
                                   </div>
 
-                                  <div className="pt-3 border-t border-slate-800/80">
+                                  <div className="pt-3 border-t border-slate-200">
                                     <button 
                                       type="button"
                                       onClick={() => {
                                         setSelectedResultTournamentId(t.id);
                                         setFilterResultCategory('ALL');
                                       }}
-                                      className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                                      className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
                                     >
                                       <span>Acessar Resultados / WO</span>
                                       <ArrowRight className="w-3.5 h-3.5" />
@@ -5359,7 +5752,7 @@ export default function Home() {
                       return (
                         <div className="space-y-4">
                           {/* Banner de Identificação do Torneio Selecionado */}
-                          <div className="bg-[#0d1424] border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
+                          <div className="bg-white border border-slate-200 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
                             <div className="space-y-1.5">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <button
@@ -5368,28 +5761,28 @@ export default function Home() {
                                     setSelectedResultTournamentId('');
                                     setFilterResultCategory('ALL');
                                   }}
-                                  className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition border border-slate-700 cursor-pointer"
+                                  className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition border border-slate-200 cursor-pointer"
                                 >
                                   <ArrowLeft className="w-3.5 h-3.5" /> Trocar de Torneio
                                 </button>
-                                <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                <span className="text-[10px] text-amber-600 font-extrabold uppercase tracking-wider">
                                   {currentTour?.seriesName}
                                 </span>
-                                <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                   🏟️ {currentArenaName}
                                 </span>
                                 <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
                                   currentTour?.isDuo 
-                                    ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
-                                    : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
                                 }`}>
                                   {currentTour?.isDuo ? 'Duplas' : 'Super 8 Individual'}
                                 </span>
                               </div>
 
-                              <h2 className="text-xl font-black text-white">{currentTour?.name}</h2>
+                              <h2 className="text-xl font-black text-slate-900">{currentTour?.name}</h2>
 
-                              <p className="text-xs text-slate-400 flex items-center gap-2 font-mono">
+                              <p className="text-xs text-slate-500 flex items-center gap-2 font-mono">
                                 <Calendar className="w-3.5 h-3.5 text-slate-500" />
                                 <span>{currentTour?.startDate && new Date(currentTour.startDate).toLocaleDateString('pt-BR')} até {currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')}</span>
                               </p>
@@ -5403,7 +5796,7 @@ export default function Home() {
                                   setSelectedResultTournamentId(e.target.value);
                                   setFilterResultCategory('ALL');
                                 }}
-                                className="bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-semibold"
+                                className="bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 font-semibold"
                               >
                                 {tournaments.map(t => (
                                   <option key={t.id} value={t.id}>
@@ -5416,14 +5809,14 @@ export default function Home() {
 
                           {/* SEGUNDO FILTRO: CATEGORIAS DO TORNEIO (Quando possui mais de 1 categoria) */}
                           {tourCategories.length > 1 ? (
-                            <div className="bg-[#0d1424] border border-emerald-500/30 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
+                            <div className="bg-white border border-emerald-200 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
                               <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
                                   <Layers className="w-4 h-4" />
                                 </div>
                                 <div>
-                                  <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Filtro de Categoria</span>
-                                  <p className="text-xs text-slate-300 font-bold">Este torneio possui {tourCategories.length} categorias. Selecione a categoria que deseja visualizar:</p>
+                                  <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Filtro de Categoria</span>
+                                  <p className="text-xs text-slate-700 font-bold">Este torneio possui {tourCategories.length} categorias. Selecione a categoria que deseja visualizar:</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -5432,12 +5825,12 @@ export default function Home() {
                                   onClick={() => setFilterResultCategory('ALL')}
                                   className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                                     filterResultCategory === 'ALL'
-                                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                      : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                      ? 'bg-emerald-600 text-white shadow-sm'
+                                      : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
                                   }`}
                                 >
                                   <span>Todas as Categorias</span>
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-800 font-mono tabular-nums">
                                     {matches.filter(m => m.tournamentId === selectedResultTournamentId).length}
                                   </span>
                                 </button>
@@ -5450,12 +5843,12 @@ export default function Home() {
                                       onClick={() => setFilterResultCategory(cat.id)}
                                       className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                                         filterResultCategory === cat.id
-                                          ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                          : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                          ? 'bg-emerald-600 text-white shadow-sm'
+                                          : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
                                       }`}
                                     >
                                       <span>{cat.type} {cat.level} {cat.name ? `(${cat.name})` : ''}</span>
-                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-800 font-mono tabular-nums">
                                         {catCount}
                                       </span>
                                     </button>
@@ -5464,40 +5857,40 @@ export default function Home() {
                               </div>
                             </div>
                           ) : tourCategories.length === 1 ? (
-                            <div className="bg-[#0d1424] border border-slate-800 p-3 rounded-xl flex items-center justify-between text-xs text-slate-300">
+                            <div className="bg-white border border-slate-200 p-3 rounded-xl flex items-center justify-between text-xs text-slate-700">
                               <span className="flex items-center gap-2">
-                                <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                                Categoria Única: <strong className="text-white">{tourCategories[0].type} {tourCategories[0].level} {tourCategories[0].name ? `(${tourCategories[0].name})` : ''}</strong>
+                                <Layers className="w-3.5 h-3.5 text-emerald-600" />
+                                Categoria Única: <strong className="text-slate-900">{tourCategories[0].type} {tourCategories[0].level} {tourCategories[0].name ? `(${tourCategories[0].name})` : ''}</strong>
                               </span>
                               <span className="text-slate-500 text-[11px] font-mono">1 categoria configurada</span>
                             </div>
                           ) : null}
 
-                          <div className="bg-[#0d1424] border border-slate-800/80 rounded-2xl p-6 space-y-4">
+                          <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
                             {displayedResults.length === 0 ? (
-                              <div className="p-12 text-center text-slate-400 border border-slate-800/60 rounded-xl bg-slate-900/20">
+                              <div className="p-12 text-center text-slate-500 border border-slate-200 rounded-xl bg-slate-50/70">
                                 Nenhum jogo encontrado para registrar placar no torneio/categoria selecionada.
                               </div>
                             ) : (
                               displayedResults.map(m => (
-                                <div key={m.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-[#090e1a] border border-slate-800/80 rounded-xl gap-4 hover:border-slate-700/80 transition">
+                                <div key={m.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-slate-50 border border-slate-200 rounded-xl gap-4 hover:border-slate-200 transition">
                                   <div>
                                     <div className="flex items-center gap-2 flex-wrap">
-                                      <p className="text-xs font-bold text-slate-400">{m.categoryName} · {m.stage}</p>
+                                      <p className="text-xs font-bold text-slate-500">{m.categoryName} · {m.stage}</p>
                                       {m.round && (
-                                        <span className="text-[10px] font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                                        <span className="text-[10px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
                                           Rodada {m.round} · Jogo {m.matchNumber}
                                         </span>
                                       )}
                                     </div>
-                                    <p className="text-sm font-bold text-white mt-1">
+                                    <p className="text-sm font-bold text-slate-900 mt-1">
                                       {m.teamA ? `${m.teamA.player1Name} + ${m.teamA.player2Name}` : m.duo1Name} 
-                                      <span className="text-amber-400 font-extrabold mx-2">vs</span> 
+                                      <span className="text-amber-600 font-extrabold mx-2">vs</span> 
                                       {m.teamB ? `${m.teamB.player1Name} + ${m.teamB.player2Name}` : m.duo2Name}
                                     </p>
                                     {m.score && (
-                                      <p className="text-xs font-mono font-bold text-emerald-400 mt-1.5 flex items-center gap-1.5">
-                                        <span className="text-slate-400 font-sans font-medium text-[11px]">Placar Oficial:</span> {m.score}
+                                      <p className="text-xs font-mono font-bold text-emerald-600 mt-1.5 flex items-center gap-1.5">
+                                        <span className="text-slate-500 font-sans font-medium text-[11px]">Placar Oficial:</span> {m.score}
                                       </p>
                                     )}
                                   </div>
@@ -5506,30 +5899,30 @@ export default function Home() {
                                       <>
                                         <button 
                                           onClick={() => handleLaunchResult(m)} 
-                                          className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-3.5 py-1.5 rounded-xl text-xs transition shadow-sm cursor-pointer"
+                                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs transition shadow-sm cursor-pointer"
                                         >
                                           Lançar Placar
                                         </button>
                                         <button 
                                           onClick={() => handleToggleWO(m)} 
-                                          className="bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 font-bold px-3.5 py-1.5 rounded-xl text-xs border border-rose-800/40 transition cursor-pointer"
+                                          className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold px-3.5 py-1.5 rounded-xl text-xs border border-rose-200 transition cursor-pointer"
                                         >
                                           Lançar WO
                                         </button>
                                       </>
                                     ) : (
                                       <div className="flex items-center gap-2">
-                                        <span className="text-xs text-slate-300 font-mono flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
-                                          <Check className="w-4 h-4 text-emerald-400" /> {m.status === 'WO' ? 'W.O.' : m.isDraw ? 'Empate' : 'Finalizado'} ({m.score})
+                                        <span className="text-xs text-slate-700 font-mono flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                                          <Check className="w-4 h-4 text-emerald-600" /> {m.status === 'WO' ? 'W.O.' : m.isDraw ? 'Empate' : 'Finalizado'} ({m.score})
                                         </span>
                                         {m.tieBreaker && (
-                                          <span className="text-[9px] text-amber-400 font-mono bg-amber-950/30 border border-amber-500/30 px-2 py-0.5 rounded-lg" title={m.tieBreaker}>
+                                          <span className="text-[9px] text-amber-600 font-mono bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg" title={m.tieBreaker}>
                                             {m.tieBreaker.length > 30 ? m.tieBreaker.substring(0, 30) + '...' : m.tieBreaker}
                                           </span>
                                         )}
                                         <button 
                                           onClick={() => handleLaunchResult(m)} 
-                                          className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition cursor-pointer"
+                                          className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3 py-1.5 rounded-xl text-xs border border-slate-200 transition cursor-pointer"
                                         >
                                           Editar
                                         </button>
@@ -5553,23 +5946,23 @@ export default function Home() {
                   {!selectedReportTournamentId ? (
                     /* PASSO 1: TELA DE BUSCA E SELEÇÃO DE TORNEIO (RELATÓRIOS) */
                     <div className="space-y-5">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
                         <div>
-                          <h2 className="text-lg font-black text-white flex items-center gap-2">
-                            <TrendingUp className="w-5 h-5 text-emerald-400" />
+                          <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                            <TrendingUp className="w-5 h-5 text-emerald-600" />
                             Relatórios & Classificação · Selecionar Edição do Torneio
                           </h2>
-                          <p className="text-xs text-slate-400 mt-0.5">
+                          <p className="text-xs text-slate-500 mt-0.5">
                             Selecione a edição do torneio abaixo para visualizar relatórios detalhados, líderes e classificação geral.
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
                           {session.role === 'SUPER_ADMIN' ? (
-                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5">
                               <Shield className="w-3.5 h-3.5" /> Super Admin · Todas as Arenas
                             </span>
                           ) : (
-                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
                               <Building className="w-3.5 h-3.5" /> Organização · {selectedArena?.name || session.name}
                             </span>
                           )}
@@ -5577,16 +5970,16 @@ export default function Home() {
                       </div>
 
                       {/* Filtros e Busca de Torneios */}
-                      <div className="bg-[#0d1424] border border-slate-800 p-4 rounded-2xl space-y-3">
+                      <div className="bg-white border border-slate-200 p-4 rounded-2xl space-y-3">
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                           <div className="relative md:col-span-6">
-                            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                             <input 
                               type="text"
                               placeholder="Buscar torneio por nome da edição ou série..."
                               value={searchReportTournamentTerm}
                               onChange={(e) => setSearchReportTournamentTerm(e.target.value)}
-                              className="w-full bg-[#090e1a] border border-slate-700/80 pl-10 pr-4 py-2.5 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                              className="w-full bg-white border border-slate-300 pl-10 pr-4 py-2.5 rounded-xl text-xs text-slate-900 placeholder:text-slate-500 focus:outline-none focus:border-emerald-600"
                             />
                           </div>
 
@@ -5595,7 +5988,7 @@ export default function Home() {
                               <select 
                                 value={filterReportArenaId} 
                                 onChange={(e) => setFilterReportArenaId(e.target.value)}
-                                className="w-full bg-[#090e1a] border border-slate-700/80 p-2.5 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                                className="w-full bg-white border border-slate-300 p-2.5 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-600 font-semibold"
                               >
                                 <option value="ALL">Todas as Arenas ({arenas.length})</option>
                                 {arenas.map(a => (
@@ -5606,14 +5999,14 @@ export default function Home() {
                           )}
 
                           <div className={session.role === 'SUPER_ADMIN' ? "md:col-span-3" : "md:col-span-6"}>
-                            <div className="flex rounded-xl bg-[#090e1a] p-1 border border-slate-800 text-xs">
+                            <div className="flex rounded-xl bg-slate-50 p-1 border border-slate-200 text-xs">
                               <button
                                 type="button"
                                 onClick={() => setFilterReportStatus('ALL')}
                                 className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
                                   filterReportStatus === 'ALL'
-                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                    : 'text-slate-400 hover:text-white'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-900'
                                 }`}
                               >
                                 Todos ({tournaments.length})
@@ -5623,8 +6016,8 @@ export default function Home() {
                                 onClick={() => setFilterReportStatus('VIGENTE')}
                                 className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
                                   filterReportStatus === 'VIGENTE'
-                                    ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                    : 'text-slate-400 hover:text-white'
+                                    ? 'bg-emerald-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-900'
                                 }`}
                               >
                                 🟢 Vigentes
@@ -5634,8 +6027,8 @@ export default function Home() {
                                 onClick={() => setFilterReportStatus('EXPIRADO')}
                                 className={`flex-1 py-1.5 rounded-lg font-bold transition text-center cursor-pointer ${
                                   filterReportStatus === 'EXPIRADO'
-                                    ? 'bg-rose-500 text-white shadow-sm'
-                                    : 'text-slate-400 hover:text-white'
+                                    ? 'bg-rose-600 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-900'
                                 }`}
                               >
                                 🔴 Expirados
@@ -5666,9 +6059,9 @@ export default function Home() {
 
                         if (filteredTournaments.length === 0) {
                           return (
-                            <div className="p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl space-y-3">
+                            <div className="p-12 text-center text-slate-500 border border-slate-200 bg-slate-50 rounded-2xl space-y-3">
                               <Award className="w-10 h-10 text-slate-600 mx-auto" />
-                              <p className="font-semibold text-slate-300">Nenhum torneio encontrado para relatórios.</p>
+                              <p className="font-semibold text-slate-700">Nenhum torneio encontrado para relatórios.</p>
                               <p className="text-xs text-slate-500">
                                 {searchReportTournamentTerm ? 'Tente ajustar os termos da busca.' : 'Aguarde torneios serem cadastrados.'}
                               </p>
@@ -5687,25 +6080,25 @@ export default function Home() {
                               return (
                                 <div 
                                   key={t.id} 
-                                  className={`bg-[#0d1424] border rounded-2xl p-5 space-y-4 transition shadow-sm hover:shadow-md flex flex-col justify-between ${
+                                  className={`bg-white border rounded-2xl p-5 space-y-4 transition shadow-sm hover:shadow-md flex flex-col justify-between ${
                                     vigente 
-                                      ? 'border-slate-800/80 hover:border-emerald-500/40' 
-                                      : 'border-slate-800/50 bg-[#0d1424]/80'
+                                      ? 'border-slate-200 hover:border-emerald-200' 
+                                      : 'border-slate-200 bg-white/90'
                                   }`}
                                 >
                                   <div className="space-y-3">
                                     <div className="flex items-center justify-between gap-2 flex-wrap">
-                                      <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                      <span className="text-[10px] text-amber-600 font-extrabold uppercase tracking-wider">
                                         {t.seriesName}
                                       </span>
                                       <div className="flex items-center gap-1.5">
-                                        <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                        <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                           🏟️ {arenaName}
                                         </span>
                                         <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
                                           t.isDuo 
-                                            ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
-                                            : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                            ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                            : 'bg-amber-50 text-amber-700 border border-amber-200'
                                         }`}>
                                           {t.isDuo ? 'Duplas' : 'Super 8 Indiv.'}
                                         </span>
@@ -5713,35 +6106,35 @@ export default function Home() {
                                     </div>
 
                                     <div>
-                                      <h3 className="text-base font-black text-white">{t.name}</h3>
-                                      <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-1 font-mono">
+                                      <h3 className="text-base font-black text-slate-900">{t.name}</h3>
+                                      <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-1 font-mono">
                                         <Calendar className="w-3.5 h-3.5 text-slate-500" />
                                         <span>{new Date(t.startDate).toLocaleDateString('pt-BR')} até {new Date(t.endDate).toLocaleDateString('pt-BR')}</span>
                                       </p>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
-                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
-                                        <span className="text-slate-400 block text-[10px]">Partidas:</span>
-                                        <strong className="text-white font-mono text-sm">
+                                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 text-[11px]">
+                                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                        <span className="text-slate-500 block text-[10px]">Partidas:</span>
+                                        <strong className="text-slate-900 font-mono text-sm">
                                           {tourMatches.length}
                                         </strong>
                                       </div>
-                                      <div className="bg-[#090e1a] p-2 rounded-xl border border-slate-800">
-                                        <span className="text-slate-400 block text-[10px]">Categorias:</span>
-                                        <strong className="text-amber-300 font-mono text-sm">{tourCats.length}</strong>
+                                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
+                                        <span className="text-slate-500 block text-[10px]">Categorias:</span>
+                                        <strong className="text-amber-700 font-mono text-sm">{tourCats.length}</strong>
                                       </div>
                                     </div>
                                   </div>
 
-                                  <div className="pt-3 border-t border-slate-800/80">
+                                  <div className="pt-3 border-t border-slate-200">
                                     <button 
                                       type="button"
                                       onClick={() => {
                                         setSelectedReportTournamentId(t.id);
                                         setFilterReportCategory('ALL');
                                       }}
-                                      className="w-full py-2.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                                      className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
                                     >
                                       <span>Acessar Relatório</span>
                                       <ArrowRight className="w-3.5 h-3.5" />
@@ -5769,7 +6162,7 @@ export default function Home() {
                       return (
                         <div className="space-y-5">
                           {/* Banner de Identificação do Torneio Selecionado */}
-                          <div className="bg-[#0d1424] border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
+                          <div className="bg-white border border-slate-200 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
                             <div className="space-y-1.5">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <button
@@ -5778,28 +6171,28 @@ export default function Home() {
                                     setSelectedReportTournamentId('');
                                     setFilterReportCategory('ALL');
                                   }}
-                                  className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition border border-slate-700 cursor-pointer"
+                                  className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition border border-slate-200 cursor-pointer"
                                 >
                                   <ArrowLeft className="w-3.5 h-3.5" /> Trocar de Torneio
                                 </button>
-                                <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">
+                                <span className="text-[10px] text-amber-600 font-extrabold uppercase tracking-wider">
                                   {currentTour?.seriesName}
                                 </span>
-                                <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                   🏟️ {currentArenaName}
                                 </span>
                                 <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
                                   currentTour?.isDuo 
-                                    ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20' 
-                                    : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
                                 }`}>
                                   {currentTour?.isDuo ? 'Duplas' : 'Super 8 Individual'}
                                 </span>
                               </div>
 
-                              <h2 className="text-xl font-black text-white">{currentTour?.name}</h2>
+                              <h2 className="text-xl font-black text-slate-900">{currentTour?.name}</h2>
 
-                              <p className="text-xs text-slate-400 flex items-center gap-2 font-mono">
+                              <p className="text-xs text-slate-500 flex items-center gap-2 font-mono">
                                 <Calendar className="w-3.5 h-3.5 text-slate-500" />
                                 <span>{currentTour?.startDate && new Date(currentTour.startDate).toLocaleDateString('pt-BR')} até {currentTour?.endDate && new Date(currentTour.endDate).toLocaleDateString('pt-BR')}</span>
                               </p>
@@ -5813,7 +6206,7 @@ export default function Home() {
                                   setSelectedReportTournamentId(e.target.value);
                                   setFilterReportCategory('ALL');
                                 }}
-                                className="bg-[#090e1a] border border-slate-700/80 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-emerald-500 font-semibold"
+                                className="bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 font-semibold"
                               >
                                 {tournaments.map(t => (
                                   <option key={t.id} value={t.id}>
@@ -5826,14 +6219,14 @@ export default function Home() {
 
                           {/* SEGUNDO FILTRO: CATEGORIAS DO TORNEIO (Quando possui mais de 1 categoria) */}
                           {tourCategories.length > 1 ? (
-                            <div className="bg-[#0d1424] border border-emerald-500/30 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
+                            <div className="bg-white border border-emerald-200 p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-md">
                               <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
                                   <Layers className="w-4 h-4" />
                                 </div>
                                 <div>
-                                  <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Filtro de Categoria</span>
-                                  <p className="text-xs text-slate-300 font-bold">Este torneio possui {tourCategories.length} categorias. Selecione a categoria que deseja visualizar:</p>
+                                  <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Filtro de Categoria</span>
+                                  <p className="text-xs text-slate-700 font-bold">Este torneio possui {tourCategories.length} categorias. Selecione a categoria que deseja visualizar:</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -5842,12 +6235,12 @@ export default function Home() {
                                   onClick={() => setFilterReportCategory('ALL')}
                                   className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                                     filterReportCategory === 'ALL'
-                                      ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                      : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                      ? 'bg-emerald-600 text-white shadow-sm'
+                                      : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
                                   }`}
                                 >
                                   <span>Todas as Categorias</span>
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-900/60 font-mono">
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-800 font-mono tabular-nums">
                                     {tourCategories.length}
                                   </span>
                                 </button>
@@ -5858,8 +6251,8 @@ export default function Home() {
                                     onClick={() => setFilterReportCategory(cat.id)}
                                     className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                                       filterReportCategory === cat.id
-                                        ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                                        : 'bg-[#090e1a] text-slate-400 hover:text-white border border-slate-800'
+                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                        : 'bg-slate-50 text-slate-500 hover:text-slate-900 border border-slate-200'
                                     }`}
                                   >
                                     <span>{cat.type} {cat.level} {cat.name ? `(${cat.name})` : ''}</span>
@@ -5868,10 +6261,10 @@ export default function Home() {
                               </div>
                             </div>
                           ) : tourCategories.length === 1 ? (
-                            <div className="bg-[#0d1424] border border-slate-800 p-3 rounded-xl flex items-center justify-between text-xs text-slate-300">
+                            <div className="bg-white border border-slate-200 p-3 rounded-xl flex items-center justify-between text-xs text-slate-700">
                               <span className="flex items-center gap-2">
-                                <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                                Categoria Única: <strong className="text-white">{tourCategories[0].type} {tourCategories[0].level} {tourCategories[0].name ? `(${tourCategories[0].name})` : ''}</strong>
+                                <Layers className="w-3.5 h-3.5 text-emerald-600" />
+                                Categoria Única: <strong className="text-slate-900">{tourCategories[0].type} {tourCategories[0].level} {tourCategories[0].name ? `(${tourCategories[0].name})` : ''}</strong>
                               </span>
                               <span className="text-slate-500 text-[11px] font-mono">1 categoria configurada</span>
                             </div>
@@ -5880,7 +6273,7 @@ export default function Home() {
                           {/* Leaderboard dos Relatórios por Categoria */}
                           <div className="space-y-6">
                             {displayedCategories.length === 0 ? (
-                              <div className="p-12 text-center text-slate-400 border border-slate-800/80 bg-[#0d1424]/40 rounded-2xl">
+                              <div className="p-12 text-center text-slate-500 border border-slate-200 bg-slate-50 rounded-2xl">
                                 Nenhuma categoria encontrada para o torneio selecionado.
                               </div>
                             ) : (
@@ -5895,13 +6288,13 @@ export default function Home() {
                                   const s8Standings = calculateSuper8Standings(catMatches as any, catAthletes);
 
                                   return (
-                                    <div key={cat.id} className="bg-[#0d1424] border border-amber-500/30 rounded-3xl p-5 space-y-4 shadow-sm">
-                                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800/80 pb-3">
+                                    <div key={cat.id} className="bg-white border border-amber-200 rounded-3xl p-5 space-y-4 shadow-sm">
+                                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 pb-3">
                                         <div>
-                                          <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Super 8 · Classificação Individual Oficial</span>
-                                          <h3 className="font-black text-white text-base mt-0.5">{cat.name || `${cat.type} ${cat.level}`}</h3>
+                                          <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider">Super 8 · Classificação Individual Oficial</span>
+                                          <h3 className="font-black text-slate-900 text-base mt-0.5">{cat.name || `${cat.type} ${cat.level}`}</h3>
                                         </div>
-                                        <span className="text-[10px] px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono font-bold">
+                                        <span className="text-[10px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-mono font-bold">
                                           8 Atletas · 7 Rodadas · Partidas de 4 Games
                                         </span>
                                       </div>
@@ -5912,36 +6305,36 @@ export default function Home() {
                                         <div className="overflow-x-auto">
                                           <table className="w-full text-left text-xs">
                                             <thead>
-                                              <tr className="border-b border-slate-800 text-[10px] text-slate-400 uppercase font-mono">
+                                              <tr className="border-b border-slate-200 text-[10px] text-slate-500 uppercase font-mono">
                                                 <th className="pb-2.5 pl-2">Posição</th>
                                                 <th className="pb-2.5">Atleta</th>
                                                 <th className="pb-2.5 text-center">Partidas</th>
-                                                <th className="pb-2.5 text-center text-emerald-400 font-bold">Vitórias</th>
-                                                <th className="pb-2.5 text-center text-rose-400">Derrotas</th>
+                                                <th className="pb-2.5 text-center text-emerald-600 font-bold">Vitórias</th>
+                                                <th className="pb-2.5 text-center text-rose-600">Derrotas</th>
                                                 <th className="pb-2.5 text-center">G. Feitos</th>
                                                 <th className="pb-2.5 text-center">G. Sofridos</th>
-                                                <th className="pb-2.5 text-center font-bold text-amber-300">Saldo Games</th>
+                                                <th className="pb-2.5 text-center font-bold text-amber-700">Saldo Games</th>
                                                 <th className="pb-2.5 text-right pr-2">Aproveitamento</th>
                                               </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-slate-800/60 font-mono text-xs">
+                                            <tbody className="divide-y divide-slate-200 font-mono text-xs">
                                               {s8Standings.map((item, index) => (
-                                                <tr key={item.athleteId} className={`hover:bg-slate-800/40 transition ${index === 0 ? 'bg-amber-500/5 font-bold text-white' : 'text-slate-300'}`}>
-                                                  <td className="py-2.5 pl-2 font-bold text-amber-400">
+                                                <tr key={item.athleteId} className={`hover:bg-slate-50 transition ${index === 0 ? 'bg-amber-50 font-bold text-slate-900' : 'text-slate-700'}`}>
+                                                  <td className="py-2.5 pl-2 font-bold text-amber-600">
                                                     {index === 0 ? '🥇 1º Lugar' : index === 1 ? '🥈 2º Lugar' : index === 2 ? '🥉 3º Lugar' : `${index + 1}º`}
                                                   </td>
-                                                  <td className="py-2.5 font-sans font-bold text-white">
+                                                  <td className="py-2.5 font-sans font-bold text-slate-900">
                                                     {item.athleteName}
                                                   </td>
-                                                  <td className="py-2.5 text-center text-slate-300">{item.played}</td>
-                                                  <td className="py-2.5 text-center text-emerald-400 font-bold">{item.wins}</td>
-                                                  <td className="py-2.5 text-center text-slate-400">{item.losses}</td>
-                                                  <td className="py-2.5 text-center text-slate-300">{item.gamesFor}</td>
-                                                  <td className="py-2.5 text-center text-slate-400">{item.gamesAgainst}</td>
-                                                  <td className={`py-2.5 text-center font-bold ${item.gameDiff > 0 ? 'text-emerald-400' : item.gameDiff < 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                                                  <td className="py-2.5 text-center text-slate-700">{item.played}</td>
+                                                  <td className="py-2.5 text-center text-emerald-600 font-bold">{item.wins}</td>
+                                                  <td className="py-2.5 text-center text-slate-500">{item.losses}</td>
+                                                  <td className="py-2.5 text-center text-slate-700">{item.gamesFor}</td>
+                                                  <td className="py-2.5 text-center text-slate-500">{item.gamesAgainst}</td>
+                                                  <td className={`py-2.5 text-center font-bold ${item.gameDiff > 0 ? 'text-emerald-600' : item.gameDiff < 0 ? 'text-rose-600' : 'text-slate-500'}`}>
                                                     {item.gameDiff > 0 ? `+${item.gameDiff}` : item.gameDiff}
                                                   </td>
-                                                  <td className="py-2.5 text-right pr-2 text-amber-300 font-bold">
+                                                  <td className="py-2.5 text-right pr-2 text-amber-700 font-bold">
                                                     {item.winRate}%
                                                   </td>
                                                 </tr>
@@ -5975,11 +6368,11 @@ export default function Home() {
                                 }).sort((a, b) => b.wins - a.wins);
 
                                 return (
-                                  <div key={cat.id} className="bg-[#0d1424] border border-slate-800/80 rounded-3xl p-5 space-y-4 shadow-sm">
-                                    <div className="flex justify-between items-center border-b border-slate-800/80 pb-3">
+                                  <div key={cat.id} className="bg-white border border-slate-200 rounded-3xl p-5 space-y-4 shadow-sm">
+                                    <div className="flex justify-between items-center border-b border-slate-200 pb-3">
                                       <div>
-                                        <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Duplas · Classificação</span>
-                                        <h3 className="font-black text-white text-base mt-0.5">{cat.name || `${cat.type} ${cat.level}`}</h3>
+                                        <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Duplas · Classificação</span>
+                                        <h3 className="font-black text-slate-900 text-base mt-0.5">{cat.name || `${cat.type} ${cat.level}`}</h3>
                                       </div>
                                     </div>
 
@@ -5988,12 +6381,12 @@ export default function Home() {
                                     ) : (
                                       <div className="space-y-2">
                                         {leaderboard.map((item, index) => (
-                                          <div key={item.duo.id} className="flex justify-between items-center text-xs p-2.5 rounded-xl bg-[#090e1a] border border-slate-800">
-                                            <span className="truncate text-slate-200">
+                                          <div key={item.duo.id} className="flex justify-between items-center text-xs p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                                            <span className="truncate text-slate-800">
                                               {index === 0 ? '🥇 ' : index === 1 ? '🥈 ' : index === 2 ? '🥉 ' : `${index + 1}º `}
-                                              <strong className="text-white">{item.duo.player1Name} &amp; {item.duo.player2Name}</strong>
+                                              <strong className="text-slate-900">{item.duo.player1Name} &amp; {item.duo.player2Name}</strong>
                                             </span>
-                                            <span className="font-mono text-emerald-400 font-bold shrink-0 bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-500/20 text-xs">
+                                            <span className="font-mono text-emerald-600 font-bold shrink-0 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 text-xs">
                                               {item.wins} Vitórias / {item.totalPlayed} Jogos
                                             </span>
                                           </div>
@@ -6012,28 +6405,377 @@ export default function Home() {
                 </motion.div>
               )}
 
-              {/* VIEW 11: CONFIGURAÇÕES */}
-              {activeTab === 'settings' && (
-                <motion.div key="settings_view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
-                  <div className="bg-[#0d1424] border border-slate-800/80 p-5 rounded-2xl shadow-sm">
-                    <h2 className="text-lg font-black text-white flex items-center gap-2">
-                      <Settings className="w-5 h-5 text-emerald-400" /> Configurações Gerais
-                    </h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Preferências do sistema administrativo de Beach Tennis.</p>
-                  </div>
-
-                  <div className="bg-[#0d1424] border border-slate-800/80 p-6 rounded-2xl space-y-4 max-w-xl shadow-sm">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Perfil Ativo</p>
-                      <p className="text-base font-bold text-white">{session.name}</p>
-                      <p className="text-xs text-slate-400 mt-1">Permissão: <span className="text-emerald-400 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">{session.role}</span></p>
+              {/* VIEW: CHAVEAMENTO MATA-MATA (ÁRVORE DE TORNEIO) */}
+              {activeTab === 'bracket-tree' && (
+                <motion.div 
+                  key="bracket_tree_view" 
+                  initial={{ opacity: 0, y: 10 }} 
+                  animate={{ opacity: 1, y: 0 }} 
+                  exit={{ opacity: 0 }}
+                  className="space-y-6"
+                >
+                  {/* Header Banner */}
+                  <div className="bg-white border border-amber-200 p-5 sm:p-6 rounded-3xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
+                          <GitFork className="w-3.5 h-3.5 text-amber-600" /> Fase Mata-Mata Oficial
+                        </span>
+                        <span className="text-xs text-slate-700 font-mono bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
+                          Árvore Eliminatória
+                        </span>
+                        <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full font-bold">
+                          Exclusivo Mata-Mata (Sem Grupos / Sem Super 8)
+                        </span>
+                      </div>
+                      <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                        Tabela &amp; Árvore de Confrontos Eliminatórios
+                      </h2>
+                      <p className="text-xs sm:text-sm text-slate-500 max-w-2xl">
+                        Acompanhe o chaveamento do mata-mata até a grande final com taça de campeão, vagas diretas (BYE) automáticas e atualização de placares em tempo real.
+                      </p>
                     </div>
 
-                    <div className="space-y-1 pt-4 border-t border-slate-800/80">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Configurações da Base</p>
-                      <p className="text-xs text-slate-300">Banco de dados local persistente ativo e sincronizado.</p>
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedTreeTournamentId && selectedTreeCategoryId) {
+                            fetchTreeData(selectedTreeTournamentId, selectedTreeCategoryId);
+                          }
+                        }}
+                        disabled={loadingTree}
+                        className="py-2.5 px-4 rounded-xl text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Activity className={`w-3.5 h-3.5 text-amber-600 ${loadingTree ? 'animate-spin' : ''}`} />
+                        <span>Atualizar Árvore</span>
+                      </button>
                     </div>
                   </div>
+
+                  {/* Selector Bar: Torneio e Categoria */}
+                  {(() => {
+                    // Filter tournaments: NO SUPER 8!
+                    const eligibleTournaments = tournaments.filter(t => 
+                      t.isDuo !== false && 
+                      !t.name.toLowerCase().includes('super 8') && 
+                      !t.seriesName.toLowerCase().includes('super 8') &&
+                      (session.role === 'SUPER_ADMIN' || t.arenaId === session.arenaId)
+                    );
+
+                    const activeTour = eligibleTournaments.find(t => t.id === selectedTreeTournamentId) || eligibleTournaments[0];
+                    const activeTourId = activeTour?.id || '';
+
+                    // Filter categories: NO SUPER 8!
+                    const eligibleCategories = categories.filter(c => 
+                      c.tournamentId === activeTourId && 
+                      c.type !== 'SUPER 8' && 
+                      c.type !== 'SUPER 8 DUPLAS'
+                    );
+
+                    const activeCat = eligibleCategories.find(c => c.id === selectedTreeCategoryId) || eligibleCategories[0];
+                    const activeCatId = activeCat?.id || '';
+
+                    if (eligibleTournaments.length === 0) {
+                      return (
+                        <div className="p-12 text-center text-slate-500 border border-slate-200 bg-slate-50 rounded-3xl space-y-3">
+                          <Trophy className="w-12 h-12 text-slate-600 mx-auto" />
+                          <p className="font-bold text-slate-900 text-base">Nenhum torneio convencional com mata-mata encontrado.</p>
+                          <p className="text-xs text-slate-500 max-w-md mx-auto">
+                            O chaveamento em árvore é exclusivo para torneios convencionais de duplas. Crie um novo torneio de duplas na aba Torneios para visualizar a chave do mata-mata.
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-6">
+                        {/* Selector Controls */}
+                        <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
+                            {/* Torneio Selector */}
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                <Trophy className="w-3.5 h-3.5 text-amber-600" /> Torneio Convencional
+                              </label>
+                              <select
+                                value={activeTourId}
+                                onChange={(e) => {
+                                  const tourId = e.target.value;
+                                  setSelectedTreeTournamentId(tourId);
+                                  const tourCats = categories.filter(c => c.tournamentId === tourId && c.type !== 'SUPER 8' && c.type !== 'SUPER 8 DUPLAS');
+                                  const firstCat = tourCats[0];
+                                  if (firstCat) {
+                                    setSelectedTreeCategoryId(firstCat.id);
+                                    fetchTreeData(tourId, firstCat.id);
+                                  } else {
+                                    setSelectedTreeCategoryId('');
+                                    setTreeData(null);
+                                  }
+                                }}
+                                className="bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-amber-500 font-medium"
+                              >
+                                {eligibleTournaments.map(t => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.name} {t.seriesName ? `· ${t.seriesName}` : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Categoria Selector */}
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                <Layers className="w-3.5 h-3.5 text-emerald-600" /> Categoria de Duplas
+                              </label>
+                              <select
+                                value={activeCatId}
+                                onChange={(e) => {
+                                  const catId = e.target.value;
+                                  setSelectedTreeCategoryId(catId);
+                                  if (activeTourId && catId) {
+                                    fetchTreeData(activeTourId, catId);
+                                  }
+                                }}
+                                disabled={eligibleCategories.length === 0}
+                                className="bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 font-medium disabled:opacity-50"
+                              >
+                                {eligibleCategories.length === 0 ? (
+                                  <option value="">Nenhuma categoria de duplas</option>
+                                ) : (
+                                  eligibleCategories.map(c => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.name || `${c.type} ${c.level}`}
+                                    </option>
+                                  ))
+                                )}
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Quick Info & Byes Count */}
+                          {treeData && (
+                            <div className="flex items-center gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 md:border-l border-slate-200 md:pl-4">
+                              <div className="text-right">
+                                <span className="text-[10px] text-slate-500 font-mono block">Chave Eliminatória</span>
+                                <span className="text-xs font-black text-amber-700">
+                                  {treeData.byesInfo.bracketSize} Duplas
+                                </span>
+                              </div>
+                              {treeData.byesInfo.byesCount > 0 && (
+                                <div className="text-right">
+                                  <span className="text-[10px] text-slate-500 font-mono block">Vagas Diretas</span>
+                                  <span className="text-xs font-black text-emerald-600">
+                                    {treeData.byesInfo.byesCount} BYE
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Loading State */}
+                        {loadingTree && (
+                          <div className="p-16 text-center border border-slate-200 rounded-3xl bg-slate-50 space-y-3">
+                            <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                            <p className="text-xs font-bold text-slate-700">Carregando chaveamento da árvore eliminatória...</p>
+                            <p className="text-[11px] text-slate-500">Montando os confrontos e posições do mata-mata.</p>
+                          </div>
+                        )}
+
+                        {/* Empty Category State */}
+                        {!loadingTree && eligibleCategories.length === 0 && (
+                          <div className="p-12 text-center text-slate-500 border border-slate-200 bg-slate-50 rounded-3xl space-y-3">
+                            <Layers className="w-10 h-10 text-slate-600 mx-auto" />
+                            <p className="font-bold text-slate-900 text-base">Nenhuma categoria de duplas para este torneio.</p>
+                            <p className="text-xs text-slate-500 max-w-md mx-auto">
+                              Adicione categorias de duplas nas configurações do torneio para gerar a árvore eliminatória.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Tree Bracket Rendering */}
+                        {!loadingTree && treeData && (
+                          <TournamentTreeBracket
+                            data={treeData}
+                            onOpenScoreModal={handleOpenTreeScoreModal}
+                            onGenerateElimination={handleGenerateTreeElimination}
+                            canManage={session.role === 'SUPER_ADMIN' || (activeTour && activeTour.arenaId === session.arenaId)}
+                            loading={loadingTree}
+                          />
+                        )}
+                      </div>
+                    );
+                  })()}
+                </motion.div>
+              )}
+
+              {/* VIEW 11: CONFIGURAÇÕES COM USUÁRIOS E PERFIS */}
+              {(activeTab === 'settings' || activeTab === 'profiles' || activeTab === 'users') && (
+                <motion.div key="settings_view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                  {/* Top Bar com Navegação em Abas dentro de Configurações */}
+                  <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                          Painel Administrativo
+                        </span>
+                      </div>
+                      <h2 className="text-xl font-black text-slate-900 mt-1 flex items-center gap-2.5">
+                        <Settings className="w-5 h-5 text-emerald-600" /> Configurações do Sistema
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Gerencie preferências gerais, permissões de acesso por perfil e a central de usuários cadastrados.
+                      </p>
+                    </div>
+
+                    {/* Botões das 3 Sub-Abas */}
+                    <div className="flex items-center p-1 bg-slate-50 rounded-xl border border-slate-200 self-start md:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => { setActiveTab('settings'); setSettingsSubTab('general'); }}
+                        className={`flex items-center gap-2 py-2 px-3.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                          settingsSubTab === 'general' && activeTab === 'settings'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                      >
+                        <Settings className="w-3.5 h-3.5" /> Geral
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => { setActiveTab('users'); setSettingsSubTab('users'); }}
+                        className={`flex items-center gap-2 py-2 px-3.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                          activeTab === 'users' || settingsSubTab === 'users'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                      >
+                        <Users className="w-3.5 h-3.5" /> Usuários
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                          activeTab === 'users' || settingsSubTab === 'users' ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-600'
+                        }`}>
+                          {systemUsers.length}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => { setActiveTab('profiles'); setSettingsSubTab('profiles'); }}
+                        className={`flex items-center gap-2 py-2 px-3.5 rounded-lg font-bold text-xs transition cursor-pointer ${
+                          activeTab === 'profiles' || settingsSubTab === 'profiles'
+                            ? 'bg-emerald-600 text-white shadow-sm'
+                            : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                      >
+                        <Shield className="w-3.5 h-3.5" /> Perfis & Permissões
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                          activeTab === 'profiles' || settingsSubTab === 'profiles' ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-600'
+                        }`}>
+                          {systemProfiles.length}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Renderização condicional das 3 telas */}
+                  {(activeTab === 'users' || settingsSubTab === 'users') ? (
+                    <UsersManager
+                      users={systemUsers}
+                      profiles={systemProfiles}
+                      arenas={arenas}
+                      onReload={() => fetchData()}
+                      showSuccess={showSuccess}
+                      showError={showError}
+                      requestConfirmation={requestConfirmation}
+                      sessionRole={session?.role}
+                      userId={session?.id}
+                    />
+                  ) : (activeTab === 'profiles' || settingsSubTab === 'profiles') ? (
+                    <ProfilesManager
+                      profiles={systemProfiles}
+                      onReload={() => fetchData()}
+                      showSuccess={showSuccess}
+                      showError={showError}
+                      requestConfirmation={requestConfirmation}
+                      sessionRole={session?.role}
+                      userId={session?.id}
+                    />
+                  ) : (
+                    /* SUB-ABA: GERAL */
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="bg-white border border-slate-200 p-6 rounded-2xl space-y-4 shadow-sm">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sessão Autenticada</p>
+                          <p className="text-base font-bold text-slate-900 flex items-center gap-2">
+                            {session.name}
+                            <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                              @{session.username}
+                            </span>
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Papel no Sistema: <span className="text-emerald-600 font-mono font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">{session.role}</span>
+                          </p>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-200 space-y-2">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Atalhos Administrativos</p>
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => { setActiveTab('users'); setSettingsSubTab('users'); }}
+                              className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition cursor-pointer"
+                            >
+                              <Users className="w-4 h-4 text-emerald-600 mb-1" />
+                              <strong className="text-slate-900 text-xs block">Gerenciar Usuários</strong>
+                              <span className="text-[10px] text-slate-500">Criar, desativar e vincular</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => { setActiveTab('profiles'); setSettingsSubTab('profiles'); }}
+                              className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-left transition cursor-pointer"
+                            >
+                              <Shield className="w-4 h-4 text-emerald-600 mb-1" />
+                              <strong className="text-slate-900 text-xs block">Perfis & Flags</strong>
+                              <span className="text-[10px] text-slate-500">Permissões de tela e ações</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-white border border-slate-200 p-6 rounded-2xl space-y-4 shadow-sm flex flex-col justify-between">
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Resumo de Segurança</p>
+                          <h4 className="text-sm font-bold text-slate-900 mt-1">Controle de Acesso por Perfil (RBAC)</h4>
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                            Permissões são aplicadas na interface e validadas nos endpoints das APIs do backend, impedindo acessos e modificações não autorizadas.
+                          </p>
+
+                          <div className="mt-4 space-y-2 text-xs">
+                            <div className="flex justify-between py-1.5 px-3 bg-slate-50 rounded-lg border border-slate-200">
+                              <span className="text-slate-500">Total de Usuários:</span>
+                              <strong className="text-slate-900 font-mono">{systemUsers.length}</strong>
+                            </div>
+                            <div className="flex justify-between py-1.5 px-3 bg-slate-50 rounded-lg border border-slate-200">
+                              <span className="text-slate-500">Perfis de Acesso Ativos:</span>
+                              <strong className="text-emerald-600 font-mono">{systemProfiles.length}</strong>
+                            </div>
+                            <div className="flex justify-between py-1.5 px-3 bg-slate-50 rounded-lg border border-slate-200">
+                              <span className="text-slate-500">Usuários Ativos:</span>
+                              <strong className="text-emerald-700 font-mono">{systemUsers.filter(u => u.status === 'ATIVO').length}</strong>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+                          <span>Sincronização com Atletas e Arenas</span>
+                          <span className="text-emerald-600 font-bold">🟢 Automática</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               )}
 
@@ -6044,95 +6786,95 @@ export default function Home() {
 
       {/* DETAILED ATHLETE VINCULATOR OVERLAY */}
       {selectedArena && (activeTab === 'athletes' || activeTab === 'arenas') && (
-        <div className="fixed inset-0 md:left-64 z-40 bg-[#070b14] flex flex-col overflow-y-auto border-l border-slate-800/80 shadow-2xl">
+        <div className="fixed inset-0 md:left-64 z-40 bg-white flex flex-col overflow-y-auto border-l border-slate-200 shadow-xl">
           <div className="p-6 max-w-7xl w-full mx-auto flex flex-col gap-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
               <div className="flex flex-wrap gap-2.5">
                 {session.role === 'SUPER_ADMIN' ? (
                   <button 
                     onClick={handleCloseArenaManagement}
-                    className="flex items-center gap-2 text-xs font-bold text-slate-200 hover:text-white py-2 px-4 bg-[#0d1424] hover:bg-slate-800/80 rounded-xl transition border border-slate-800/80 cursor-pointer shadow-sm"
+                    className="flex items-center gap-2 text-xs font-bold text-slate-800 hover:text-slate-900 py-2 px-4 bg-white hover:bg-slate-100 rounded-xl transition border border-slate-200 cursor-pointer shadow-sm"
                   >
-                    <ArrowLeft className="w-4 h-4 text-emerald-400" /> Voltar para Arenas
+                    <ArrowLeft className="w-4 h-4 text-emerald-600" /> Voltar para Arenas
                   </button>
                 ) : (
                   <button 
                     onClick={() => { setActiveTab('dashboard'); }}
-                    className="flex items-center gap-2 text-xs font-bold text-slate-200 hover:text-white py-2 px-4 bg-[#0d1424] hover:bg-slate-800/80 rounded-xl transition border border-slate-800/80 cursor-pointer shadow-sm"
+                    className="flex items-center gap-2 text-xs font-bold text-slate-800 hover:text-slate-900 py-2 px-4 bg-white hover:bg-slate-100 rounded-xl transition border border-slate-200 cursor-pointer shadow-sm"
                   >
-                    <ArrowLeft className="w-4 h-4 text-emerald-400" /> Voltar ao Painel
+                    <ArrowLeft className="w-4 h-4 text-emerald-600" /> Voltar ao Painel
                   </button>
                 )}
                 
                 <button 
                   onClick={handleLogout}
-                  className="flex items-center gap-2 text-xs font-bold text-rose-300 hover:bg-rose-950/30 py-2 px-4 bg-[#0d1424] rounded-xl transition border border-rose-900/30 cursor-pointer"
+                  className="flex items-center gap-2 text-xs font-bold text-rose-700 hover:bg-rose-50 py-2 px-4 bg-white rounded-xl transition border border-rose-200 cursor-pointer"
                 >
-                  <LogOut className="w-4 h-4 text-rose-400" /> Sair do Sistema
+                  <LogOut className="w-4 h-4 text-rose-600" /> Sair do Sistema
                 </button>
               </div>
 
               <div className="text-left sm:text-right">
-                <p className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Gerenciando Atletas da Arena:</p>
-                <p className="text-lg font-black text-white">{selectedArena.name}</p>
-                <p className="text-xs text-slate-400">{selectedArena.city} - {selectedArena.state}</p>
+                <p className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Gerenciando Atletas da Arena:</p>
+                <p className="text-lg font-black text-slate-900">{selectedArena.name}</p>
+                <p className="text-xs text-slate-500">{selectedArena.city} - {selectedArena.state}</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-              <div className="lg:col-span-2 bg-[#0d1424] border border-slate-800/80 rounded-2xl p-6 flex flex-col gap-4 shadow-sm">
+              <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 flex flex-col gap-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-sm font-bold text-white uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                      <Users className="w-4 h-4 text-emerald-400" /> Atletas Vinculados à Arena
+                    <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                      <Users className="w-4 h-4 text-emerald-600" /> Atletas Vinculados à Arena
                     </h2>
                   </div>
-                  <span className="text-xs text-emerald-300 font-mono font-bold bg-emerald-950/60 border border-emerald-500/20 px-3 py-1 rounded-xl">
+                  <span className="text-xs text-emerald-700 font-mono font-bold bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl">
                     {arenaAthletes.length} vinculados
                   </span>
                 </div>
 
-                <div className="overflow-x-auto border border-slate-800/80 rounded-xl bg-[#090e1a]">
+                <div className="overflow-x-auto border border-slate-200 rounded-xl bg-slate-50">
                   <table className="w-full min-w-[500px] text-left border-collapse text-xs">
                     <thead>
-                      <tr className="border-b border-slate-800 bg-[#0d1424] text-slate-400 font-bold uppercase text-[10px]">
+                      <tr className="border-b border-slate-200 bg-white text-slate-500 font-bold uppercase text-[10px]">
                         <th className="py-3 px-4">Atleta</th>
                         <th className="py-3 px-4">CPF</th>
                         <th className="py-3 px-4">Gênero</th>
                         <th className="py-3 px-4 text-center">Status na Arena</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
+                    <tbody className="divide-y divide-slate-200">
                       {arenaAthletes.length === 0 ? (
                         <tr>
                           <td colSpan={4} className="py-8 text-center text-slate-500">Nenhum atleta vinculado ainda nesta arena.</td>
                         </tr>
                       ) : (
                         arenaAthletes.map(ath => (
-                          <tr key={ath.id} className="hover:bg-slate-850/40 transition">
+                          <tr key={ath.id} className="hover:bg-slate-50 transition">
                             <td className="py-3 px-4">
-                              <span className="font-bold text-white">{ath.name}</span>
+                              <span className="font-bold text-slate-900">{ath.name}</span>
                             </td>
-                            <td className="py-3 px-4 font-mono text-slate-400">{formatCPF(ath.cpf)}</td>
-                            <td className="py-3 px-4 text-slate-300">{ath.gender === 'M' ? 'Masc' : ath.gender === 'F' ? 'Fem' : 'Misto'}</td>
+                            <td className="py-3 px-4 font-mono text-slate-500">{formatCPF(ath.cpf)}</td>
+                            <td className="py-3 px-4 text-slate-700">{ath.gender === 'M' ? 'Masc' : ath.gender === 'F' ? 'Fem' : 'Misto'}</td>
                             <td className="py-3 px-4">
                               <div className="flex justify-center">
                                 <button 
                                   onClick={() => handleToggleArenaAthleteStatus(ath.id, ath.arenaStatus)}
                                   className={`flex items-center gap-1.5 py-1 px-3 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
                                     ath.arenaStatus === 'ATIVO' 
-                                      ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20' 
-                                      : 'bg-rose-500/10 text-rose-300 border-rose-500/30 hover:bg-rose-500/20'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50' 
+                                      : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-50'
                                   }`}
                                 >
                                   {ath.arenaStatus === 'ATIVO' ? (
                                     <>
-                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
                                       <span>ATIVO</span>
                                     </>
                                   ) : (
                                     <>
-                                      <X className="w-3.5 h-3.5 text-rose-400" />
+                                      <X className="w-3.5 h-3.5 text-rose-600" />
                                       <span>BLOQUEADO</span>
                                     </>
                                   )}
@@ -6147,24 +6889,24 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="bg-[#0d1424] border border-slate-800/80 rounded-2xl p-6 flex flex-col gap-4 shadow-sm">
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                  <UserPlus className="w-4 h-4 text-amber-400" /> Vincular Atletas Globais
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col gap-4 shadow-sm">
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                  <UserPlus className="w-4 h-4 text-amber-600" /> Vincular Atletas Globais
                 </h2>
                 
                 {/* Global Athlete Search Bar */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Buscar no Cadastro Global</label>
+                  <label className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">Buscar no Cadastro Global</label>
                   <input 
                     type="text"
                     placeholder="Digite Nome ou CPF..."
                     value={searchGlobalQuery}
                     onChange={(e) => setSearchGlobalQuery(e.target.value)}
-                    className="w-full bg-[#090e1a] border border-slate-800 rounded-xl py-2 px-3 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-800 focus:outline-none focus:border-emerald-600"
                   />
                 </div>
 
-                <div className="max-h-96 overflow-y-auto border border-slate-800/80 rounded-xl divide-y divide-slate-800/60 bg-[#090e1a]">
+                <div className="max-h-96 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-200 bg-slate-50">
                   {(() => {
                     const cleanQuery = searchGlobalQuery.replace(/\D/g, '');
                     const cleanSearchLower = searchGlobalQuery.toLowerCase().trim();
@@ -6175,14 +6917,14 @@ export default function Home() {
                         return <p className="p-4 text-center text-slate-500 text-xs">Todos os atletas cadastrados já estão vinculados.</p>;
                       }
                       return nonArenaAthletes.map(ath => (
-                        <div key={ath.id} className="p-3 flex items-center justify-between gap-2 hover:bg-slate-800/20 transition">
+                        <div key={ath.id} className="p-3 flex items-center justify-between gap-2 hover:bg-slate-50 transition">
                           <div>
-                            <p className="text-xs font-semibold text-white leading-none">{ath.name}</p>
-                            <p className="text-[10px] text-slate-400 mt-1">CPF: {formatCPF(ath.cpf)}</p>
+                            <p className="text-xs font-semibold text-slate-900 leading-none">{ath.name}</p>
+                            <p className="text-[10px] text-slate-500 mt-1">CPF: {formatCPF(ath.cpf)}</p>
                           </div>
                           <button 
                             onClick={() => handleAssociateAthlete(ath.id)}
-                            className="py-1 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-xs transition cursor-pointer"
+                            className="py-1 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition cursor-pointer"
                           >
                             Vincular
                           </button>
@@ -6200,7 +6942,7 @@ export default function Home() {
                     if (matchesSearch.length === 0) {
                       return (
                         <div className="p-5 text-center space-y-3">
-                          <p className="text-slate-400 text-xs">Nenhum atleta encontrado no cadastro global.</p>
+                          <p className="text-slate-500 text-xs">Nenhum atleta encontrado no cadastro global.</p>
                           <button
                             onClick={() => {
                               const isNumericCandidate = cleanQuery.length >= 3 && /^\d+$/.test(cleanQuery);
@@ -6216,7 +6958,7 @@ export default function Home() {
                               setEditingAthlete(null);
                               setIsAthleteModalOpen(true);
                             }}
-                            className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-sm cursor-pointer"
+                            className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition shadow-sm cursor-pointer"
                           >
                             Cadastrar Novo Atleta Global
                           </button>
@@ -6227,19 +6969,19 @@ export default function Home() {
                     return matchesSearch.map(ath => {
                       const isLinked = arenaAthletes.some(aa => aa.id === ath.id);
                       return (
-                        <div key={ath.id} className="p-3 flex items-center justify-between gap-2 hover:bg-slate-800/20 transition">
+                        <div key={ath.id} className="p-3 flex items-center justify-between gap-2 hover:bg-slate-50 transition">
                           <div>
-                            <p className="text-xs font-semibold text-white leading-none">{ath.name}</p>
-                            <p className="text-[10px] text-slate-400 mt-1">CPF: {formatCPF(ath.cpf)}</p>
+                            <p className="text-xs font-semibold text-slate-900 leading-none">{ath.name}</p>
+                            <p className="text-[10px] text-slate-500 mt-1">CPF: {formatCPF(ath.cpf)}</p>
                           </div>
                           {isLinked ? (
-                            <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 py-1 px-2.5 rounded-lg">
+                            <span className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 border border-emerald-200 py-1 px-2.5 rounded-lg">
                               Já Vinculado
                             </span>
                           ) : (
                             <button 
                               onClick={() => handleAssociateAthlete(ath.id)}
-                              className="py-1 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg text-xs transition cursor-pointer"
+                              className="py-1 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition cursor-pointer"
                             >
                               Vincular
                             </button>
@@ -6257,49 +6999,49 @@ export default function Home() {
 
       {/* Athlete Modal */}
       {isAthleteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#0d1424] border border-slate-800/80 w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Users className="w-4 h-4 text-emerald-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-slate-200 w-full max-w-lg rounded-2xl overflow-hidden shadow-xl">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Users className="w-4 h-4 text-emerald-600" />
                 {editingAthlete ? 'Editar Atleta' : 'Novo Atleta'}
               </h3>
-              <button onClick={() => setIsAthleteModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+              <button onClick={() => setIsAthleteModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
             <form onSubmit={handleSaveAthlete} className="p-6 space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">CPF</label>
-                  <input type="text" required placeholder="000.000.000-00" disabled={!!editingAthlete} value={athleteForm.cpf} onChange={(e) => setAthleteForm({ ...athleteForm, cpf: formatCPF(e.target.value) })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 disabled:opacity-50" />
+                  <label className="text-slate-700 font-semibold">CPF</label>
+                  <input type="text" required placeholder="000.000.000-00" disabled={!!editingAthlete} value={athleteForm.cpf} onChange={(e) => setAthleteForm({ ...athleteForm, cpf: formatCPF(e.target.value) })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600 disabled:opacity-50" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Nome Completo</label>
-                  <input type="text" required minLength={3} placeholder="Nome do atleta" value={athleteForm.name} onChange={(e) => setAthleteForm({ ...athleteForm, name: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500" />
+                  <label className="text-slate-700 font-semibold">Nome Completo</label>
+                  <input type="text" required minLength={3} placeholder="Nome do atleta" value={athleteForm.name} onChange={(e) => setAthleteForm({ ...athleteForm, name: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Nascimento</label>
-                  <input type="date" required value={athleteForm.birthDate} onChange={(e) => setAthleteForm({ ...athleteForm, birthDate: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500" />
+                  <label className="text-slate-700 font-semibold">Nascimento</label>
+                  <input type="date" required value={athleteForm.birthDate} onChange={(e) => setAthleteForm({ ...athleteForm, birthDate: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Gênero</label>
-                  <select value={athleteForm.gender} onChange={(e) => setAthleteForm({ ...athleteForm, gender: e.target.value as any })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500">
+                  <label className="text-slate-700 font-semibold">Gênero</label>
+                  <select value={athleteForm.gender} onChange={(e) => setAthleteForm({ ...athleteForm, gender: e.target.value as any })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600">
                     <option value="M">Masculino</option>
                     <option value="F">Feminino</option>
                     <option value="MISTO">Misto</option>
                   </select>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Telefone</label>
-                  <input type="text" required placeholder="(00) 00000-0000" value={athleteForm.phone} onChange={(e) => setAthleteForm({ ...athleteForm, phone: formatPhone(e.target.value) })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono focus:outline-none focus:border-emerald-500" />
+                  <label className="text-slate-700 font-semibold">Telefone</label>
+                  <input type="text" required placeholder="(00) 00000-0000" value={athleteForm.phone} onChange={(e) => setAthleteForm({ ...athleteForm, phone: formatPhone(e.target.value) })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono focus:outline-none focus:border-emerald-600" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">E-mail</label>
-                  <input type="email" required placeholder="email@atleta.com" value={athleteForm.email} onChange={(e) => setAthleteForm({ ...athleteForm, email: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500" />
+                  <label className="text-slate-700 font-semibold">E-mail</label>
+                  <input type="email" required placeholder="email@atleta.com" value={athleteForm.email} onChange={(e) => setAthleteForm({ ...athleteForm, email: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600" />
                 </div>
               </div>
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">
-                <button type="button" onClick={() => setIsAthleteModalOpen(false)} className="py-2 px-4 text-slate-400 hover:text-white transition cursor-pointer">Voltar</button>
-                <button type="submit" className="py-2.5 px-5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition shadow-md shadow-emerald-500/10 cursor-pointer">Salvar Atleta</button>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button type="button" onClick={() => setIsAthleteModalOpen(false)} className="py-2 px-4 text-slate-500 hover:text-slate-900 transition cursor-pointer">Voltar</button>
+                <button type="submit" className="py-2.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow-md shadow-emerald-600/10 cursor-pointer">Salvar Atleta</button>
               </div>
             </form>
           </motion.div>
@@ -6308,66 +7050,66 @@ export default function Home() {
 
       {/* Organizador Modal */}
       {isArenaModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#0d1424] border border-slate-800/80 w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Shield className="w-4 h-4 text-sky-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-slate-200 w-full max-w-lg rounded-2xl overflow-hidden shadow-xl">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-sky-600" />
                 {editingArena ? 'Configurar Organizador' : 'Novo Organizador'}
               </h3>
-              <button onClick={() => setIsArenaModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+              <button onClick={() => setIsArenaModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
             <form onSubmit={handleSaveArena} className="p-6 space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5 sm:col-span-2">
-                  <label className="text-slate-300 font-semibold">Nome do Organizador (Clube / Federação / Empresa)</label>
-                  <input type="text" required placeholder="Ex: Beach Tennis Tour Brasil, Clube dos Atletas..." value={arenaForm.name} onChange={(e) => setArenaForm({ ...arenaForm, name: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-sky-500" />
+                  <label className="text-slate-700 font-semibold">Nome do Organizador (Clube / Federação / Empresa)</label>
+                  <input type="text" required placeholder="Ex: Beach Tennis Tour Brasil, Clube dos Atletas..." value={arenaForm.name} onChange={(e) => setArenaForm({ ...arenaForm, name: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-sky-500" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Responsável</label>
-                  <input type="text" required placeholder="Nome do responsável" value={arenaForm.owner} onChange={(e) => setArenaForm({ ...arenaForm, owner: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-sky-500" />
+                  <label className="text-slate-700 font-semibold">Responsável</label>
+                  <input type="text" required placeholder="Nome do responsável" value={arenaForm.owner} onChange={(e) => setArenaForm({ ...arenaForm, owner: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-sky-500" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Telefone</label>
-                  <input type="text" required placeholder="(00) 00000-0000" value={arenaForm.phone} onChange={(e) => setArenaForm({ ...arenaForm, phone: formatPhone(e.target.value) })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono focus:outline-none focus:border-sky-500" />
+                  <label className="text-slate-700 font-semibold">Telefone</label>
+                  <input type="text" required placeholder="(00) 00000-0000" value={arenaForm.phone} onChange={(e) => setArenaForm({ ...arenaForm, phone: formatPhone(e.target.value) })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono focus:outline-none focus:border-sky-500" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">E-mail</label>
-                  <input type="email" required placeholder="contato@organizador.com" value={arenaForm.email} onChange={(e) => setArenaForm({ ...arenaForm, email: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-sky-500" />
+                  <label className="text-slate-700 font-semibold">E-mail</label>
+                  <input type="email" required placeholder="contato@organizador.com" value={arenaForm.email} onChange={(e) => setArenaForm({ ...arenaForm, email: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-sky-500" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Status</label>
-                  <select value={arenaForm.status} onChange={(e) => setArenaForm({ ...arenaForm, status: e.target.value as any })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-sky-500">
+                  <label className="text-slate-700 font-semibold">Status</label>
+                  <select value={arenaForm.status} onChange={(e) => setArenaForm({ ...arenaForm, status: e.target.value as any })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-sky-500">
                     <option value="ATIVA">ATIVA</option>
                     <option value="INATIVA">INATIVA</option>
                   </select>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Cidade</label>
-                  <input type="text" required placeholder="Cidade" value={arenaForm.city} onChange={(e) => setArenaForm({ ...arenaForm, city: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-sky-500" />
+                  <label className="text-slate-700 font-semibold">Cidade</label>
+                  <input type="text" required placeholder="Cidade" value={arenaForm.city} onChange={(e) => setArenaForm({ ...arenaForm, city: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-sky-500" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Estado (UF)</label>
-                  <input type="text" required maxLength={2} placeholder="Ex: RJ" value={arenaForm.state} onChange={(e) => setArenaForm({ ...arenaForm, state: e.target.value.toUpperCase() })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono focus:outline-none focus:border-sky-500" />
+                  <label className="text-slate-700 font-semibold">Estado (UF)</label>
+                  <input type="text" required maxLength={2} placeholder="Ex: RJ" value={arenaForm.state} onChange={(e) => setArenaForm({ ...arenaForm, state: e.target.value.toUpperCase() })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono focus:outline-none focus:border-sky-500" />
                 </div>
 
-                <div className="sm:col-span-2 border-t border-slate-800/80 pt-4 space-y-2">
-                  <p className="font-bold text-slate-300 uppercase tracking-wider text-[10px] flex items-center gap-1.5"><Lock className="w-3.5 h-3.5 text-emerald-400" /> Acesso Administrador do Organizador</p>
+                <div className="sm:col-span-2 border-t border-slate-200 pt-4 space-y-2">
+                  <p className="font-bold text-slate-700 uppercase tracking-wider text-[10px] flex items-center gap-1.5"><Lock className="w-3.5 h-3.5 text-emerald-600" /> Acesso Administrador do Organizador</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">
-                      <label className="text-slate-400">Usuário (Username)</label>
-                      <input type="text" required placeholder="user" value={arenaForm.adminUsername} onChange={(e) => setArenaForm({ ...arenaForm, adminUsername: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl font-mono text-slate-200 focus:outline-none focus:border-emerald-500" />
+                      <label className="text-slate-500">Usuário (Username)</label>
+                      <input type="text" required placeholder="user" value={arenaForm.adminUsername} onChange={(e) => setArenaForm({ ...arenaForm, adminUsername: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl font-mono text-slate-800 focus:outline-none focus:border-emerald-600" />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-slate-400">Senha</label>
-                      <input type="text" required placeholder="password" value={arenaForm.adminPassword} onChange={(e) => setArenaForm({ ...arenaForm, adminPassword: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl font-mono text-slate-200 focus:outline-none focus:border-emerald-500" />
+                      <label className="text-slate-500">Senha</label>
+                      <input type="text" required placeholder="password" value={arenaForm.adminPassword} onChange={(e) => setArenaForm({ ...arenaForm, adminPassword: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl font-mono text-slate-800 focus:outline-none focus:border-emerald-600" />
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">
-                <button type="button" onClick={() => setIsArenaModalOpen(false)} className="py-2 px-4 text-slate-400 hover:text-white transition cursor-pointer">Cancelar</button>
-                <button type="submit" className="py-2.5 px-5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold rounded-xl transition shadow-md shadow-sky-500/10 cursor-pointer">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button type="button" onClick={() => setIsArenaModalOpen(false)} className="py-2 px-4 text-slate-500 hover:text-slate-900 transition cursor-pointer">Cancelar</button>
+                <button type="submit" className="py-2.5 px-5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl transition shadow-md shadow-sky-600/15 cursor-pointer">
                   {editingArena ? 'Salvar Organizador' : 'Cadastrar Organizador'}
                 </button>
               </div>
@@ -6378,36 +7120,36 @@ export default function Home() {
 
       {/* Venue (Arena Física - Local onde os eventos acontecem) Modal */}
       {isVenueModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#0d1424] border border-slate-800/80 w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Building className="w-4 h-4 text-amber-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-slate-200 w-full max-w-lg rounded-2xl overflow-hidden shadow-xl">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Building className="w-4 h-4 text-amber-600" />
                 {editingVenue ? 'Editar Arena (Local do Evento)' : 'Nova Arena (Local do Evento)'}
               </h3>
-              <button onClick={() => setIsVenueModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+              <button onClick={() => setIsVenueModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
             <form onSubmit={handleSaveVenue} className="p-6 space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5 sm:col-span-2">
-                  <label className="text-slate-300 font-semibold">Nome da Arena (Local Físico)</label>
+                  <label className="text-slate-700 font-semibold">Nome da Arena (Local Físico)</label>
                   <input 
                     type="text" 
                     required 
                     placeholder="Ex: Arena Sunset Santos, Posto 9 Beach Club..." 
                     value={venueForm.name} 
                     onChange={(e) => setVenueForm({ ...venueForm, name: e.target.value })} 
-                    className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500" 
+                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-amber-500" 
                   />
                 </div>
 
-                <div className="flex flex-col gap-2 sm:col-span-2 bg-[#090e1a] p-4 rounded-xl border border-amber-500/20">
+                <div className="flex flex-col gap-2 sm:col-span-2 bg-slate-50 p-4 rounded-xl border border-amber-200">
                   <div className="flex justify-between items-center">
-                    <label className="text-amber-300 font-bold flex items-center gap-1.5">
-                      <Layers className="w-4 h-4 text-amber-400" />
+                    <label className="text-amber-700 font-bold flex items-center gap-1.5">
+                      <Layers className="w-4 h-4 text-amber-600" />
                       Quantidade Total de Quadras Físicas da Arena:
                     </label>
-                    <span className="font-mono text-xs text-amber-300 bg-amber-950/60 px-2.5 py-0.5 rounded-lg border border-amber-500/30 font-bold">
+                    <span className="font-mono text-xs text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-200 font-bold">
                       {venueForm.courtsCount} {venueForm.courtsCount === 1 ? 'quadra' : 'quadras'}
                     </span>
                   </div>
@@ -6419,38 +7161,38 @@ export default function Home() {
                     placeholder="Ex: 8" 
                     value={venueForm.courtsCount} 
                     onChange={(e) => setVenueForm({ ...venueForm, courtsCount: Math.max(1, Number(e.target.value)) })} 
-                    className="bg-[#0d1424] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono text-sm font-bold focus:outline-none focus:border-amber-500 mt-1" 
+                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono text-sm font-bold focus:outline-none focus:border-amber-500 mt-1" 
                   />
-                  <p className="text-[10px] text-slate-400 leading-relaxed">
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
                     Cada arena possui sua quantidade de quadras. Ao criar um torneio, o organizador poderá definir quantas quadras desta arena vai utilizar no dia do evento (dependendo do número de pessoas inscritas).
                   </p>
                 </div>
 
                 <div className="flex flex-col gap-1.5 sm:col-span-2">
-                  <label className="text-slate-300 font-semibold">Endereço Completo</label>
+                  <label className="text-slate-700 font-semibold">Endereço Completo</label>
                   <input 
                     type="text" 
                     placeholder="Ex: Av. Presidente Wilson, 120 - Praia do Gonzaga" 
                     value={venueForm.address} 
                     onChange={(e) => setVenueForm({ ...venueForm, address: e.target.value })} 
-                    className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500" 
+                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-amber-500" 
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Cidade</label>
+                  <label className="text-slate-700 font-semibold">Cidade</label>
                   <input 
                     type="text" 
                     required 
                     placeholder="Ex: Santos" 
                     value={venueForm.city} 
                     onChange={(e) => setVenueForm({ ...venueForm, city: e.target.value })} 
-                    className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500" 
+                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-amber-500" 
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Estado (UF)</label>
+                  <label className="text-slate-700 font-semibold">Estado (UF)</label>
                   <input 
                     type="text" 
                     required 
@@ -6458,27 +7200,27 @@ export default function Home() {
                     placeholder="Ex: SP" 
                     value={venueForm.state} 
                     onChange={(e) => setVenueForm({ ...venueForm, state: e.target.value.toUpperCase() })} 
-                    className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono uppercase focus:outline-none focus:border-amber-500" 
+                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono uppercase focus:outline-none focus:border-amber-500" 
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Telefone de Contato</label>
+                  <label className="text-slate-700 font-semibold">Telefone de Contato</label>
                   <input 
                     type="text" 
                     placeholder="(00) 00000-0000" 
                     value={venueForm.contactPhone} 
                     onChange={(e) => setVenueForm({ ...venueForm, contactPhone: formatPhone(e.target.value) })} 
-                    className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono focus:outline-none focus:border-amber-500" 
+                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono focus:outline-none focus:border-amber-500" 
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Status da Arena</label>
+                  <label className="text-slate-700 font-semibold">Status da Arena</label>
                   <select 
                     value={venueForm.status} 
                     onChange={(e) => setVenueForm({ ...venueForm, status: e.target.value as any })} 
-                    className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500"
+                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-amber-500"
                   >
                     <option value="ATIVA">ATIVA</option>
                     <option value="INATIVA">INATIVA</option>
@@ -6486,9 +7228,9 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">
-                <button type="button" onClick={() => setIsVenueModalOpen(false)} className="py-2 px-4 text-slate-400 hover:text-white transition cursor-pointer">Cancelar</button>
-                <button type="submit" className="py-2.5 px-5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition shadow-md shadow-amber-500/10 cursor-pointer">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button type="button" onClick={() => setIsVenueModalOpen(false)} className="py-2 px-4 text-slate-500 hover:text-slate-900 transition cursor-pointer">Cancelar</button>
+                <button type="submit" className="py-2.5 px-5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl transition shadow-md shadow-amber-500/15 cursor-pointer">
                   {editingVenue ? 'Salvar Arena' : 'Cadastrar Arena'}
                 </button>
               </div>
@@ -6499,36 +7241,36 @@ export default function Home() {
 
       {/* Torneio Modal (With active categories toggles inside! - Requested Feature!) */}
       {isTourModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#0d1424] border border-slate-800/80 w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between shrink-0">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-emerald-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-slate-200 w-full max-w-2xl rounded-2xl overflow-hidden shadow-xl flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-emerald-600" />
                 {editingTournament ? 'Editar Torneio' : 'Nova Edição de Torneio'}
               </h3>
-              <button onClick={() => setIsTourModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+              <button onClick={() => setIsTourModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
             
             <form onSubmit={handleSaveTournament} className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Nome da Série (Série Pai)</label>
-                  <input type="text" required placeholder="Ex: Orion Open" value={tourForm.seriesName} onChange={(e) => setTourForm({ ...tourForm, seriesName: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500" />
+                  <label className="text-slate-700 font-semibold">Nome da Série (Série Pai)</label>
+                  <input type="text" required placeholder="Ex: Orion Open" value={tourForm.seriesName} onChange={(e) => setTourForm({ ...tourForm, seriesName: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Nome da Edição</label>
-                  <input type="text" required placeholder="Ex: Orion Open - Etapa Verão" value={tourForm.name} onChange={(e) => setTourForm({ ...tourForm, name: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500" />
+                  <label className="text-slate-700 font-semibold">Nome da Edição</label>
+                  <input type="text" required placeholder="Ex: Orion Open - Etapa Verão" value={tourForm.name} onChange={(e) => setTourForm({ ...tourForm, name: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600" />
                 </div>
 
                 {session?.role === 'SUPER_ADMIN' && (
                   <div className="flex flex-col gap-1.5 sm:col-span-2">
-                    <label className="text-slate-300 font-semibold flex items-center gap-1.5">
-                      <Shield className="w-3.5 h-3.5 text-sky-400" /> Organizador Responsável
+                    <label className="text-slate-700 font-semibold flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-sky-600" /> Organizador Responsável
                     </label>
                     <select 
                       value={tourForm.arenaId} 
                       onChange={(e) => setTourForm({ ...tourForm, arenaId: e.target.value })} 
-                      className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500"
+                      className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600"
                     >
                       {arenas.map(a => (
                         <option key={a.id} value={a.id}>{a.name} ({a.city} - {a.state})</option>
@@ -6538,14 +7280,14 @@ export default function Home() {
                 )}
 
                 {/* Arena (Local do Evento) and Quadras Utilizadas no Dia */}
-                <div className="flex flex-col gap-3 sm:col-span-2 bg-[#090e1a] border border-slate-800/80 p-4 rounded-xl">
+                <div className="flex flex-col gap-3 sm:col-span-2 bg-slate-50 border border-slate-200 p-4 rounded-xl">
                   <div className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-center">
-                      <label className="text-emerald-400 font-bold flex items-center gap-1.5">
-                        <Building className="w-4 h-4 text-emerald-400" />
+                      <label className="text-emerald-600 font-bold flex items-center gap-1.5">
+                        <Building className="w-4 h-4 text-emerald-600" />
                         Arena (Local onde os eventos acontecem)
                       </label>
-                      <span className="text-[10px] text-slate-400">
+                      <span className="text-[10px] text-slate-500">
                         Estrutura física do campeonato
                       </span>
                     </div>
@@ -6554,14 +7296,14 @@ export default function Home() {
                       value={tourForm.venueId} 
                       onChange={(e) => {
                         const selectedV = venues.find(v => v.id === e.target.value);
-                        const maxCourts = selectedV ? selectedV.courtsCount : 4;
+                        const maxCourts = selectedV ? (selectedV.courtsCount || 1) : 4;
                         setTourForm({ 
                           ...tourForm, 
                           venueId: e.target.value,
-                          courtsUsed: Math.min(tourForm.courtsUsed, maxCourts) || Math.min(4, maxCourts)
+                          courtsUsed: maxCourts
                         });
                       }}
-                      className="bg-[#0d1424] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-medium focus:outline-none focus:border-emerald-500"
+                      className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-medium focus:outline-none focus:border-emerald-600"
                     >
                       {venues.length === 0 ? (
                         <option value="">Nenhuma arena cadastrada (adicione em Arenas no menu)</option>
@@ -6580,18 +7322,18 @@ export default function Home() {
                     const currentVenue = venues.find(v => v.id === tourForm.venueId) || venues[0];
                     const maxCourts = currentVenue ? currentVenue.courtsCount : 6;
                     return (
-                      <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                      <div className="pt-2 border-t border-slate-200 space-y-2">
                         <div className="flex justify-between items-start gap-2">
                           <div>
-                            <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                              <Layers className="w-3.5 h-3.5 text-amber-400" />
+                            <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                              <Layers className="w-3.5 h-3.5 text-amber-600" />
                               Número de Quadras Utilizadas no Dia do Evento:
                             </span>
-                            <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">
+                            <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
                               O organizador define quantas quadras da arena ({maxCourts} no total) vai utilizar no dia, dependendo do número de inscritos.
                             </p>
                           </div>
-                          <span className="text-sm font-black text-amber-300 font-mono bg-amber-950/60 border border-amber-500/20 px-3 py-1 rounded-lg shrink-0">
+                          <span className="text-sm font-black text-amber-700 font-mono bg-amber-50 border border-amber-200 px-3 py-1 rounded-lg shrink-0">
                             {tourForm.courtsUsed} {tourForm.courtsUsed === 1 ? 'quadra' : 'quadras'}
                           </span>
                         </div>
@@ -6603,7 +7345,7 @@ export default function Home() {
                             max={maxCourts}
                             value={tourForm.courtsUsed} 
                             onChange={(e) => setTourForm({ ...tourForm, courtsUsed: Number(e.target.value) })}
-                            className="w-full accent-emerald-400 cursor-pointer h-2 bg-slate-900 rounded-lg"
+                            className="w-full accent-emerald-600 cursor-pointer h-2 bg-slate-100 rounded-lg"
                           />
                           <div className="flex gap-1.5 shrink-0">
                             {[1, 2, 4, 6, maxCourts].filter((n, idx, arr) => n <= maxCourts && arr.indexOf(n) === idx).map(num => (
@@ -6613,8 +7355,8 @@ export default function Home() {
                                 onClick={() => setTourForm({ ...tourForm, courtsUsed: num })}
                                 className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold transition border cursor-pointer ${
                                   tourForm.courtsUsed === num 
-                                    ? 'bg-emerald-500 text-slate-950 border-emerald-400' 
-                                    : 'bg-[#0d1424] text-slate-400 border-slate-800 hover:text-white'
+                                    ? 'bg-emerald-600 text-white border-emerald-600' 
+                                    : 'bg-white text-slate-500 border-slate-200 hover:text-slate-900'
                                 }`}
                               >
                                 {num === maxCourts ? `Todas (${num})` : `${num}Q`}
@@ -6629,26 +7371,26 @@ export default function Home() {
 
                 <div className="grid grid-cols-2 gap-3 sm:col-span-2">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-slate-300 font-semibold">Data Início</label>
-                    <input type="date" required value={tourForm.startDate} onChange={(e) => setTourForm({ ...tourForm, startDate: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono focus:outline-none focus:border-emerald-500" />
+                    <label className="text-slate-700 font-semibold">Data Início</label>
+                    <input type="date" required value={tourForm.startDate} onChange={(e) => setTourForm({ ...tourForm, startDate: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono focus:outline-none focus:border-emerald-600" />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-slate-300 font-semibold">Data Término</label>
-                    <input type="date" required value={tourForm.endDate} onChange={(e) => setTourForm({ ...tourForm, endDate: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono focus:outline-none focus:border-emerald-500" />
+                    <label className="text-slate-700 font-semibold">Data Término</label>
+                    <input type="date" required value={tourForm.endDate} onChange={(e) => setTourForm({ ...tourForm, endDate: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono focus:outline-none focus:border-emerald-600" />
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-1.5 sm:col-span-2">
-                  <label className="text-slate-300 font-semibold">Status do Torneio</label>
-                  <select value={tourForm.status} onChange={(e) => setTourForm({ ...tourForm, status: e.target.value as any })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500">
+                  <label className="text-slate-700 font-semibold">Status do Torneio</label>
+                  <select value={tourForm.status} onChange={(e) => setTourForm({ ...tourForm, status: e.target.value as any })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600">
                     <option value="INSCRICOES_ABERTAS">Inscrições Abertas</option>
                     <option value="EM_ANDAMENTO">Em Andamento</option>
                     <option value="FINALIZADO">Finalizado</option>
                   </select>
                 </div>
 
-                <div className="flex flex-col gap-2 sm:col-span-2 bg-[#090e1a] p-3.5 rounded-xl border border-slate-800/80">
-                  <span className="text-slate-300 font-semibold">Formato do Torneio</span>
+                <div className="flex flex-col gap-2 sm:col-span-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                  <span className="text-slate-700 font-semibold">Formato do Torneio</span>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                       <input 
@@ -6656,9 +7398,9 @@ export default function Home() {
                         name="isDuo" 
                         checked={tourForm.isDuo === true}
                         onChange={() => setTourForm({ ...tourForm, isDuo: true })}
-                        className="w-4 h-4 accent-emerald-500 cursor-pointer"
+                        className="w-4 h-4 accent-emerald-600 cursor-pointer"
                       />
-                      <span className="text-slate-200 font-medium">Torneio de Dupla (Padrão)</span>
+                      <span className="text-slate-800 font-medium">Torneio de Dupla (Padrão)</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                       <input 
@@ -6666,48 +7408,48 @@ export default function Home() {
                         name="isDuo" 
                         checked={tourForm.isDuo === false}
                         onChange={() => setTourForm({ ...tourForm, isDuo: false })}
-                        className="w-4 h-4 accent-emerald-500 cursor-pointer"
+                        className="w-4 h-4 accent-emerald-600 cursor-pointer"
                       />
-                      <span className="text-slate-200 font-medium">Torneio Individual</span>
+                      <span className="text-slate-800 font-medium">Torneio Individual</span>
                     </label>
                   </div>
                 </div>
 
                 {/* Games & Thai Break Settings */}
                 <div className="flex flex-col gap-2 sm:col-span-2">
-                  <span className="text-slate-300 font-semibold flex items-center gap-2">
-                    <span className="text-xs text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">i</span>
+                  <span className="text-slate-700 font-semibold flex items-center gap-2">
+                    <span className="text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">i</span>
                     Configurações de Pontuação
                   </span>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-slate-300 font-semibold">Quantidade de Games</label>
+                      <label className="text-slate-700 font-semibold">Quantidade de Games</label>
                       <select
                         value={tourForm.games}
                         onChange={(e) => setTourForm({ ...tourForm, games: Number(e.target.value) as 4 | 6 })}
-                        className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-semibold focus:outline-none focus:border-emerald-500"
+                        className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-semibold focus:outline-none focus:border-emerald-600"
                       >
                         <option value={4}>4 Games</option>
                         <option value={6}>6 Games</option>
                       </select>
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-slate-300 font-semibold">Thai Break</label>
+                      <label className="text-slate-700 font-semibold">Thai Break</label>
                       <div className="flex items-center gap-3 pt-1">
                         <input
                           type="checkbox"
                           checked={tourForm.thaiBreak}
                           onChange={(e) => setTourForm({ ...tourForm, thaiBreak: e.target.checked })}
-                          className="w-4 h-4 accent-amber-400 cursor-pointer"
+                          className="w-4 h-4 accent-amber-500 cursor-pointer"
                           disabled={tourForm.games !== 6}
                         />
-                        <span className={`text-xs ${tourForm.games !== 6 ? 'text-slate-500' : 'text-slate-300'}`}>
+                        <span className={`text-xs ${tourForm.games !== 6 ? 'text-slate-500' : 'text-slate-700'}`}>
                           Ativar Thai Break (7 pts no 6x6, 7x6 no placar)
                         </span>
                       </div>
                     </div>
                   </div>
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[10px] text-slate-500">
                     {tourForm.games === 4
                       ? '4 Games: um time fecha com 4 e o adversário 0-3.'
                       : tourForm.thaiBreak
@@ -6717,14 +7459,14 @@ export default function Home() {
                 </div>
 
                 {/* DYNAMIC CATEGORIES DEFINITIONS SECTOR (Loaded from pre-registered master categories) */}
-                <div className="sm:col-span-2 border-t border-slate-800/80 pt-4 space-y-3">
+                <div className="sm:col-span-2 border-t border-slate-200 pt-4 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <h4 className="text-slate-200 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-                        <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                      <h4 className="text-slate-800 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-emerald-600" />
                         Categorias do Torneio (Selecionadas do Pré-Cadastro)
                       </h4>
-                      <p className="text-[10px] text-slate-400 mt-0.5">
+                      <p className="text-[10px] text-slate-500 mt-0.5">
                         Marque quais categorias pré-cadastradas no sistema farão parte deste torneio e ajuste a taxa ou vagas se desejar.
                       </p>
                     </div>
@@ -6736,7 +7478,7 @@ export default function Home() {
                           const updated = tourCategories.map(c => ({ ...c, enabled: true }));
                           setTourCategories(updated);
                         }}
-                        className="px-2 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold transition cursor-pointer"
+                        className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] font-bold transition cursor-pointer"
                       >
                         Marcar Todas
                       </button>
@@ -6746,16 +7488,16 @@ export default function Home() {
                           const updated = tourCategories.map(c => ({ ...c, enabled: false }));
                           setTourCategories(updated);
                         }}
-                        className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] font-medium transition cursor-pointer"
+                        className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-[10px] font-medium transition cursor-pointer"
                       >
                         Desmarcar
                       </button>
                     </div>
                   </div>
 
-                  <div className="border border-slate-800/80 rounded-xl divide-y divide-slate-800/60 max-h-60 overflow-y-auto bg-[#090e1a] p-1">
+                  <div className="border border-slate-200 rounded-xl divide-y divide-slate-200 max-h-60 overflow-y-auto bg-slate-50 p-1">
                     {tourCategories.length === 0 ? (
-                      <div className="p-4 text-center text-slate-400 text-xs">
+                      <div className="p-4 text-center text-slate-500 text-xs">
                         Nenhuma categoria pré-cadastrada no sistema. Cadastre categorias no menu &quot;Cadastrar ➔ Categorias&quot;.
                       </div>
                     ) : (
@@ -6770,18 +7512,18 @@ export default function Home() {
                                 next[idx].enabled = e.target.checked;
                                 setTourCategories(next);
                               }}
-                              className="w-4 h-4 rounded accent-emerald-500 cursor-pointer"
+                              className="w-4 h-4 rounded accent-emerald-600 cursor-pointer"
                             />
                             <div>
-                              <span className="text-white font-bold">{std.name || `${std.type} ${std.level}`}</span>
-                              <span className="block text-[9px] text-slate-400">Modalidade {std.type} • Nível {std.level}</span>
+                              <span className="text-slate-900 font-bold">{std.name || `${std.type} ${std.level}`}</span>
+                              <span className="block text-[9px] text-slate-500">Modalidade {std.type} • Nível {std.level}</span>
                             </div>
                           </label>
 
                           {/* Price & MaxParticipants Inputs (only enabled if category is checked) */}
                           <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1">
-                              <span className="text-slate-400 font-mono text-[11px]">R$</span>
+                              <span className="text-slate-500 font-mono text-[11px]">R$</span>
                               <input 
                                 type="number" 
                                 required={std.enabled}
@@ -6794,12 +7536,12 @@ export default function Home() {
                                   setTourCategories(next);
                                 }}
                                 placeholder="Valor"
-                                className="w-20 bg-[#0d1424] border border-slate-800 text-slate-200 text-xs py-1.5 px-2 rounded-lg font-mono text-right focus:outline-none focus:border-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                                className="w-20 bg-white border border-slate-300 text-slate-800 text-xs py-1.5 px-2 rounded-lg font-mono text-right focus:outline-none focus:border-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed"
                               />
                             </div>
 
                             <div className="flex items-center gap-1.5">
-                              <span className="text-slate-400 font-semibold text-[10px] uppercase">Vagas:</span>
+                              <span className="text-slate-500 font-semibold text-[10px] uppercase">Vagas:</span>
                               <input 
                                 type="number" 
                                 required={std.enabled}
@@ -6812,13 +7554,13 @@ export default function Home() {
                                   setTourCategories(next);
                                 }}
                                 placeholder="Vagas"
-                                className="w-16 bg-[#0d1424] border border-slate-800 text-slate-200 text-xs py-1.5 px-2 rounded-lg font-mono text-center focus:outline-none focus:border-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                                className="w-16 bg-white border border-slate-300 text-slate-800 text-xs py-1.5 px-2 rounded-lg font-mono text-center focus:outline-none focus:border-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed"
                               />
-                              <span className="text-slate-400 text-[10px] select-none lowercase">{tourForm.isDuo ? 'duplas' : 'indiv.'}</span>
+                              <span className="text-slate-500 text-[10px] select-none lowercase">{tourForm.isDuo ? 'duplas' : 'indiv.'}</span>
                             </div>
 
                             <div className="flex items-center gap-2">
-                              <span className="text-slate-400 font-semibold text-[10px] uppercase">Games:</span>
+                              <span className="text-slate-500 font-semibold text-[10px] uppercase">Games:</span>
                               <select
                                 value={std.games || 4}
                                 onChange={(e) => {
@@ -6828,7 +7570,7 @@ export default function Home() {
                                   setTourCategories(next);
                                 }}
                                 disabled={!std.enabled}
-                                className="w-16 bg-[#0d1424] border border-slate-800 text-slate-200 text-xs py-1 rounded-lg focus:outline-none focus:border-emerald-500 disabled:opacity-30"
+                                className="w-16 bg-white border border-slate-300 text-slate-800 text-xs py-1 rounded-lg focus:outline-none focus:border-emerald-600 disabled:opacity-30"
                               >
                                 <option value={4}>4G</option>
                                 <option value={6}>6G</option>
@@ -6836,14 +7578,14 @@ export default function Home() {
 
                               <input
                                 type="checkbox"
-                                checked={std.thaiBreak}
+                                checked={Boolean(std.thaiBreak)}
                                 onChange={(e) => {
                                   const next = [...tourCategories];
                                   next[idx].thaiBreak = e.target.checked;
                                   setTourCategories(next);
                                 }}
                                 disabled={!std.enabled || (std.games || 4) !== 6}
-                                className="w-3.5 h-3.5 accent-amber-400 cursor-pointer disabled:opacity-30"
+                                className="w-3.5 h-3.5 accent-amber-500 cursor-pointer disabled:opacity-30"
                                 title="Thai Break"
                               />
                             </div>
@@ -6856,9 +7598,9 @@ export default function Home() {
 
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80 shrink-0">
-                <button type="button" onClick={() => setIsTourModalOpen(false)} className="py-2 px-4 text-slate-400 hover:text-white transition cursor-pointer">Cancelar</button>
-                <button type="submit" className="py-2.5 px-5 bg-emerald-500 text-slate-950 font-bold rounded-xl hover:bg-emerald-400 transition shadow-md shadow-emerald-500/10 cursor-pointer">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 shrink-0">
+                <button type="button" onClick={() => setIsTourModalOpen(false)} className="py-2 px-4 text-slate-500 hover:text-slate-900 transition cursor-pointer">Cancelar</button>
+                <button type="submit" className="py-2.5 px-5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-md shadow-emerald-600/10 cursor-pointer">
                   {editingTournament ? 'Salvar Torneio' : 'Criar Torneio'}
                 </button>
               </div>
@@ -6869,31 +7611,31 @@ export default function Home() {
 
       {/* Category Modal (EXCLUSIVO SUPER ADMIN - PRÉ-CADASTRO GERAL) */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#0d1424] border border-slate-800/80 w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between bg-slate-900/40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-slate-200 w-full max-w-lg rounded-2xl overflow-hidden shadow-xl">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600">
                   <Layers className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-white flex items-center gap-1.5">
+                  <h3 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
                     {editingCategory ? 'Editar Categoria' : 'Pré-Cadastrar Nova Categoria'}
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono font-semibold">SUPER ADMIN</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-mono font-semibold">SUPER ADMIN</span>
                   </h3>
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[10px] text-slate-500">
                     Defina as características oficiais desta categoria. Ela ficará disponível para seleção em novos torneios.
                   </p>
                 </div>
               </div>
-              <button onClick={() => setIsCategoryModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+              <button onClick={() => setIsCategoryModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
             
             <form onSubmit={handleSaveCategory} className="p-6 space-y-4 text-xs">
               <div className="space-y-4">
                 {/* Nome da Categoria */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-bold flex items-center justify-between">
+                  <label className="text-slate-700 font-bold flex items-center justify-between">
                     <span>Nome da Categoria *</span>
                     <span className="text-[10px] text-slate-500 font-normal">Exibido nos torneios e tabelas</span>
                   </label>
@@ -6903,13 +7645,13 @@ export default function Home() {
                     placeholder={`Ex: ${categoryForm.type} ${categoryForm.level}`}
                     value={categoryForm.name}
                     onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
-                    className="bg-[#090e1a] border border-slate-700 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 font-bold text-sm"
+                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600 font-bold text-sm"
                   />
                 </div>
 
                 {/* Tipo de Competição */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-bold">Tipo de Competição *</label>
+                  <label className="text-slate-700 font-bold">Tipo de Competição *</label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {(['MASCULINO', 'FEMININO', 'MISTA', 'SUPER 8'] as const).map(tipo => {
                       const selected = categoryForm.type === tipo;
@@ -6925,8 +7667,8 @@ export default function Home() {
                           }}
                           className={`py-2 px-3 rounded-xl border text-center font-bold text-xs transition cursor-pointer ${
                             selected 
-                              ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-sm shadow-emerald-500/20' 
-                              : 'bg-[#090e1a] border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                              ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm shadow-emerald-600/15' 
+                              : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-200'
                           }`}
                         >
                           {tipo}
@@ -6938,7 +7680,7 @@ export default function Home() {
 
                 {/* Nível Técnico */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-bold">Nível Técnico *</label>
+                  <label className="text-slate-700 font-bold">Nível Técnico *</label>
                   <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
                     {(['PRINCIPIANTE', 'INICIANTE', 'D', 'C', 'B', 'A', 'OPEN'] as const).map(nv => {
                       const selected = categoryForm.level === nv;
@@ -6954,8 +7696,8 @@ export default function Home() {
                           }}
                           className={`py-2 px-1 rounded-xl border text-center font-mono font-bold text-xs transition cursor-pointer ${
                             selected 
-                              ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm' 
-                              : 'bg-[#090e1a] border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' 
+                              : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-200'
                           }`}
                         >
                           {nv}
@@ -6968,7 +7710,7 @@ export default function Home() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   {/* Taxa de Inscrição */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-slate-300 font-bold">Taxa Base de Inscrição (R$) *</label>
+                    <label className="text-slate-700 font-bold">Taxa Base de Inscrição (R$) *</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-mono font-bold">R$</span>
                       <input 
@@ -6979,7 +7721,7 @@ export default function Home() {
                         placeholder="100.00" 
                         value={categoryForm.price} 
                         onChange={(e) => setCategoryForm({ ...categoryForm, price: Number(e.target.value) })} 
-                        className="w-full bg-[#090e1a] border border-slate-700 py-2.5 pl-10 pr-3 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 font-mono text-sm font-bold" 
+                        className="w-full bg-white border border-slate-300 py-2.5 pl-10 pr-3 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600 font-mono text-sm font-bold" 
                       />
                     </div>
                     <span className="text-[10px] text-slate-500">Valor padrão sugerido ao criar torneio</span>
@@ -6987,7 +7729,7 @@ export default function Home() {
 
                   {/* Limite de Vagas */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-slate-300 font-bold">Vagas Padrão *</label>
+                    <label className="text-slate-700 font-bold">Vagas Padrão *</label>
                     <input 
                       type="number" 
                       required 
@@ -6996,18 +7738,18 @@ export default function Home() {
                       placeholder="16" 
                       value={categoryForm.maxParticipants} 
                       onChange={(e) => setCategoryForm({ ...categoryForm, maxParticipants: Number(e.target.value) })} 
-                      className="bg-[#090e1a] border border-slate-700 py-2.5 px-3 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 font-mono text-sm font-bold" 
+                      className="bg-white border border-slate-300 py-2.5 px-3 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600 font-mono text-sm font-bold" 
                     />
                     <span className="text-[10px] text-slate-500">Capacidade sugerida de duplas/atletas</span>
                   </div>
 
                   {/* Games & Thai Break Settings */}
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-slate-300 font-bold">Formato de Pontuação *</label>
+                    <label className="text-slate-700 font-bold">Formato de Pontuação *</label>
                     <select
                       value={categoryForm.games}
                       onChange={(e) => setCategoryForm({ ...categoryForm, games: Number(e.target.value) as 4 | 6, thaiBreak: Number(e.target.value) === 6 ? categoryForm.thaiBreak : false })}
-                      className="bg-[#090e1a] border border-slate-700 py-2.5 px-3 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 font-mono text-sm font-bold"
+                      className="bg-white border border-slate-300 py-2.5 px-3 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600 font-mono text-sm font-bold"
                     >
                       <option value={4}>4 Games</option>
                       <option value={6}>6 Games</option>
@@ -7021,9 +7763,9 @@ export default function Home() {
                         type="checkbox"
                         checked={categoryForm.thaiBreak}
                         onChange={(e) => setCategoryForm({ ...categoryForm, thaiBreak: e.target.checked })}
-                        className="w-4 h-4 accent-amber-400 cursor-pointer"
+                        className="w-4 h-4 accent-amber-500 cursor-pointer"
                       />
-                      <label className="text-slate-300 font-semibold cursor-pointer">
+                      <label className="text-slate-700 font-semibold cursor-pointer">
                         Ativar Thai Break (7 pts no 6x6, placar 7x6)
                       </label>
                     </div>
@@ -7033,36 +7775,36 @@ export default function Home() {
                 {/* Status Toggle & Descrição */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-slate-300 font-bold">Status no Sistema</label>
+                    <label className="text-slate-700 font-bold">Status no Sistema</label>
                     <div className="flex gap-2">
                       <button
                         type="button"
                         onClick={() => setCategoryForm({ ...categoryForm, status: 'ATIVA' })}
                         className={`flex-1 py-2 px-3 rounded-xl font-bold border text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
                           categoryForm.status === 'ATIVA'
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
-                            : 'bg-[#090e1a] text-slate-400 border-slate-800'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-slate-50 text-slate-500 border-slate-200'
                         }`}
                       >
-                        <span className="w-2 h-2 rounded-full bg-emerald-400" /> Ativa
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" /> Ativa
                       </button>
                       <button
                         type="button"
                         onClick={() => setCategoryForm({ ...categoryForm, status: 'INATIVA' })}
                         className={`flex-1 py-2 px-3 rounded-xl font-bold border text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
                           categoryForm.status === 'INATIVA'
-                            ? 'bg-rose-500/20 text-rose-300 border-rose-500/50'
-                            : 'bg-[#090e1a] text-slate-400 border-slate-800'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : 'bg-slate-50 text-slate-500 border-slate-200'
                         }`}
                       >
-                        <span className="w-2 h-2 rounded-full bg-rose-400" /> Inativa
+                        <span className="w-2 h-2 rounded-full bg-rose-500" /> Inativa
                       </button>
                     </div>
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-slate-300 font-bold">Escopo do Cadastro</label>
-                    <div className="p-2.5 rounded-xl bg-[#090e1a] border border-slate-800 text-[11px] text-emerald-400 font-semibold flex items-center gap-1.5">
+                    <label className="text-slate-700 font-bold">Escopo do Cadastro</label>
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-emerald-600 font-semibold flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5" />
                       <span>Pré-Cadastro Geral do Sistema</span>
                     </div>
@@ -7070,20 +7812,20 @@ export default function Home() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-bold">Descrição / Observações (Opcional)</label>
+                  <label className="text-slate-700 font-bold">Descrição / Observações (Opcional)</label>
                   <textarea 
                     rows={2}
                     placeholder="Informações sobre regras de pontuação, restrições ou nível técnico..."
                     value={categoryForm.description}
                     onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
-                    className="w-full bg-[#090e1a] border border-slate-700 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 text-xs"
+                    className="w-full bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600 text-xs"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">
-                <button type="button" onClick={() => setIsCategoryModalOpen(false)} className="py-2.5 px-4 text-slate-400 hover:text-white transition cursor-pointer font-semibold">Cancelar</button>
-                <button type="submit" className="py-2.5 px-6 bg-emerald-500 text-slate-950 font-black rounded-xl hover:bg-emerald-400 transition shadow-lg shadow-emerald-500/20 cursor-pointer flex items-center gap-2">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button type="button" onClick={() => setIsCategoryModalOpen(false)} className="py-2.5 px-4 text-slate-500 hover:text-slate-900 transition cursor-pointer font-semibold">Cancelar</button>
+                <button type="submit" className="py-2.5 px-6 bg-emerald-600 text-white font-black rounded-xl hover:bg-emerald-700 transition shadow-lg shadow-emerald-600/15 cursor-pointer flex items-center gap-2">
                   <Check className="w-4 h-4 stroke-[3]" />
                   {editingCategory ? 'Salvar Alterações' : 'Cadastrar Categoria'}
                 </button>
@@ -7095,22 +7837,22 @@ export default function Home() {
 
       {/* Enrollment (Inscrição) Modal */}
       {isRegModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#0d1424] border border-slate-800/80 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-emerald-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-slate-200 w-full max-w-md rounded-2xl overflow-hidden shadow-xl">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-emerald-600" />
                 Inscrever Atleta em Categoria
               </h3>
-              <button onClick={() => setIsRegModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+              <button onClick={() => setIsRegModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
             <form onSubmit={handleCreateRegistration} className="p-6 space-y-4 text-xs">
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Torneio</label>
+                <label className="text-slate-700 font-semibold">Torneio</label>
                 <select 
                   value={regForm.tournamentId} 
                   onChange={(e) => setRegForm({ ...regForm, tournamentId: e.target.value, categoryId: '' })}
-                  className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                  className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600 font-semibold"
                 >
                   <option value="">Selecione o Torneio</option>
                   {tournaments.map(t => {
@@ -7129,8 +7871,8 @@ export default function Home() {
                 const tourSelected = tournaments.find(t => t.id === regForm.tournamentId);
                 if (tourSelected && !isTournamentVigente(tourSelected)) {
                   return (
-                    <div className="p-3 bg-rose-950/60 border border-rose-500/40 rounded-xl text-rose-300 text-xs flex items-start gap-2.5">
-                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-start gap-2.5">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                       <div>
                         <strong className="block font-bold">Inscrições Encerradas (Período Expirado)</strong>
                         <span>O período vigente desta edição encerrou em {new Date(tourSelected.endDate).toLocaleDateString('pt-BR')}. Não é mais permitido registrar inscrições nesta edição. Gere uma nova edição para receber inscrições.</span>
@@ -7142,11 +7884,11 @@ export default function Home() {
               })()}
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Categoria</label>
+                <label className="text-slate-700 font-semibold">Categoria</label>
                 <select 
                   value={regForm.categoryId} 
                   onChange={(e) => setRegForm({ ...regForm, categoryId: e.target.value })}
-                  className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-semibold focus:outline-none focus:border-emerald-500"
+                  className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-semibold focus:outline-none focus:border-emerald-600"
                 >
                   <option value="">Selecione a Categoria</option>
                   {categories.filter(c => c.tournamentId === regForm.tournamentId).map(c => (
@@ -7157,19 +7899,19 @@ export default function Home() {
 
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-slate-300 font-semibold">Atletas</label>
+                  <label className="text-slate-700 font-semibold">Atletas</label>
                   <div className="relative flex-1 max-w-xs">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       placeholder="Buscar atleta..."
                       value={searchRegAthleteCreate}
                       onChange={(e) => setSearchRegAthleteCreate(e.target.value)}
-                      className="bg-[#090e1a] border border-slate-700/80 pl-8 pr-3 py-1.5 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                      className="bg-white border border-slate-300 pl-8 pr-3 py-1.5 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-600"
                     />
                   </div>
                 </div>
-                <div className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl max-h-48 overflow-y-auto">
+                <div className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl max-h-48 overflow-y-auto">
                   {athletes
                     .filter(a => a.status === 'ATIVO' && (!searchRegAthleteCreate || a.name.toLowerCase().includes(searchRegAthleteCreate.toLowerCase()) || a.cpf.includes(searchRegAthleteCreate)))
                     .map(a => (
@@ -7184,31 +7926,31 @@ export default function Home() {
                               setRegForm({ ...regForm, selectedAthleteIds: regForm.selectedAthleteIds.filter(id => id !== a.id) });
                             }
                           }}
-                          className="w-4 h-4 accent-emerald-500 cursor-pointer"
+                          className="w-4 h-4 accent-emerald-600 cursor-pointer"
                         />
-                        <span className="text-slate-200">{a.name} ({formatCPF(a.cpf)})</span>
+                        <span className="text-slate-800">{a.name} ({formatCPF(a.cpf)})</span>
                       </label>
                     ))}
                 </div>
                 {regForm.selectedAthleteIds.length > 0 && (
-                  <p className="text-xs text-emerald-400">{regForm.selectedAthleteIds.length} atleta(s) selecionado(s)</p>
+                  <p className="text-xs text-emerald-600">{regForm.selectedAthleteIds.length} atleta(s) selecionado(s)</p>
                 )}
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Status da Inscrição</label>
+                <label className="text-slate-700 font-semibold">Status da Inscrição</label>
                 <select 
                   value={regForm.status} 
                   onChange={(e) => setRegForm({ ...regForm, status: e.target.value as any })}
-                  className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-semibold focus:outline-none focus:border-emerald-500"
+                  className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-semibold focus:outline-none focus:border-emerald-600"
                 >
                   <option value="PENDENTE_PAGAMENTO">Pendente de Pagamento</option>
                   <option value="CONFIRMADA">Confirmada</option>
                 </select>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">
-                <button type="button" onClick={() => setIsRegModalOpen(false)} className="py-2 px-4 text-slate-400 hover:text-white transition cursor-pointer">Cancelar</button>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button type="button" onClick={() => setIsRegModalOpen(false)} className="py-2 px-4 text-slate-500 hover:text-slate-900 transition cursor-pointer">Cancelar</button>
                 {(() => {
                   const tourSelected = tournaments.find(t => t.id === regForm.tournamentId);
                   const isVigente = isTournamentVigente(tourSelected);
@@ -7216,7 +7958,7 @@ export default function Home() {
                     <button 
                       type="submit" 
                       disabled={!regForm.tournamentId || !isVigente}
-                      className="py-2.5 px-5 bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-slate-950 font-bold rounded-xl hover:bg-emerald-400 transition shadow-md shadow-emerald-500/10 cursor-pointer"
+                      className="py-2.5 px-5 bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-md shadow-emerald-600/10 cursor-pointer"
                     >
                       {isVigente ? 'Confirmar Inscrição' : 'Inscrições Encerradas'}
                     </button>
@@ -7230,22 +7972,22 @@ export default function Home() {
 
       {/* Duo (Dupla) Modal */}
       {isDuoModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#0d1424] border border-slate-800/80 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Users className="w-4 h-4 text-emerald-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-slate-200 w-full max-w-md rounded-2xl overflow-hidden shadow-xl">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Users className="w-4 h-4 text-emerald-600" />
                 Formar Nova Dupla
               </h3>
-              <button onClick={() => setIsDuoModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+              <button onClick={() => setIsDuoModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
             <form onSubmit={handleCreateDuo} className="p-6 space-y-4 text-xs">
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Torneio</label>
+                <label className="text-slate-700 font-semibold">Torneio</label>
                 <select 
                   value={duoForm.tournamentId} 
                   onChange={(e) => setDuoForm({ ...duoForm, tournamentId: e.target.value, categoryId: '', player1Id: '', player2Id: '' })}
-                  className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500"
+                  className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600"
                 >
                   <option value="">Selecione o Torneio</option>
                   {tournaments.filter(t => t.isDuo !== false).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -7253,11 +7995,11 @@ export default function Home() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Categoria</label>
+                <label className="text-slate-700 font-semibold">Categoria</label>
                 <select 
                   value={duoForm.categoryId} 
                   onChange={(e) => setDuoForm({ ...duoForm, categoryId: e.target.value, player1Id: '', player2Id: '' })}
-                  className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500"
+                  className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600"
                 >
                   <option value="">Selecione a Categoria</option>
                   {categories.filter(c => c.tournamentId === duoForm.tournamentId).map(c => (
@@ -7267,56 +8009,83 @@ export default function Home() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Jogador 1 (Inscrito nesta categoria)</label>
+                <label className="text-slate-700 font-semibold">Jogador 1 (Inscrito nesta categoria)</label>
                 <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     placeholder="Buscar jogador 1..."
                     value={searchDuoPlayer1}
                     onChange={(e) => setSearchDuoPlayer1(e.target.value)}
-                    className="bg-[#090e1a] border border-slate-700/80 pl-8 pr-3 py-1.5 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 mb-1"
+                    className="bg-white border border-slate-300 pl-8 pr-3 py-1.5 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-600 mb-1"
                   />
                 </div>
                 <select
                   value={duoForm.player1Id}
                   onChange={(e) => setDuoForm({ ...duoForm, player1Id: e.target.value })}
-                  className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500"
+                  className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600"
                 >
                   <option value="">Selecione Jogador 1</option>
-                  {registrations
-                    .filter(r => r.categoryId === duoForm.categoryId && r.status === 'CONFIRMADA' && r.athleteName && r.athleteName.toLowerCase().includes(searchDuoPlayer1.toLowerCase()))
-                    .map(r => <option key={r.athleteId} value={r.athleteId}>{r.athleteName}</option>)}
+                  {(() => {
+                    const existingDuoPlayerIdsInCat = new Set(
+                      duos
+                        .filter(d => d.categoryId === duoForm.categoryId)
+                        .flatMap(d => [d.player1Id || d.player1, d.player2Id || d.player2])
+                    );
+                    return registrations
+                      .filter(r => 
+                        r.categoryId === duoForm.categoryId && 
+                        r.status === 'CONFIRMADA' && 
+                        !existingDuoPlayerIdsInCat.has(r.athleteId) &&
+                        r.athleteName && 
+                        r.athleteName.toLowerCase().includes(searchDuoPlayer1.toLowerCase())
+                      )
+                      .map(r => <option key={r.athleteId} value={r.athleteId}>{r.athleteName}</option>);
+                  })()}
                 </select>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Jogador 2 (Inscrito nesta categoria)</label>
+                <label className="text-slate-700 font-semibold">Jogador 2 (Inscrito nesta categoria)</label>
                 <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     placeholder="Buscar jogador 2..."
                     value={searchDuoPlayer2}
                     onChange={(e) => setSearchDuoPlayer2(e.target.value)}
-                    className="bg-[#090e1a] border border-slate-700/80 pl-8 pr-3 py-1.5 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 mb-1"
+                    className="bg-white border border-slate-300 pl-8 pr-3 py-1.5 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-emerald-600 mb-1"
                   />
                 </div>
                 <select
                   value={duoForm.player2Id}
                   onChange={(e) => setDuoForm({ ...duoForm, player2Id: e.target.value })}
-                  className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500"
+                  className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600"
                 >
                   <option value="">Selecione Jogador 2</option>
-                  {registrations
-                    .filter(r => r.categoryId === duoForm.categoryId && r.status === 'CONFIRMADA' && r.athleteId !== duoForm.player1Id && r.athleteName && r.athleteName.toLowerCase().includes(searchDuoPlayer2.toLowerCase()))
-                    .map(r => <option key={r.athleteId} value={r.athleteId}>{r.athleteName}</option>)}
+                  {(() => {
+                    const existingDuoPlayerIdsInCat = new Set(
+                      duos
+                        .filter(d => d.categoryId === duoForm.categoryId)
+                        .flatMap(d => [d.player1Id || d.player1, d.player2Id || d.player2])
+                    );
+                    return registrations
+                      .filter(r => 
+                        r.categoryId === duoForm.categoryId && 
+                        r.status === 'CONFIRMADA' && 
+                        r.athleteId !== duoForm.player1Id && 
+                        !existingDuoPlayerIdsInCat.has(r.athleteId) &&
+                        r.athleteName && 
+                        r.athleteName.toLowerCase().includes(searchDuoPlayer2.toLowerCase())
+                      )
+                      .map(r => <option key={r.athleteId} value={r.athleteId}>{r.athleteName}</option>);
+                  })()}
                 </select>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">
-                <button type="button" onClick={() => setIsDuoModalOpen(false)} className="py-2 px-4 text-slate-400 hover:text-white transition cursor-pointer">Cancelar</button>
-                <button type="submit" className="py-2.5 px-5 bg-emerald-500 text-slate-950 font-bold rounded-xl hover:bg-emerald-400 transition shadow-md shadow-emerald-500/10 cursor-pointer">Formar Dupla</button>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button type="button" onClick={() => setIsDuoModalOpen(false)} className="py-2 px-4 text-slate-500 hover:text-slate-900 transition cursor-pointer">Cancelar</button>
+                <button type="submit" className="py-2.5 px-5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-md shadow-emerald-600/10 cursor-pointer">Formar Dupla</button>
               </div>
             </form>
           </motion.div>
@@ -7325,23 +8094,23 @@ export default function Home() {
 
       {/* Match (Jogo) Modal */}
       {isMatchModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#0d1424] border border-slate-800/80 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Activity className="w-4 h-4 text-emerald-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-slate-200 w-full max-w-md rounded-2xl overflow-hidden shadow-xl">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-emerald-600" />
                 Agendar Partida Manual
               </h3>
-              <button onClick={() => setIsMatchModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+              <button onClick={() => setIsMatchModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
             <form onSubmit={handleCreateMatch} className="p-6 space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5 col-span-2">
-                  <label className="text-slate-300 font-semibold">Torneio</label>
+                  <label className="text-slate-700 font-semibold">Torneio</label>
                   <select 
                     value={matchForm.tournamentId} 
                     onChange={(e) => setMatchForm({ ...matchForm, tournamentId: e.target.value, categoryId: '', duo1Id: '', duo2Id: '' })}
-                    className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500"
+                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600"
                   >
                     <option value="">Selecione o Torneio</option>
                     {tournaments.filter(t => t.isDuo !== false).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -7349,11 +8118,11 @@ export default function Home() {
                 </div>
 
                 <div className="flex flex-col gap-1.5 col-span-2">
-                  <label className="text-slate-300 font-semibold">Categoria</label>
+                  <label className="text-slate-700 font-semibold">Categoria</label>
                   <select 
                     value={matchForm.categoryId} 
                     onChange={(e) => setMatchForm({ ...matchForm, categoryId: e.target.value, duo1Id: '', duo2Id: '' })}
-                    className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500"
+                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600"
                   >
                     <option value="">Selecione a Categoria</option>
                     {categories.filter(c => c.tournamentId === matchForm.tournamentId).map(c => (
@@ -7363,21 +8132,21 @@ export default function Home() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Fase</label>
-                  <input type="text" required value={matchForm.stage} onChange={(e) => setMatchForm({ ...matchForm, stage: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500" />
+                  <label className="text-slate-700 font-semibold">Fase</label>
+                  <input type="text" required value={matchForm.stage} onChange={(e) => setMatchForm({ ...matchForm, stage: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600" />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Grupo (Opcional)</label>
-                  <input type="text" value={matchForm.groupName} onChange={(e) => setMatchForm({ ...matchForm, groupName: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500" />
+                  <label className="text-slate-700 font-semibold">Grupo (Opcional)</label>
+                  <input type="text" value={matchForm.groupName} onChange={(e) => setMatchForm({ ...matchForm, groupName: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600" />
                 </div>
 
                 <div className="flex flex-col gap-1.5 col-span-2">
-                  <label className="text-slate-300 font-semibold">Dupla 1</label>
+                  <label className="text-slate-700 font-semibold">Dupla 1</label>
                   <select 
                     value={matchForm.duo1Id} 
                     onChange={(e) => setMatchForm({ ...matchForm, duo1Id: e.target.value })}
-                    className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500"
+                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600"
                   >
                     <option value="">Selecione Dupla 1</option>
                     {duos.filter(d => d.categoryId === matchForm.categoryId).map(d => (
@@ -7387,11 +8156,11 @@ export default function Home() {
                 </div>
 
                 <div className="flex flex-col gap-1.5 col-span-2">
-                  <label className="text-slate-300 font-semibold">Dupla 2</label>
+                  <label className="text-slate-700 font-semibold">Dupla 2</label>
                   <select 
                     value={matchForm.duo2Id} 
                     onChange={(e) => setMatchForm({ ...matchForm, duo2Id: e.target.value })}
-                    className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500"
+                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600"
                   >
                     <option value="">Selecione Dupla 2</option>
                     {duos.filter(d => d.categoryId === matchForm.categoryId && d.id !== matchForm.duo1Id).map(d => (
@@ -7401,19 +8170,19 @@ export default function Home() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Data</label>
-                  <input type="date" required value={matchForm.date} onChange={(e) => setMatchForm({ ...matchForm, date: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono focus:outline-none focus:border-emerald-500" />
+                  <label className="text-slate-700 font-semibold">Data</label>
+                  <input type="date" required value={matchForm.date} onChange={(e) => setMatchForm({ ...matchForm, date: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono focus:outline-none focus:border-emerald-600" />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-slate-300 font-semibold">Horário</label>
-                  <input type="text" required placeholder="14:00" value={matchForm.time} onChange={(e) => setMatchForm({ ...matchForm, time: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono focus:outline-none focus:border-emerald-500" />
+                  <label className="text-slate-700 font-semibold">Horário</label>
+                  <input type="text" required placeholder="14:00" value={matchForm.time} onChange={(e) => setMatchForm({ ...matchForm, time: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono focus:outline-none focus:border-emerald-600" />
                 </div>
 
                 <div className="flex flex-col gap-1.5 col-span-2">
-                  <label className="text-slate-300 font-semibold flex items-center justify-between">
+                  <label className="text-slate-700 font-semibold flex items-center justify-between">
                     <span>Quadra (Local)</span>
-                    <span className="text-[10px] text-slate-400">Selecione ou personalize</span>
+                    <span className="text-[10px] text-slate-500">Selecione ou personalize</span>
                   </label>
                   {(() => {
                     const tour = tournaments.find(t => t.id === matchForm.tournamentId);
@@ -7430,8 +8199,8 @@ export default function Home() {
                               onClick={() => setMatchForm({ ...matchForm, court: cName })}
                               className={`py-1 px-3 rounded-lg text-xs font-mono font-bold transition border cursor-pointer ${
                                 matchForm.court === cName
-                                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
-                                  : 'bg-[#090e1a] text-slate-400 border-slate-800 hover:text-white'
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                  : 'bg-slate-50 text-slate-500 border-slate-200 hover:text-slate-900'
                               }`}
                             >
                               {cName}
@@ -7444,7 +8213,7 @@ export default function Home() {
                           placeholder="Ex: Quadra 1, Quadra Central..."
                           value={matchForm.court} 
                           onChange={(e) => setMatchForm({ ...matchForm, court: e.target.value })} 
-                          className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 w-full font-mono text-xs focus:outline-none focus:border-emerald-500" 
+                          className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 w-full font-mono text-xs focus:outline-none focus:border-emerald-600" 
                         />
                       </div>
                     );
@@ -7452,9 +8221,9 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">
-                <button type="button" onClick={() => setIsMatchModalOpen(false)} className="py-2 px-4 text-slate-400 hover:text-white transition cursor-pointer">Cancelar</button>
-                <button type="submit" className="py-2.5 px-5 bg-emerald-500 text-slate-950 font-bold rounded-xl hover:bg-emerald-400 transition shadow-md shadow-emerald-500/10 cursor-pointer">Agendar Partida</button>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button type="button" onClick={() => setIsMatchModalOpen(false)} className="py-2 px-4 text-slate-500 hover:text-slate-900 transition cursor-pointer">Cancelar</button>
+                <button type="submit" className="py-2.5 px-5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-md shadow-emerald-600/10 cursor-pointer">Agendar Partida</button>
               </div>
             </form>
           </motion.div>
@@ -7463,11 +8232,11 @@ export default function Home() {
 
       {/* Dynamic Match Generator Modal */}
       {isGenModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#0d1424] border border-slate-800/80 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2"><Activity className="w-4 h-4 text-amber-400" /> Gerador de Jogos Automático</h3>
-              <button onClick={() => setIsGenModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-slate-200 w-full max-w-md rounded-2xl overflow-hidden shadow-xl">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2"><Activity className="w-4 h-4 text-amber-600" /> Gerador de Jogos Automático</h3>
+              <button onClick={() => setIsGenModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
             <form onSubmit={handleGenerateMatches} className="p-6 space-y-4 text-xs">
               {(() => {
@@ -7479,11 +8248,11 @@ export default function Home() {
                 return (
                   <>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-slate-300 font-semibold">Torneio</label>
+                      <label className="text-slate-700 font-semibold">Torneio</label>
                       <select 
                         value={genForm.tournamentId} 
                         onChange={(e) => setGenForm({ ...genForm, tournamentId: e.target.value, categoryId: '' })}
-                        className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500"
+                        className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-amber-500"
                       >
                         <option value="">Selecione o Torneio</option>
                         {tournaments.map(t => (
@@ -7495,11 +8264,11 @@ export default function Home() {
                     </div>
 
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-slate-300 font-semibold">Categoria</label>
+                      <label className="text-slate-700 font-semibold">Categoria</label>
                       <select 
                         value={genForm.categoryId} 
                         onChange={(e) => setGenForm({ ...genForm, categoryId: e.target.value })}
-                        className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500"
+                        className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-amber-500"
                       >
                         <option value="">Selecione a Categoria</option>
                         {categories.filter(c => c.tournamentId === genForm.tournamentId).map(c => (
@@ -7510,51 +8279,51 @@ export default function Home() {
 
                     {isSuper8 ? (
                       /* SUPER 8 SPECIFIC INTERFACE */
-                      <div className="bg-[#090e1a] border border-amber-500/30 p-4 rounded-2xl space-y-3">
+                      <div className="bg-slate-50 border border-amber-200 p-4 rounded-2xl space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-mono uppercase font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                          <span className="text-[10px] font-mono uppercase font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                             Competição Individual · Super 8
                           </span>
-                          <span className="text-[10px] text-emerald-400 font-semibold">
+                          <span className="text-[10px] text-emerald-600 font-semibold">
                             Duplas Temporárias Automáticas
                           </span>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div className="bg-[#0d1424] p-2.5 rounded-xl border border-slate-800">
-                            <span className="text-[10px] text-slate-400 block font-medium">Tipo de Torneio</span>
-                            <strong className="text-white">Individual</strong>
+                          <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                            <span className="text-[10px] text-slate-500 block font-medium">Tipo de Torneio</span>
+                            <strong className="text-slate-900">Individual</strong>
                           </div>
-                          <div className="bg-[#0d1424] p-2.5 rounded-xl border border-slate-800">
-                            <span className="text-[10px] text-slate-400 block font-medium">Formato</span>
-                            <strong className="text-amber-400">Super 8</strong>
+                          <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                            <span className="text-[10px] text-slate-500 block font-medium">Formato</span>
+                            <strong className="text-amber-600">Super 8</strong>
                           </div>
-                          <div className="bg-[#0d1424] p-2.5 rounded-xl border border-slate-800">
-                            <span className="text-[10px] text-slate-400 block font-medium">Atletas Inscritos</span>
-                            <strong className={`font-mono text-sm ${enrolledCount === 8 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                            <span className="text-[10px] text-slate-500 block font-medium">Atletas Inscritos</span>
+                            <strong className={`font-mono text-sm ${enrolledCount === 8 ? 'text-emerald-600' : 'text-amber-600'}`}>
                               {enrolledCount} / 8 atletas
                             </strong>
                           </div>
-                          <div className="bg-[#0d1424] p-2.5 rounded-xl border border-slate-800">
-                            <span className="text-[10px] text-slate-400 block font-medium">Estrutura de Jogos</span>
-                            <strong className="text-white font-mono text-sm">7 rodadas · 14 jogos</strong>
+                          <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                            <span className="text-[10px] text-slate-500 block font-medium">Estrutura de Jogos</span>
+                            <strong className="text-slate-900 font-mono text-sm">7 rodadas · 14 jogos</strong>
                           </div>
                         </div>
 
-                        <p className="text-[10px] text-slate-400 leading-relaxed">
+                        <p className="text-[10px] text-slate-500 leading-relaxed">
                           No Super 8 não existe dupla fixa. O sistema formará as duplas automaticamente para que cada um dos 8 atletas jogue exatamente 7 partidas, com 7 parceiros diferentes ao longo das 7 rodadas.
                         </p>
 
                         {enrolledCount !== 8 ? (
-                          <div className="p-2.5 bg-rose-950/40 border border-rose-500/30 rounded-xl text-rose-300 text-[11px] flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                          <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-[11px] flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                             <span>
                               O formato Super 8 exige <strong>exatamente 8 atletas</strong> inscritos na categoria. Atualmente há <strong>{enrolledCount}</strong> inscrito(s).
                             </span>
                           </div>
                         ) : (
-                          <div className="p-2.5 bg-emerald-950/40 border border-emerald-500/30 rounded-xl text-emerald-300 text-[11px] flex items-center gap-2">
-                            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-[11px] flex items-center gap-2">
+                            <Check className="w-4 h-4 text-emerald-600 shrink-0" />
                             <span>
                               Validação OK! 8 atletas inscritos. Pronto para gerar a tabela de 14 confrontos.
                             </span>
@@ -7563,19 +8332,19 @@ export default function Home() {
                       </div>
                     ) : (
                       /* TRADITIONAL DUO INTERFACE */
-                      <p className="text-slate-400 leading-relaxed text-[11px]">
+                      <p className="text-slate-500 leading-relaxed text-[11px]">
                         Esta ferramenta apagará as partidas pendentes e gerará novos jogos no formato <strong>Todos contra Todos (Round Robin)</strong> para as duplas cadastradas na categoria.
                       </p>
                     )}
 
                     {tour && (
-                      <div className="bg-[#090e1a] border border-slate-800/80 p-3 rounded-xl space-y-1">
-                        <p className="text-[11px] text-slate-300 flex items-center gap-1.5">
-                          <Building className="w-3.5 h-3.5 text-amber-400" />
-                          Local: <strong className="text-white">{tour.venueName || 'Arena Local'}</strong>
+                      <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1">
+                        <p className="text-[11px] text-slate-700 flex items-center gap-1.5">
+                          <Building className="w-3.5 h-3.5 text-amber-600" />
+                          Local: <strong className="text-slate-900">{tour.venueName || 'Arena Local'}</strong>
                         </p>
-                        <p className="text-[11px] text-amber-300 flex items-center gap-1.5">
-                          <Layers className="w-3.5 h-3.5 text-amber-400" />
+                        <p className="text-[11px] text-amber-700 flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5 text-amber-600" />
                           Quadras do evento: <strong className="font-mono">{tour.courtsUsed || 4} quadras</strong>
                         </p>
                       </div>
@@ -7583,21 +8352,21 @@ export default function Home() {
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-slate-300 font-semibold">Data dos Jogos</label>
-                        <input type="date" required value={genForm.date} onChange={(e) => setGenForm({ ...genForm, date: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono focus:outline-none focus:border-amber-500" />
+                        <label className="text-slate-700 font-semibold">Data dos Jogos</label>
+                        <input type="date" required value={genForm.date} onChange={(e) => setGenForm({ ...genForm, date: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono focus:outline-none focus:border-amber-500" />
                       </div>
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-slate-300 font-semibold">Prefixo Quadra</label>
-                        <input type="text" required value={genForm.court} onChange={(e) => setGenForm({ ...genForm, court: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-amber-500" />
+                        <label className="text-slate-700 font-semibold">Prefixo Quadra</label>
+                        <input type="text" required value={genForm.court} onChange={(e) => setGenForm({ ...genForm, court: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-amber-500" />
                       </div>
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">
-                      <button type="button" onClick={() => setIsGenModalOpen(false)} className="py-2 px-4 text-slate-400 hover:text-white transition cursor-pointer">Cancelar</button>
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                      <button type="button" onClick={() => setIsGenModalOpen(false)} className="py-2 px-4 text-slate-500 hover:text-slate-900 transition cursor-pointer">Cancelar</button>
                       <button 
                         type="submit" 
                         disabled={isSuper8 && enrolledCount !== 8}
-                        className="py-2.5 px-5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-black rounded-xl transition shadow-md shadow-amber-500/10 cursor-pointer"
+                        className="py-2.5 px-5 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-xl transition shadow-md shadow-amber-500/15 cursor-pointer"
                       >
                         {isSuper8 ? 'Gerar Jogos Super 8 (14 Partidas)' : 'Gerar Jogos Chaveados'}
                       </button>
@@ -7612,37 +8381,37 @@ export default function Home() {
 
       {/* Lançar Placar Modal */}
       {isResultModalOpen && selectedMatch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#0d1424] border border-slate-800/80 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-emerald-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-slate-200 w-full max-w-md rounded-2xl overflow-hidden shadow-xl">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-emerald-600" />
                 Lançar Resultado de Partida
               </h3>
-              <button onClick={() => setIsResultModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+              <button onClick={() => setIsResultModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
             <form onSubmit={handleSaveResultSubmit} className="p-6 space-y-4 text-xs">
-              <div className="bg-[#090e1a] p-4 rounded-xl space-y-1 text-center border border-slate-800/80">
+              <div className="bg-slate-50 p-4 rounded-xl space-y-1 text-center border border-slate-200">
                 <div className="flex items-center justify-center gap-2">
-                  <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">{selectedMatch.categoryName}</p>
+                  <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">{selectedMatch.categoryName}</p>
                   {selectedMatch.round && (
-                    <span className="text-[10px] font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-mono font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
                       Rodada {selectedMatch.round} · Jogo {selectedMatch.matchNumber}
                     </span>
                   )}
                 </div>
-                <p className="text-base font-bold text-white mt-1.5">{selectedMatch.duo1Name} <span className="text-amber-400 font-extrabold mx-1">vs</span> {selectedMatch.duo2Name}</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">{selectedMatch.court} @ {selectedMatch.time}</p>
+                <p className="text-base font-bold text-slate-900 mt-1.5">{selectedMatch.duo1Name} <span className="text-amber-600 font-extrabold mx-1">vs</span> {selectedMatch.duo2Name}</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">{selectedMatch.court} @ {selectedMatch.time}</p>
               </div>
 
               {selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || selectedMatch.teamA ? (
                 <div className="space-y-4">
-                  <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl text-center">
-                    <p className="text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-center">
+                    <p className="text-amber-700 font-bold text-xs flex items-center justify-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
                       Regra {resultForm.games === 6 ? (resultForm.thaiBreak ? 'Super 8: 6 Games + Thai Break' : 'Super 8: 6 Games') : 'Super 8: 4 Games'}
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-1">
+                    <p className="text-[10px] text-slate-500 mt-1">
                       {resultForm.games === 6 && resultForm.thaiBreak
                         ? 'Válido: 6x0 a 6x4, 7x5 (no 5x5), 7x6 (Thai Break de 7 pontos). Empates: 0-0 a 6-6.'
                         : resultForm.games === 6
@@ -7653,33 +8422,33 @@ export default function Home() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-slate-300 font-semibold text-xs">Time A ({selectedMatch.duo1Name})</label>
+                      <label className="text-slate-700 font-semibold text-xs">Time A ({selectedMatch.duo1Name})</label>
                       <input
                         type="number"
                         min="0"
                         max={resultForm.games === 6 ? (resultForm.thaiBreak ? 7 : 6) : 4}
                         value={resultForm.scoreA}
                         onChange={(e) => setResultForm({ ...resultForm, scoreA: parseInt(e.target.value) || 0 })}
-                        className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono text-center text-xl font-bold focus:border-emerald-500 focus:outline-none"
+                        className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono text-center text-xl font-bold focus:border-emerald-600 focus:outline-none"
                       />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-slate-300 font-semibold text-xs">Time B ({selectedMatch.duo2Name})</label>
+                      <label className="text-slate-700 font-semibold text-xs">Time B ({selectedMatch.duo2Name})</label>
                       <input
                         type="number"
                         min="0"
                         max={resultForm.games === 6 ? (resultForm.thaiBreak ? 7 : 6) : 4}
                         value={resultForm.scoreB}
                         onChange={(e) => setResultForm({ ...resultForm, scoreB: parseInt(e.target.value) || 0 })}
-                        className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono text-center text-xl font-bold focus:border-emerald-500 focus:outline-none"
+                        className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono text-center text-xl font-bold focus:border-emerald-600 focus:outline-none"
                       />
                     </div>
                   </div>
 
                   {resultForm.scoreA === resultForm.scoreB && resultForm.scoreA > 0 ? (
-                    <div className="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl">
-                      <p className="text-amber-300 font-bold text-xs mb-2 flex items-center gap-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl">
+                      <p className="text-amber-700 font-bold text-xs mb-2 flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
                         Empate detectado —resolvido pelo menor número de derrotas
                       </p>
                       <button
@@ -7697,7 +8466,7 @@ export default function Home() {
                             showError(data.error || 'Erro ao resolver empate.');
                           }
                         }}
-                        className="w-full py-1.5 px-3 bg-amber-500/20 text-amber-300 font-bold rounded-lg text-xs hover:bg-amber-500/30 transition cursor-pointer"
+                        className="w-full py-1.5 px-3 bg-amber-50 text-amber-700 font-bold rounded-lg text-xs hover:bg-amber-100 transition cursor-pointer"
                       >
                         Resolver Empate
                       </button>
@@ -7707,22 +8476,22 @@ export default function Home() {
                   ) : null}
 
                   {resultForm.tieBreakerReason && (
-                    <div className="p-2.5 bg-emerald-950/30 border border-emerald-500/30 rounded-xl">
-                      <p className="text-emerald-300 text-xs font-semibold">Vencedor: Time {resultForm.winnerTeam === 'TEAM_A' ? 'A' : 'B'}</p>
-                      <p className="text-emerald-400 text-[10px] font-mono mt-0.5">{resultForm.tieBreakerReason}</p>
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
+                      <p className="text-emerald-700 text-xs font-semibold">Vencedor: Time {resultForm.winnerTeam === 'TEAM_A' ? 'A' : 'B'}</p>
+                      <p className="text-emerald-600 text-[10px] font-mono mt-0.5">{resultForm.tieBreakerReason}</p>
                     </div>
                   )}
 
-                  <div className="p-3 bg-[#090e1a] border border-slate-800 rounded-xl flex items-center justify-between">
-                    <span className="text-slate-400">Placar:</span>
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                    <span className="text-slate-500">Placar:</span>
                     <span className={`font-mono text-lg font-black px-3 py-1 rounded-lg ${
                       resultForm.scoreA > resultForm.scoreB
-                        ? 'text-emerald-400 bg-emerald-950/60 border border-emerald-500/30'
+                        ? 'text-emerald-600 bg-emerald-50 border border-emerald-200'
                         : resultForm.scoreA < resultForm.scoreB
-                        ? 'text-rose-400 bg-rose-950/60 border border-rose-500/30'
+                        ? 'text-rose-600 bg-rose-50 border border-rose-200'
                         : resultForm.scoreA === resultForm.scoreB && resultForm.scoreA > 0
-                        ? 'text-amber-400 bg-amber-950/60 border border-amber-500/30'
-                        : 'text-slate-500 bg-slate-800/60'
+                        ? 'text-amber-600 bg-amber-50 border border-amber-200'
+                        : 'text-slate-500 bg-slate-100'
                     }`}>
                       {resultForm.scoreA} × {resultForm.scoreB}
                     </span>
@@ -7732,8 +8501,8 @@ export default function Home() {
                 /* Traditional Duo Scoring */
                 <>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-slate-300 font-semibold">Placar (Sets / Games)</label>
-                    <input type="text" required placeholder="Ex: 6/4 6/3 ou 6/1 3/6 10/7" value={resultForm.score} onChange={(e) => setResultForm({ ...resultForm, score: e.target.value })} className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono text-center text-sm font-bold focus:border-emerald-500 focus:outline-none" />
+                    <label className="text-slate-700 font-semibold">Placar (Sets / Games)</label>
+                    <input type="text" required placeholder="Ex: 6/4 6/3 ou 6/1 3/6 10/7" value={resultForm.score} onChange={(e) => setResultForm({ ...resultForm, score: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono text-center text-sm font-bold focus:border-emerald-600 focus:outline-none" />
                   </div>
 
                   <div className="flex items-center gap-2.5 pt-1">
@@ -7744,18 +8513,18 @@ export default function Home() {
                       onChange={(e) => setResultForm({ ...resultForm, isDraw: e.target.checked, winnerDuoId: e.target.checked ? '' : (resultForm.winnerDuoId || selectedMatch.duo1Id) })}
                       className="w-4 h-4 accent-slate-400 cursor-pointer"
                     />
-                    <label htmlFor="isDraw" className="text-slate-300 font-semibold cursor-pointer">
+                    <label htmlFor="isDraw" className="text-slate-700 font-semibold cursor-pointer">
                       Empate (ninguém vence)
                     </label>
                   </div>
 
                   {!resultForm.isDraw && (
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-slate-300 font-semibold">Dupla Vencedora</label>
+                      <label className="text-slate-700 font-semibold">Dupla Vencedora</label>
                       <select
                         value={resultForm.winnerDuoId || selectedMatch.duo1Id}
                         onChange={(e) => setResultForm({ ...resultForm, winnerDuoId: e.target.value })}
-                        className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-emerald-500 font-semibold"
+                        className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600 font-semibold"
                       >
                         <option value={selectedMatch.duo1Id}>{selectedMatch.duo1Name}</option>
                         <option value={selectedMatch.duo2Id}>{selectedMatch.duo2Name}</option>
@@ -7765,9 +8534,9 @@ export default function Home() {
                 </>
               )}
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">
-                <button type="button" onClick={() => setIsResultModalOpen(false)} className="py-2 px-4 text-slate-400 hover:text-white transition cursor-pointer">Cancelar</button>
-                <button type="submit" className="py-2.5 px-5 bg-emerald-500 text-slate-950 font-bold rounded-xl hover:bg-emerald-400 transition shadow-md shadow-emerald-500/10 cursor-pointer">Salvar Placar</button>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button type="button" onClick={() => setIsResultModalOpen(false)} className="py-2 px-4 text-slate-500 hover:text-slate-900 transition cursor-pointer">Cancelar</button>
+                <button type="submit" className="py-2.5 px-5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-md shadow-emerald-600/10 cursor-pointer">Salvar Placar</button>
               </div>
             </form>
           </motion.div>
@@ -7776,20 +8545,20 @@ export default function Home() {
 
       {/* Lançar WO Modal */}
       {isWoModalOpen && selectedMatch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#0d1424] border border-slate-800/80 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-rose-400 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-rose-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-slate-200 w-full max-w-md rounded-2xl overflow-hidden shadow-xl">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-rose-600 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600" />
                 Lançar W.O. (Ausência)
               </h3>
-              <button onClick={() => setIsWoModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+              <button onClick={() => setIsWoModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
             <form onSubmit={handleSaveWoSubmit} className="p-6 space-y-4 text-xs">
-              <div className="bg-[#090e1a] p-4 rounded-xl space-y-1 text-center border border-rose-900/30">
-                <p className="text-[10px] text-rose-400 font-bold uppercase tracking-wider">{selectedMatch.categoryName}</p>
-                <p className="text-sm font-bold text-white mt-1">{selectedMatch.duo1Name} <span className="text-slate-500">vs</span> {selectedMatch.duo2Name}</p>
-                <p className="text-[10px] text-slate-400 mt-1">
+              <div className="bg-slate-50 p-4 rounded-xl space-y-1 text-center border border-rose-200">
+                <p className="text-[10px] text-rose-600 font-bold uppercase tracking-wider">{selectedMatch.categoryName}</p>
+                <p className="text-sm font-bold text-slate-900 mt-1">{selectedMatch.duo1Name} <span className="text-slate-500">vs</span> {selectedMatch.duo2Name}</p>
+                <p className="text-[10px] text-slate-500 mt-1">
                   {selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || selectedMatch.teamA 
                     ? 'A ausência será computada como W.O. (4x0).' 
                     : 'A dupla ausente será derrotada por W.O. (6/0 6/0 oficial).'}
@@ -7797,12 +8566,12 @@ export default function Home() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Quem compareceu à quadra (Vencedor)</label>
+                <label className="text-slate-700 font-semibold">Quem compareceu à quadra (Vencedor)</label>
                 {selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || selectedMatch.teamA ? (
                   <select 
                     value={woForm.winnerTeam} 
                     onChange={(e) => setWoForm({ ...woForm, winnerTeam: e.target.value as any })}
-                    className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-rose-500 font-semibold"
+                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-rose-500 font-semibold"
                   >
                     <option value="TEAM_A">{selectedMatch.duo1Name}</option>
                     <option value="TEAM_B">{selectedMatch.duo2Name}</option>
@@ -7811,7 +8580,7 @@ export default function Home() {
                   <select 
                     value={woForm.winnerDuoId} 
                     onChange={(e) => setWoForm({ ...woForm, winnerDuoId: e.target.value })}
-                    className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 focus:outline-none focus:border-rose-500 font-semibold"
+                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-rose-500 font-semibold"
                   >
                     <option value={selectedMatch.duo1Id}>{selectedMatch.duo1Name}</option>
                     <option value={selectedMatch.duo2Id}>{selectedMatch.duo2Name}</option>
@@ -7819,9 +8588,9 @@ export default function Home() {
                 )}
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">
-                <button type="button" onClick={() => setIsWoModalOpen(false)} className="py-2 px-4 text-slate-400 hover:text-white transition cursor-pointer">Cancelar</button>
-                <button type="submit" className="py-2.5 px-5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl transition shadow-md shadow-rose-600/20 cursor-pointer">Confirmar W.O.</button>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button type="button" onClick={() => setIsWoModalOpen(false)} className="py-2 px-4 text-slate-500 hover:text-slate-900 transition cursor-pointer">Cancelar</button>
+                <button type="submit" className="py-2.5 px-5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl transition shadow-md shadow-rose-600/20 cursor-pointer">Confirmar W.O.</button>
               </div>
             </form>
           </motion.div>
@@ -7830,27 +8599,27 @@ export default function Home() {
 
       {/* Quick Change Match Court Modal */}
       {isChangeCourtModalOpen && targetMatchForCourt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#0d1424] border border-slate-800/80 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-emerald-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-slate-200 w-full max-w-md rounded-2xl overflow-hidden shadow-xl">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-emerald-600" />
                 Alterar Quadra da Partida
               </h3>
-              <button onClick={() => setIsChangeCourtModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"><X className="w-4 h-4" /></button>
+              <button onClick={() => setIsChangeCourtModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 cursor-pointer"><X className="w-4 h-4" /></button>
             </div>
             
             <form onSubmit={handleSaveChangedCourt} className="p-6 space-y-4 text-xs">
-              <div className="bg-[#090e1a] p-4 rounded-xl space-y-1.5 border border-slate-800/80">
-                <span className="text-[10px] font-extrabold text-emerald-300 bg-emerald-950/60 border border-emerald-500/20 px-2.5 py-0.5 rounded uppercase tracking-wider">
+              <div className="bg-slate-50 p-4 rounded-xl space-y-1.5 border border-slate-200">
+                <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded uppercase tracking-wider">
                   {targetMatchForCourt.categoryName}
                 </span>
-                <p className="text-sm font-bold text-white mt-1">
-                  {targetMatchForCourt.duo1Name} <span className="text-amber-400 font-extrabold mx-1">vs</span> {targetMatchForCourt.duo2Name}
+                <p className="text-sm font-bold text-slate-900 mt-1">
+                  {targetMatchForCourt.duo1Name} <span className="text-amber-600 font-extrabold mx-1">vs</span> {targetMatchForCourt.duo2Name}
                 </p>
-                <div className="flex justify-between items-center text-[11px] text-slate-400 pt-1 border-t border-slate-800/60 mt-2">
-                  <span>Horário: <strong className="text-slate-200 font-mono">{targetMatchForCourt.time}</strong></span>
-                  <span>Quadra Atual: <strong className="text-amber-400 font-mono">{targetMatchForCourt.court}</strong></span>
+                <div className="flex justify-between items-center text-[11px] text-slate-500 pt-1 border-t border-slate-200 mt-2">
+                  <span>Horário: <strong className="text-slate-800 font-mono">{targetMatchForCourt.time}</strong></span>
+                  <span>Quadra Atual: <strong className="text-amber-600 font-mono">{targetMatchForCourt.court}</strong></span>
                 </div>
               </div>
 
@@ -7861,7 +8630,7 @@ export default function Home() {
 
                 return (
                   <div className="space-y-2">
-                    <label className="text-slate-300 font-semibold block">
+                    <label className="text-slate-700 font-semibold block">
                       Selecione uma das quadras alocadas para o torneio:
                     </label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -7872,8 +8641,8 @@ export default function Home() {
                           onClick={() => setSelectedCourtName(cName)}
                           className={`py-2 px-3 rounded-xl font-bold font-mono text-xs transition border flex items-center justify-center gap-1.5 cursor-pointer ${
                             selectedCourtName === cName
-                              ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md'
-                              : 'bg-[#090e1a] text-slate-300 border-slate-800 hover:border-slate-700 hover:bg-[#0d1424]'
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-md'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-200 hover:bg-white'
                           }`}
                         >
                           <MapPin className="w-3.5 h-3.5" />
@@ -7886,20 +8655,20 @@ export default function Home() {
               })()}
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-slate-300 font-semibold">Ou digite o nome de outra quadra:</label>
+                <label className="text-slate-700 font-semibold">Ou digite o nome de outra quadra:</label>
                 <input 
                   type="text" 
                   required 
                   placeholder="Ex: Quadra Central, Quadra 5..." 
                   value={selectedCourtName} 
                   onChange={(e) => setSelectedCourtName(e.target.value)} 
-                  className="bg-[#090e1a] border border-slate-800 p-2.5 rounded-xl text-slate-200 font-mono focus:outline-none focus:border-emerald-500" 
+                  className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono focus:outline-none focus:border-emerald-600" 
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/80">
-                <button type="button" onClick={() => setIsChangeCourtModalOpen(false)} className="py-2 px-4 text-slate-400 hover:text-white transition cursor-pointer">Cancelar</button>
-                <button type="submit" className="py-2.5 px-5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition shadow-md shadow-emerald-500/10 cursor-pointer">
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button type="button" onClick={() => setIsChangeCourtModalOpen(false)} className="py-2 px-4 text-slate-500 hover:text-slate-900 transition cursor-pointer">Cancelar</button>
+                <button type="submit" className="py-2.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow-md shadow-emerald-600/10 cursor-pointer">
                   Salvar Nova Quadra
                 </button>
               </div>
@@ -7910,36 +8679,36 @@ export default function Home() {
 
       {/* IN-APP CONFIRMATION MODAL */}
       {confirmDialog && confirmDialog.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-[#0d1424] border border-slate-800/80 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-rose-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white border border-slate-200 w-full max-w-md rounded-2xl overflow-hidden shadow-xl">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600" />
                 {confirmDialog.title}
               </h3>
               <button 
                 onClick={() => setConfirmDialog(null)} 
-                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <p className="text-xs text-slate-300 leading-relaxed">
+              <p className="text-xs text-slate-700 leading-relaxed">
                 {confirmDialog.message}
               </p>
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-800/80">
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setConfirmDialog(null)}
-                  className="py-2 px-4 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                  className="py-2 px-4 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={confirmDialog.onConfirm}
-                  className="py-2 px-5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition shadow-lg flex items-center gap-1.5 cursor-pointer"
+                  className="py-2 px-5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition shadow-lg flex items-center gap-1.5 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   {confirmDialog.confirmLabel || 'Confirmar Exclusão'}
@@ -7958,12 +8727,12 @@ export default function Home() {
               initial={{ opacity: 0, y: -20, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="pointer-events-auto bg-[#0d1424] border border-rose-500/40 text-rose-300 text-xs p-4 rounded-2xl flex items-start gap-3 shadow-2xl"
+              className="pointer-events-auto bg-white border border-rose-200 text-rose-700 text-xs p-4 rounded-2xl flex items-start gap-3 shadow-xl"
             >
-              <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold text-white text-xs">Erro / Alerta</p>
-                <p className="mt-0.5 text-slate-300 leading-relaxed font-semibold">{errorMsg}</p>
+                <p className="font-bold text-slate-900 text-xs">Erro / Alerta</p>
+                <p className="mt-0.5 text-slate-700 leading-relaxed font-semibold">{errorMsg}</p>
               </div>
             </motion.div>
           )}
@@ -7972,25 +8741,136 @@ export default function Home() {
               initial={{ opacity: 0, y: -20, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              className="pointer-events-auto bg-[#0d1424] border border-emerald-500/40 text-emerald-300 text-xs p-4 rounded-2xl flex items-start gap-3 shadow-2xl"
+              className="pointer-events-auto bg-white border border-emerald-200 text-emerald-700 text-xs p-4 rounded-2xl flex items-start gap-3 shadow-xl"
             >
-              <Check className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <Check className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold text-white text-xs">Sucesso!</p>
-                <p className="mt-0.5 text-slate-300 leading-relaxed font-semibold">{successMsg}</p>
+                <p className="font-bold text-slate-900 text-xs">Sucesso!</p>
+                <p className="mt-0.5 text-slate-700 leading-relaxed font-semibold">{successMsg}</p>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
+      {/* MODAL DE SUGESTÃO DE PRÓXIMO JOGO NA QUADRA LIBERADA */}
+      {courtFreedNotice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }} 
+            animate={{ opacity: 1, scale: 1 }} 
+            className="bg-white border border-emerald-200 w-full max-w-md rounded-2xl overflow-hidden shadow-xl"
+          >
+            <div className="px-6 py-4 border-b border-slate-200 bg-emerald-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 " />
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-emerald-600" />
+                  Quadra Liberada: {courtFreedNotice.freedCourt}
+                </h3>
+              </div>
+              <button 
+                onClick={() => setCourtFreedNotice(null)} 
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                    Quadra Disponível Agora
+                  </span>
+                  <span className="text-emerald-600 font-mono font-bold text-xs">{courtFreedNotice.freedCourt}</span>
+                </div>
+                <p className="text-slate-700 text-xs">
+                  O placar anterior foi lançado e a quadra foi automaticamente liberada pelo sistema.
+                </p>
+              </div>
+
+              {courtFreedNotice.nextMatchSuggestion ? (
+                <div className="space-y-3">
+                  <p className="text-slate-800 font-bold flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    Sugestão de Próximo Jogo para Iniciar Nesta Quadra:
+                  </p>
+
+                  <div className="bg-slate-50 border border-amber-200 p-4 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                        {courtFreedNotice.nextMatchSuggestion.categoryName || 'Categoria'}
+                      </span>
+                      <span className="text-slate-500 text-[10px] font-mono">
+                        {courtFreedNotice.nextMatchSuggestion.stage}
+                      </span>
+                    </div>
+
+                    <p className="text-sm font-bold text-slate-900">
+                      {courtFreedNotice.nextMatchSuggestion.duo1Name} 
+                      <span className="text-amber-600 font-black mx-1.5">vs</span> 
+                      {courtFreedNotice.nextMatchSuggestion.duo2Name}
+                    </p>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-200">
+                      <span>Horário previsto: <strong className="text-slate-800 font-mono">{courtFreedNotice.nextMatchSuggestion.time || '14:00'}</strong></span>
+                      <span className="text-emerald-600 font-bold">Pronto para chamada</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center text-slate-500">
+                  <Check className="w-6 h-6 text-emerald-600 mx-auto mb-1.5" />
+                  <p className="font-bold text-slate-900 text-xs">Todos os jogos desta rodada já foram iniciados!</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">A quadra permanecerá livre aguardando os próximos chaveamentos.</p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setCourtFreedNotice(null)}
+                  className="py-2 px-4 rounded-xl text-slate-500 hover:text-slate-900 transition cursor-pointer"
+                >
+                  Fechar
+                </button>
+                {courtFreedNotice.nextMatchSuggestion && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await fetch(`/api/matches/${courtFreedNotice.nextMatchSuggestion.id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ court: courtFreedNotice.freedCourt })
+                        });
+                        showSuccess(`Partida direcionada para a ${courtFreedNotice.freedCourt}!`);
+                        setCourtFreedNotice(null);
+                        fetchData();
+                        setActiveTab('matches');
+                      } catch {
+                        setCourtFreedNotice(null);
+                      }
+                    }}
+                    className="py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow-md shadow-emerald-600/10 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5 stroke-[3]" /> Iniciar Jogo Nesta Quadra
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0d1424]/95 backdrop-blur-md border-t border-slate-800/90 shadow-2xl px-2 py-1.5 flex justify-around items-center">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xs border-t border-slate-200 shadow-xl px-2 py-1.5 flex justify-around items-center">
         <button
           type="button"
           onClick={() => { handleNavTab('dashboard'); handleCloseArenaManagement(); }}
           className={`flex flex-col items-center justify-center min-w-[56px] py-1 px-1 rounded-xl transition ${
-            activeTab === 'dashboard' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            activeTab === 'dashboard' ? 'text-emerald-600 font-bold' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <Activity className="w-5 h-5 mb-0.5" />
@@ -8001,7 +8881,7 @@ export default function Home() {
           type="button"
           onClick={() => handleNavTab('tournaments')}
           className={`flex flex-col items-center justify-center min-w-[56px] py-1 px-1 rounded-xl transition ${
-            activeTab === 'tournaments' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            activeTab === 'tournaments' ? 'text-emerald-600 font-bold' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <Trophy className="w-5 h-5 mb-0.5" />
@@ -8012,7 +8892,7 @@ export default function Home() {
           type="button"
           onClick={() => handleNavTab('matches')}
           className={`flex flex-col items-center justify-center min-w-[56px] py-1 px-1 rounded-xl transition ${
-            activeTab === 'matches' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            activeTab === 'matches' ? 'text-emerald-600 font-bold' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <Calendar className="w-5 h-5 mb-0.5" />
@@ -8023,7 +8903,7 @@ export default function Home() {
           type="button"
           onClick={() => handleNavTab('duos')}
           className={`flex flex-col items-center justify-center min-w-[56px] py-1 px-1 rounded-xl transition ${
-            activeTab === 'duos' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            activeTab === 'duos' ? 'text-emerald-600 font-bold' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <UserCheck className="w-5 h-5 mb-0.5" />
@@ -8035,8 +8915,8 @@ export default function Home() {
           onClick={() => setIsMobileMenuOpen(true)}
           className={`flex flex-col items-center justify-center min-w-[56px] py-1 px-1 rounded-xl transition ${
             ['athletes', 'arenas', 'venues', 'categories', 'registrations', 'results', 'reports', 'settings'].includes(activeTab)
-              ? 'text-emerald-400 font-bold'
-              : 'text-slate-400 hover:text-slate-200'
+              ? 'text-emerald-600 font-bold'
+              : 'text-slate-500 hover:text-slate-800'
           }`}
         >
           <Menu className="w-5 h-5 mb-0.5" />

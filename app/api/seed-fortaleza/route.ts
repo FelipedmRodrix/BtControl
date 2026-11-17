@@ -44,6 +44,7 @@ async function handleSeed() {
         role: 'ARENA_ADMIN',
         arenaId: orgId,
         name: 'Gestor Fortaleza BT',
+        status: 'ATIVO',
         createdAt: now,
         updatedAt: now
       });
@@ -238,7 +239,8 @@ async function handleSeed() {
       winnerDuoId: 'duo-fort-freitas-alencar',
       games: 6,
       thaiBreak: true,
-      createdAt: now
+      createdAt: now,
+      updatedAt: now
     });
 
     // Semifinal 2 (Partida disputadíssima no Thai Break 6x6 -> 7x6)
@@ -276,7 +278,8 @@ async function handleSeed() {
       games: 6,
       thaiBreak: true,
       tieBreaker: 'Thai Break 7x4 após empate em 6x6',
-      createdAt: now
+      createdAt: now,
+      updatedAt: now
     });
 
     // Grande Final (5x5 vai a 7 -> Termina em 7x5 com Troféu e Campeão Definido)
@@ -314,7 +317,8 @@ async function handleSeed() {
       games: 6,
       thaiBreak: true,
       tieBreaker: 'Regra de 5x5 estendido até 7 games',
-      createdAt: now
+      createdAt: now,
+      updatedAt: now
     });
 
     // Grava dados em cache, db.json e PostgreSQL (Neon)

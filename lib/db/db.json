@@ -422,7 +422,10 @@
       "arenaId": null,
       "name": "Administrador Geral",
       "createdAt": "2026-10-02T18:35:13.574Z",
-      "updatedAt": "2026-10-02T18:35:13.574Z"
+      "updatedAt": "2026-10-02T18:35:13.574Z",
+      "status": "ATIVO",
+      "profileId": "prof-super-admin",
+      "source": "SISTEMA"
     },
     {
       "id": "usr-pukeaw0c7",
@@ -432,7 +435,10 @@
       "arenaId": "arena-zne0sbge6",
       "name": "Super 8 Allan Admin",
       "createdAt": "2026-10-09T12:02:05.531Z",
-      "updatedAt": "2026-10-09T12:02:05.531Z"
+      "updatedAt": "2026-10-09T12:02:05.531Z",
+      "status": "ATIVO",
+      "profileId": "prof-organizador",
+      "source": "ORGANIZADOR"
     },
     {
       "id": "usr-l6u8hvloj",
@@ -442,7 +448,10 @@
       "arenaId": "arena-6a5h1o8wd",
       "name": "Orion Admin",
       "createdAt": "2026-10-09T12:15:22.521Z",
-      "updatedAt": "2026-10-09T12:15:22.521Z"
+      "updatedAt": "2026-10-09T12:15:22.521Z",
+      "status": "ATIVO",
+      "profileId": "prof-organizador",
+      "source": "ORGANIZADOR"
     },
     {
       "id": "usr-fortaleza",
@@ -451,6 +460,249 @@
       "role": "ARENA_ADMIN",
       "arenaId": "arena-fortaleza-cbt",
       "name": "Gestor Fortaleza BT",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z",
+      "status": "ATIVO",
+      "profileId": "prof-organizador",
+      "source": "ORGANIZADOR"
+    },
+    {
+      "id": "usr-ath-ath-joao",
+      "username": "12345678901",
+      "password": "123",
+      "role": "CUSTOM",
+      "arenaId": null,
+      "name": "João da Silva",
+      "email": "joao@example.com",
+      "phone": "11999998888",
+      "status": "ATIVO",
+      "profileId": "prof-visualizador",
+      "athleteId": "ath-joao",
+      "source": "ATLETA",
+      "createdAt": "2026-10-02T18:35:13.574Z",
+      "updatedAt": "2026-10-02T18:35:13.574Z"
+    },
+    {
+      "id": "usr-ath-ath-maria",
+      "username": "98765432109",
+      "password": "123",
+      "role": "CUSTOM",
+      "arenaId": null,
+      "name": "Maria Oliveira",
+      "email": "maria@example.com",
+      "phone": "21988887777",
+      "status": "ATIVO",
+      "profileId": "prof-visualizador",
+      "athleteId": "ath-maria",
+      "source": "ATLETA",
+      "createdAt": "2026-10-02T18:35:13.574Z",
+      "updatedAt": "2026-10-02T18:35:13.574Z"
+    },
+    {
+      "id": "usr-ath-ath-carlos",
+      "username": "45678912312",
+      "password": "123",
+      "role": "CUSTOM",
+      "arenaId": null,
+      "name": "Carlos Souza",
+      "email": "carlos@example.com",
+      "phone": "13977776666",
+      "status": "ATIVO",
+      "profileId": "prof-visualizador",
+      "athleteId": "ath-carlos",
+      "source": "ATLETA",
+      "createdAt": "2026-10-02T18:35:13.574Z",
+      "updatedAt": "2026-10-02T18:35:13.574Z"
+    },
+    {
+      "id": "usr-ath-ath-pedro",
+      "username": "55566677788",
+      "password": "123",
+      "role": "CUSTOM",
+      "arenaId": null,
+      "name": "Pedro Santos",
+      "email": "pedro@example.com",
+      "phone": "11955554444",
+      "status": "ATIVO",
+      "profileId": "prof-visualizador",
+      "athleteId": "ath-pedro",
+      "source": "ATLETA",
+      "createdAt": "2026-10-02T18:35:13.574Z",
+      "updatedAt": "2026-10-02T18:35:13.574Z"
+    },
+    {
+      "id": "usr-ath-ath-lucas",
+      "username": "11122233344",
+      "password": "123",
+      "role": "CUSTOM",
+      "arenaId": null,
+      "name": "Lucas Pereira",
+      "email": "lucas@example.com",
+      "phone": "11944443333",
+      "status": "ATIVO",
+      "profileId": "prof-visualizador",
+      "athleteId": "ath-lucas",
+      "source": "ATLETA",
+      "createdAt": "2026-10-02T18:35:13.574Z",
+      "updatedAt": "2026-10-02T18:35:13.574Z"
+    },
+    {
+      "id": "usr-ath-ath-bktqtc8rs",
+      "username": "60876116306",
+      "password": "123",
+      "role": "CUSTOM",
+      "arenaId": null,
+      "name": "Felipe de Melo Rodrigues",
+      "email": "informatica@marinapark.com.br",
+      "phone": "85996595730",
+      "status": "ATIVO",
+      "profileId": "prof-visualizador",
+      "athleteId": "ath-bktqtc8rs",
+      "source": "ATLETA",
+      "createdAt": "2026-10-09T12:03:48.804Z",
+      "updatedAt": "2026-10-09T12:03:48.804Z"
+    },
+    {
+      "id": "usr-ath-ath-zm0bhpk79",
+      "username": "69081894064",
+      "password": "123",
+      "role": "CUSTOM",
+      "arenaId": null,
+      "name": "Jubileu da Silva",
+      "email": "informatica@marinapark.com.br",
+      "phone": "85996595730",
+      "status": "ATIVO",
+      "profileId": "prof-visualizador",
+      "athleteId": "ath-zm0bhpk79",
+      "source": "ATLETA",
+      "createdAt": "2026-10-09T12:04:36.006Z",
+      "updatedAt": "2026-10-09T12:04:36.006Z"
+    },
+    {
+      "id": "usr-ath-ath-lxkaq0uqv",
+      "username": "24233091045",
+      "password": "123",
+      "role": "CUSTOM",
+      "arenaId": null,
+      "name": "Rafael Mistofóbico",
+      "email": "informatica@marinapark.com.br",
+      "phone": "85996595730",
+      "status": "ATIVO",
+      "profileId": "prof-visualizador",
+      "athleteId": "ath-lxkaq0uqv",
+      "source": "ATLETA",
+      "createdAt": "2026-10-09T12:05:22.772Z",
+      "updatedAt": "2026-10-09T18:24:50.834Z"
+    },
+    {
+      "id": "usr-ath-ath-mateus-freitas",
+      "username": "01234567801",
+      "password": "123",
+      "role": "CUSTOM",
+      "arenaId": null,
+      "name": "Mateus Freitas",
+      "email": "mateus.freitas@ceara.com",
+      "phone": "85988881111",
+      "status": "ATIVO",
+      "profileId": "prof-visualizador",
+      "athleteId": "ath-mateus-freitas",
+      "source": "ATLETA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "usr-ath-ath-lucas-alencar",
+      "username": "02345678902",
+      "password": "123",
+      "role": "CUSTOM",
+      "arenaId": null,
+      "name": "Lucas Alencar",
+      "email": "lucas.alencar@ceara.com",
+      "phone": "85988882222",
+      "status": "ATIVO",
+      "profileId": "prof-visualizador",
+      "athleteId": "ath-lucas-alencar",
+      "source": "ATLETA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "usr-ath-ath-rodrigo-bezerra",
+      "username": "03456789003",
+      "password": "123",
+      "role": "CUSTOM",
+      "arenaId": null,
+      "name": "Rodrigo Bezerra",
+      "email": "rodrigo.bezerra@ceara.com",
+      "phone": "85988883333",
+      "status": "ATIVO",
+      "profileId": "prof-visualizador",
+      "athleteId": "ath-rodrigo-bezerra",
+      "source": "ATLETA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "usr-ath-ath-gabriel-cavalcante",
+      "username": "04567890104",
+      "password": "123",
+      "role": "CUSTOM",
+      "arenaId": null,
+      "name": "Gabriel Cavalcante",
+      "email": "gabriel.cavalcante@ceara.com",
+      "phone": "85988884444",
+      "status": "ATIVO",
+      "profileId": "prof-visualizador",
+      "athleteId": "ath-gabriel-cavalcante",
+      "source": "ATLETA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "usr-ath-ath-thiago-mendonca",
+      "username": "05678901205",
+      "password": "123",
+      "role": "CUSTOM",
+      "arenaId": null,
+      "name": "Thiago Mendonça",
+      "email": "thiago.mendonca@ceara.com",
+      "phone": "85988885555",
+      "status": "ATIVO",
+      "profileId": "prof-visualizador",
+      "athleteId": "ath-thiago-mendonca",
+      "source": "ATLETA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "usr-ath-ath-davi-holanda",
+      "username": "06789012306",
+      "password": "123",
+      "role": "CUSTOM",
+      "arenaId": null,
+      "name": "Davi Holanda",
+      "email": "davi.holanda@ceara.com",
+      "phone": "85988886666",
+      "status": "ATIVO",
+      "profileId": "prof-visualizador",
+      "athleteId": "ath-davi-holanda",
+      "source": "ATLETA",
+      "createdAt": "2026-10-11T21:58:43.893Z",
+      "updatedAt": "2026-10-11T21:58:43.893Z"
+    },
+    {
+      "id": "usr-ath-ath-rafael-vasconcelos",
+      "username": "08901234508",
+      "password": "123",
+      "role": "CUSTOM",
+      "arenaId": null,
+      "name": "Rafael Vasconcelos",
+      "email": "rafael.vasconcelos@ceara.com",
+      "phone": "85988888888",
+      "status": "ATIVO",
+      "profileId": "prof-visualizador",
+      "athleteId": "ath-rafael-vasconcelos",
+      "source": "ATLETA",
       "createdAt": "2026-10-11T21:58:43.893Z",
       "updatedAt": "2026-10-11T21:58:43.893Z"
     }
@@ -1744,6 +1996,468 @@
       "status": "ATIVA",
       "createdAt": "2026-10-11T21:58:43.893Z",
       "updatedAt": "2026-10-11T21:58:43.893Z"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "prof-super-admin",
+      "name": "Super Administrador",
+      "description": "Acesso irrestrito a todas as telas e operações do sistema.",
+      "isSystem": true,
+      "permissions": [
+        {
+          "screen": "dashboard",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
+        },
+        {
+          "screen": "athletes",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
+        },
+        {
+          "screen": "arenas",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
+        },
+        {
+          "screen": "venues",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
+        },
+        {
+          "screen": "categories",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
+        },
+        {
+          "screen": "tournaments",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
+        },
+        {
+          "screen": "registrations",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
+        },
+        {
+          "screen": "duos",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
+        },
+        {
+          "screen": "matches",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
+        },
+        {
+          "screen": "results",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
+        },
+        {
+          "screen": "reports",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
+        },
+        {
+          "screen": "bracket-tree",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
+        },
+        {
+          "screen": "settings",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
+        },
+        {
+          "screen": "profiles",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
+        },
+        {
+          "screen": "users",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
+        }
+      ],
+      "createdAt": "2026-10-01T00:00:00.000Z",
+      "updatedAt": "2026-10-01T00:00:00.000Z"
+    },
+    {
+      "id": "prof-organizador",
+      "name": "Organizador",
+      "description": "Gerencia torneios, inscrições, duplas, jogos e quadras.",
+      "isSystem": true,
+      "permissions": [
+        {
+          "screen": "dashboard",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": false
+        },
+        {
+          "screen": "athletes",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": false
+        },
+        {
+          "screen": "arenas",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "venues",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "categories",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "tournaments",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": false
+        },
+        {
+          "screen": "registrations",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": false
+        },
+        {
+          "screen": "duos",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": false
+        },
+        {
+          "screen": "matches",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": false
+        },
+        {
+          "screen": "results",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": false
+        },
+        {
+          "screen": "reports",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": false
+        },
+        {
+          "screen": "bracket-tree",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": false
+        },
+        {
+          "screen": "settings",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": false
+        },
+        {
+          "screen": "profiles",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "users",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        }
+      ],
+      "createdAt": "2026-10-01T00:00:00.000Z",
+      "updatedAt": "2026-10-01T00:00:00.000Z"
+    },
+    {
+      "id": "prof-mesario",
+      "name": "Mesário / Árbitro",
+      "description": "Visualiza jogos, quadras e lança placares e resultados.",
+      "isSystem": true,
+      "permissions": [
+        {
+          "screen": "dashboard",
+          "view": true,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "athletes",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "arenas",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "venues",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "categories",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "tournaments",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "registrations",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "duos",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "matches",
+          "view": true,
+          "create": false,
+          "edit": true,
+          "delete": false
+        },
+        {
+          "screen": "results",
+          "view": true,
+          "create": false,
+          "edit": true,
+          "delete": false
+        },
+        {
+          "screen": "reports",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "bracket-tree",
+          "view": true,
+          "create": false,
+          "edit": true,
+          "delete": false
+        },
+        {
+          "screen": "settings",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "profiles",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "users",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        }
+      ],
+      "createdAt": "2026-10-01T00:00:00.000Z",
+      "updatedAt": "2026-10-01T00:00:00.000Z"
+    },
+    {
+      "id": "prof-visualizador",
+      "name": "Visualizador de Relatórios",
+      "description": "Permissão apenas de visualização para relatórios, tabelas e resultados.",
+      "isSystem": false,
+      "permissions": [
+        {
+          "screen": "dashboard",
+          "view": true,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "athletes",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "arenas",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "venues",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "categories",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "tournaments",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "registrations",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "duos",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "matches",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "results",
+          "view": true,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "reports",
+          "view": true,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "bracket-tree",
+          "view": true,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "settings",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "profiles",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "users",
+          "view": false,
+          "create": false,
+          "edit": false,
+          "delete": false
+        }
+      ],
+      "createdAt": "2026-10-01T00:00:00.000Z",
+      "updatedAt": "2026-10-01T00:00:00.000Z"
     }
   ]
 }
