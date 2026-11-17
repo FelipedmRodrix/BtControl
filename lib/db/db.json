@@ -709,22 +709,6 @@
   ],
   "tournaments": [
     {
-      "id": "t-qw68nd3xp",
-      "name": "Super 8",
-      "arenaId": "arena-zne0sbge6",
-      "organizerId": "arena-zne0sbge6",
-      "venueId": "ven-kpptfkeak",
-      "venueName": "Toss",
-      "courtsUsed": 2,
-      "seriesName": "Super 8",
-      "startDate": "2027-01-01",
-      "endDate": "2027-02-02",
-      "status": "INSCRICOES_ABERTAS",
-      "isDuo": false,
-      "createdAt": "2026-10-09T12:06:56.649Z",
-      "updatedAt": "2026-10-09T12:06:56.649Z"
-    },
-    {
       "id": "t-l2kcowd6j",
       "name": "Edição 2027",
       "arenaId": "arena-6a5h1o8wd",
@@ -1021,32 +1005,6 @@
       "updatedAt": "2026-10-08T15:36:13.657Z"
     },
     {
-      "id": "c-h5gyutri5",
-      "tournamentId": "GLOBAL",
-      "name": "SUPER 8 PRINCIPIANTE",
-      "type": "SUPER 8",
-      "level": "PRINCIPIANTE",
-      "price": 40,
-      "maxParticipants": 8,
-      "status": "ATIVA",
-      "description": "",
-      "createdAt": "2026-10-09T12:03:07.823Z",
-      "updatedAt": "2026-10-09T12:03:07.823Z"
-    },
-    {
-      "id": "c-3f8ay2wky",
-      "tournamentId": "t-qw68nd3xp",
-      "masterCategoryId": "c-h5gyutri5",
-      "name": "SUPER 8 PRINCIPIANTE",
-      "type": "SUPER 8",
-      "level": "PRINCIPIANTE",
-      "price": 40,
-      "maxParticipants": 8,
-      "status": "ATIVA",
-      "createdAt": "2026-10-09T12:06:56.649Z",
-      "updatedAt": "2026-10-09T12:06:56.649Z"
-    },
-    {
       "id": "c-asm6racfn",
       "tournamentId": "t-l2kcowd6j",
       "masterCategoryId": "cat-std-masc-d",
@@ -1089,78 +1047,6 @@
     }
   ],
   "registrations": [
-    {
-      "id": "reg-8wlqt4rrk",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-joao",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:17.124Z",
-      "updatedAt": "2026-10-09T20:24:46.119Z"
-    },
-    {
-      "id": "reg-br6hr9z1l",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-lxkaq0uqv",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:17.201Z",
-      "updatedAt": "2026-10-09T20:24:57.802Z"
-    },
-    {
-      "id": "reg-piinfwjx6",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-maria",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:17.209Z",
-      "updatedAt": "2026-10-09T12:07:17.209Z"
-    },
-    {
-      "id": "reg-tdemspb8a",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-lucas",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:17.263Z",
-      "updatedAt": "2026-10-09T12:07:17.263Z"
-    },
-    {
-      "id": "reg-6oe0iy0sv",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-carlos",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:17.288Z",
-      "updatedAt": "2026-10-09T12:07:17.288Z"
-    },
-    {
-      "id": "reg-26lf094cc",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-pedro",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:17.305Z",
-      "updatedAt": "2026-10-09T12:07:17.305Z"
-    },
-    {
-      "id": "reg-m7al7i5p9",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-zm0bhpk79",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:17.317Z",
-      "updatedAt": "2026-10-09T20:25:29.364Z"
-    },
-    {
-      "id": "reg-lli452982",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-bktqtc8rs",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:18.713Z",
-      "updatedAt": "2026-10-09T12:07:18.713Z"
-    },
     {
       "id": "reg-apeqmq7q0",
       "tournamentId": "t-l2kcowd6j",
@@ -1404,454 +1290,6 @@
     }
   ],
   "matches": [
-    {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "stage": "Rodada 1",
-      "groupName": "Super 8",
-      "round": 1,
-      "matchNumber": 1,
-      "format": "SUPER_8",
-      "teamA": {
-        "player1Id": "ath-joao",
-        "player2Id": "ath-bktqtc8rs",
-        "player1Name": "João da Silva",
-        "player2Name": "Felipe de Melo Rodrigues"
-      },
-      "teamB": {
-        "player1Id": "ath-lxkaq0uqv",
-        "player2Id": "ath-zm0bhpk79",
-        "player1Name": "Radael Mistofóbico",
-        "player2Name": "Jubileu da Silva"
-      },
-      "date": "2026-10-09",
-      "time": "14:00",
-      "court": "Quadra 1",
-      "status": "FINALIZADA",
-      "id": "mat-s8-fd3waltul",
-      "createdAt": "2026-10-09T12:07:54.961Z",
-      "updatedAt": "2026-10-09T14:33:34.212Z",
-      "scoreA": 2,
-      "scoreB": 4,
-      "score": "2 x 4",
-      "winnerTeam": "TEAM_B"
-    },
-    {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "stage": "Rodada 1",
-      "groupName": "Super 8",
-      "round": 1,
-      "matchNumber": 2,
-      "format": "SUPER_8",
-      "teamA": {
-        "player1Id": "ath-maria",
-        "player2Id": "ath-pedro",
-        "player1Name": "Maria Oliveira",
-        "player2Name": "Pedro Santos"
-      },
-      "teamB": {
-        "player1Id": "ath-lucas",
-        "player2Id": "ath-carlos",
-        "player1Name": "Lucas Pereira",
-        "player2Name": "Carlos Souza"
-      },
-      "date": "2026-10-09",
-      "time": "14:00",
-      "court": "Quadra 2",
-      "status": "FINALIZADA",
-      "id": "mat-s8-w7fppigg7",
-      "createdAt": "2026-10-09T12:07:54.961Z",
-      "updatedAt": "2026-10-09T17:57:39.562Z",
-      "scoreA": 4,
-      "scoreB": 2,
-      "score": "4 x 2",
-      "winnerTeam": "TEAM_A"
-    },
-    {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "stage": "Rodada 2",
-      "groupName": "Super 8",
-      "round": 2,
-      "matchNumber": 3,
-      "format": "SUPER_8",
-      "teamA": {
-        "player1Id": "ath-joao",
-        "player2Id": "ath-zm0bhpk79",
-        "player1Name": "João da Silva",
-        "player2Name": "Jubileu da Silva"
-      },
-      "teamB": {
-        "player1Id": "ath-bktqtc8rs",
-        "player2Id": "ath-pedro",
-        "player1Name": "Felipe de Melo Rodrigues",
-        "player2Name": "Pedro Santos"
-      },
-      "date": "2026-10-09",
-      "time": "14:40",
-      "court": "Quadra 1",
-      "status": "FINALIZADA",
-      "id": "mat-s8-8ifv9vpw0",
-      "createdAt": "2026-10-09T12:07:54.961Z",
-      "updatedAt": "2026-10-09T17:57:59.738Z",
-      "scoreA": 4,
-      "scoreB": 2,
-      "score": "4 x 2",
-      "winnerTeam": "TEAM_A"
-    },
-    {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "stage": "Rodada 2",
-      "groupName": "Super 8",
-      "round": 2,
-      "matchNumber": 4,
-      "format": "SUPER_8",
-      "teamA": {
-        "player1Id": "ath-lxkaq0uqv",
-        "player2Id": "ath-carlos",
-        "player1Name": "Radael Mistofóbico",
-        "player2Name": "Carlos Souza"
-      },
-      "teamB": {
-        "player1Id": "ath-maria",
-        "player2Id": "ath-lucas",
-        "player1Name": "Maria Oliveira",
-        "player2Name": "Lucas Pereira"
-      },
-      "date": "2026-10-09",
-      "time": "14:40",
-      "court": "Quadra 2",
-      "status": "FINALIZADA",
-      "id": "mat-s8-dekwwoanq",
-      "createdAt": "2026-10-09T12:07:54.961Z",
-      "updatedAt": "2026-10-09T18:00:57.177Z",
-      "scoreA": 4,
-      "scoreB": 1,
-      "score": "4 x 1",
-      "winnerTeam": "TEAM_A"
-    },
-    {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "stage": "Rodada 3",
-      "groupName": "Super 8",
-      "round": 3,
-      "matchNumber": 5,
-      "format": "SUPER_8",
-      "teamA": {
-        "player1Id": "ath-joao",
-        "player2Id": "ath-pedro",
-        "player1Name": "João da Silva",
-        "player2Name": "Pedro Santos"
-      },
-      "teamB": {
-        "player1Id": "ath-zm0bhpk79",
-        "player2Id": "ath-carlos",
-        "player1Name": "Jubileu da Silva",
-        "player2Name": "Carlos Souza"
-      },
-      "date": "2026-10-09",
-      "time": "15:20",
-      "court": "Quadra 1",
-      "status": "FINALIZADA",
-      "id": "mat-s8-8sja5u0c7",
-      "createdAt": "2026-10-09T12:07:54.961Z",
-      "updatedAt": "2026-10-09T18:11:48.426Z",
-      "scoreA": 4,
-      "scoreB": 2,
-      "score": "4 x 2",
-      "winnerTeam": "TEAM_A"
-    },
-    {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "stage": "Rodada 3",
-      "groupName": "Super 8",
-      "round": 3,
-      "matchNumber": 6,
-      "format": "SUPER_8",
-      "teamA": {
-        "player1Id": "ath-bktqtc8rs",
-        "player2Id": "ath-lucas",
-        "player1Name": "Felipe de Melo Rodrigues",
-        "player2Name": "Lucas Pereira"
-      },
-      "teamB": {
-        "player1Id": "ath-lxkaq0uqv",
-        "player2Id": "ath-maria",
-        "player1Name": "Radael Mistofóbico",
-        "player2Name": "Maria Oliveira"
-      },
-      "date": "2026-10-09",
-      "time": "15:20",
-      "court": "Quadra 2",
-      "status": "FINALIZADA",
-      "id": "mat-s8-afvbnjzqf",
-      "createdAt": "2026-10-09T12:07:54.961Z",
-      "updatedAt": "2026-10-09T18:12:06.440Z",
-      "scoreA": 4,
-      "scoreB": 1,
-      "score": "4 x 1",
-      "winnerTeam": "TEAM_A"
-    },
-    {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "stage": "Rodada 4",
-      "groupName": "Super 8",
-      "round": 4,
-      "matchNumber": 7,
-      "format": "SUPER_8",
-      "teamA": {
-        "player1Id": "ath-joao",
-        "player2Id": "ath-carlos",
-        "player1Name": "João da Silva",
-        "player2Name": "Carlos Souza"
-      },
-      "teamB": {
-        "player1Id": "ath-pedro",
-        "player2Id": "ath-lucas",
-        "player1Name": "Pedro Santos",
-        "player2Name": "Lucas Pereira"
-      },
-      "date": "2026-10-09",
-      "time": "16:00",
-      "court": "Quadra 1",
-      "status": "FINALIZADA",
-      "id": "mat-s8-5q5y12090",
-      "createdAt": "2026-10-09T12:07:54.961Z",
-      "updatedAt": "2026-10-09T18:12:28.682Z",
-      "scoreA": 4,
-      "scoreB": 3,
-      "score": "4 x 3",
-      "winnerTeam": "TEAM_A"
-    },
-    {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "stage": "Rodada 4",
-      "groupName": "Super 8",
-      "round": 4,
-      "matchNumber": 8,
-      "format": "SUPER_8",
-      "teamA": {
-        "player1Id": "ath-zm0bhpk79",
-        "player2Id": "ath-maria",
-        "player1Name": "Jubileu da Silva",
-        "player2Name": "Maria Oliveira"
-      },
-      "teamB": {
-        "player1Id": "ath-bktqtc8rs",
-        "player2Id": "ath-lxkaq0uqv",
-        "player1Name": "Felipe de Melo Rodrigues",
-        "player2Name": "Radael Mistofóbico"
-      },
-      "date": "2026-10-09",
-      "time": "16:00",
-      "court": "Quadra 2",
-      "status": "FINALIZADA",
-      "id": "mat-s8-kqcl5dq0b",
-      "createdAt": "2026-10-09T12:07:54.961Z",
-      "updatedAt": "2026-10-09T18:12:42.109Z",
-      "scoreA": 4,
-      "scoreB": 2,
-      "score": "4 x 2",
-      "winnerTeam": "TEAM_A"
-    },
-    {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "stage": "Rodada 5",
-      "groupName": "Super 8",
-      "round": 5,
-      "matchNumber": 9,
-      "format": "SUPER_8",
-      "teamA": {
-        "player1Id": "ath-joao",
-        "player2Id": "ath-lucas",
-        "player1Name": "João da Silva",
-        "player2Name": "Lucas Pereira"
-      },
-      "teamB": {
-        "player1Id": "ath-carlos",
-        "player2Id": "ath-maria",
-        "player1Name": "Carlos Souza",
-        "player2Name": "Maria Oliveira"
-      },
-      "date": "2026-10-09",
-      "time": "16:40",
-      "court": "Quadra 1",
-      "status": "FINALIZADA",
-      "id": "mat-s8-52t4jigni",
-      "createdAt": "2026-10-09T12:07:54.961Z",
-      "updatedAt": "2026-10-09T18:13:34.297Z",
-      "scoreA": 4,
-      "scoreB": 3,
-      "score": "4 x 3",
-      "winnerTeam": "TEAM_A"
-    },
-    {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "stage": "Rodada 5",
-      "groupName": "Super 8",
-      "round": 5,
-      "matchNumber": 10,
-      "format": "SUPER_8",
-      "teamA": {
-        "player1Id": "ath-pedro",
-        "player2Id": "ath-lxkaq0uqv",
-        "player1Name": "Pedro Santos",
-        "player2Name": "Radael Mistofóbico"
-      },
-      "teamB": {
-        "player1Id": "ath-zm0bhpk79",
-        "player2Id": "ath-bktqtc8rs",
-        "player1Name": "Jubileu da Silva",
-        "player2Name": "Felipe de Melo Rodrigues"
-      },
-      "date": "2026-10-09",
-      "time": "16:40",
-      "court": "Quadra 2",
-      "status": "FINALIZADA",
-      "id": "mat-s8-3jkeejjhi",
-      "createdAt": "2026-10-09T12:07:54.961Z",
-      "updatedAt": "2026-10-09T18:13:45.618Z",
-      "scoreA": 4,
-      "scoreB": 2,
-      "score": "4 x 2",
-      "winnerTeam": "TEAM_A"
-    },
-    {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "stage": "Rodada 6",
-      "groupName": "Super 8",
-      "round": 6,
-      "matchNumber": 11,
-      "format": "SUPER_8",
-      "teamA": {
-        "player1Id": "ath-joao",
-        "player2Id": "ath-maria",
-        "player1Name": "João da Silva",
-        "player2Name": "Maria Oliveira"
-      },
-      "teamB": {
-        "player1Id": "ath-lucas",
-        "player2Id": "ath-lxkaq0uqv",
-        "player1Name": "Lucas Pereira",
-        "player2Name": "Radael Mistofóbico"
-      },
-      "date": "2026-10-09",
-      "time": "17:20",
-      "court": "Quadra 1",
-      "status": "FINALIZADA",
-      "id": "mat-s8-qtjc20a5g",
-      "createdAt": "2026-10-09T12:07:54.961Z",
-      "updatedAt": "2026-10-09T18:13:55.610Z",
-      "scoreA": 4,
-      "scoreB": 1,
-      "score": "4 x 1",
-      "winnerTeam": "TEAM_A"
-    },
-    {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "stage": "Rodada 6",
-      "groupName": "Super 8",
-      "round": 6,
-      "matchNumber": 12,
-      "format": "SUPER_8",
-      "teamA": {
-        "player1Id": "ath-carlos",
-        "player2Id": "ath-bktqtc8rs",
-        "player1Name": "Carlos Souza",
-        "player2Name": "Felipe de Melo Rodrigues"
-      },
-      "teamB": {
-        "player1Id": "ath-pedro",
-        "player2Id": "ath-zm0bhpk79",
-        "player1Name": "Pedro Santos",
-        "player2Name": "Jubileu da Silva"
-      },
-      "date": "2026-10-09",
-      "time": "17:20",
-      "court": "Quadra 2",
-      "status": "FINALIZADA",
-      "id": "mat-s8-c4q4ka2zr",
-      "createdAt": "2026-10-09T12:07:54.961Z",
-      "updatedAt": "2026-10-09T18:14:05.004Z",
-      "scoreA": 4,
-      "scoreB": 3,
-      "score": "4 x 3",
-      "winnerTeam": "TEAM_A"
-    },
-    {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "stage": "Rodada 7",
-      "groupName": "Super 8",
-      "round": 7,
-      "matchNumber": 13,
-      "format": "SUPER_8",
-      "teamA": {
-        "player1Id": "ath-joao",
-        "player2Id": "ath-lxkaq0uqv",
-        "player1Name": "João da Silva",
-        "player2Name": "Radael Mistofóbico"
-      },
-      "teamB": {
-        "player1Id": "ath-maria",
-        "player2Id": "ath-bktqtc8rs",
-        "player1Name": "Maria Oliveira",
-        "player2Name": "Felipe de Melo Rodrigues"
-      },
-      "date": "2026-10-09",
-      "time": "18:00",
-      "court": "Quadra 1",
-      "status": "FINALIZADA",
-      "id": "mat-s8-cdabu5quf",
-      "createdAt": "2026-10-09T12:07:54.961Z",
-      "updatedAt": "2026-10-09T18:14:16.447Z",
-      "scoreA": 4,
-      "scoreB": 2,
-      "score": "4 x 2",
-      "winnerTeam": "TEAM_A"
-    },
-    {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "stage": "Rodada 7",
-      "groupName": "Super 8",
-      "round": 7,
-      "matchNumber": 14,
-      "format": "SUPER_8",
-      "teamA": {
-        "player1Id": "ath-lucas",
-        "player2Id": "ath-zm0bhpk79",
-        "player1Name": "Lucas Pereira",
-        "player2Name": "Jubileu da Silva"
-      },
-      "teamB": {
-        "player1Id": "ath-carlos",
-        "player2Id": "ath-pedro",
-        "player1Name": "Carlos Souza",
-        "player2Name": "Pedro Santos"
-      },
-      "date": "2026-10-09",
-      "time": "18:00",
-      "court": "Quadra 2",
-      "status": "FINALIZADA",
-      "id": "mat-s8-gpiwrcr7j",
-      "createdAt": "2026-10-09T12:07:54.961Z",
-      "updatedAt": "2026-10-09T18:14:42.859Z",
-      "scoreA": 4,
-      "scoreB": 0,
-      "score": "4 x 0",
-      "winnerTeam": "TEAM_A"
-    },
     {
       "id": "mat-fort-semi-1",
       "tournamentId": "tor-fortaleza-beiramar-2027",
@@ -2109,6 +1547,13 @@
           "create": true,
           "edit": true,
           "delete": true
+        },
+        {
+          "screen": "super8",
+          "view": true,
+          "create": true,
+          "edit": true,
+          "delete": true
         }
       ],
       "createdAt": "2026-10-01T00:00:00.000Z",
@@ -2223,6 +1668,13 @@
           "view": false,
           "create": false,
           "edit": false,
+          "delete": false
+        },
+        {
+          "screen": "super8",
+          "view": true,
+          "create": true,
+          "edit": true,
           "delete": false
         }
       ],
@@ -2339,6 +1791,13 @@
           "create": false,
           "edit": false,
           "delete": false
+        },
+        {
+          "screen": "super8",
+          "view": true,
+          "create": false,
+          "edit": true,
+          "delete": false
         }
       ],
       "createdAt": "2026-10-01T00:00:00.000Z",
@@ -2454,10 +1913,501 @@
           "create": false,
           "edit": false,
           "delete": false
+        },
+        {
+          "screen": "super8",
+          "view": true,
+          "create": false,
+          "edit": false,
+          "delete": false
         }
       ],
       "createdAt": "2026-10-01T00:00:00.000Z",
       "updatedAt": "2026-10-01T00:00:00.000Z"
+    }
+  ],
+  "super8Events": [
+    {
+      "id": "t-qw68nd3xp",
+      "name": "Super 8",
+      "seriesName": "Super 8",
+      "arenaId": "arena-zne0sbge6",
+      "organizerId": "arena-zne0sbge6",
+      "venueId": "ven-kpptfkeak",
+      "venueName": "Toss",
+      "courtsUsed": 2,
+      "startDate": "2027-01-01",
+      "endDate": "2027-02-02",
+      "status": "INSCRICOES_ABERTAS",
+      "categoryName": "SUPER 8 PRINCIPIANTE",
+      "level": "PRINCIPIANTE",
+      "price": 40,
+      "games": 4,
+      "thaiBreak": false,
+      "athleteIds": [
+        "ath-joao",
+        "ath-lxkaq0uqv",
+        "ath-maria",
+        "ath-lucas",
+        "ath-carlos",
+        "ath-pedro",
+        "ath-zm0bhpk79",
+        "ath-bktqtc8rs"
+      ],
+      "legacyTournamentId": "t-qw68nd3xp",
+      "legacyCategoryId": "c-3f8ay2wky",
+      "createdAt": "2026-10-09T12:06:56.649Z",
+      "updatedAt": "2026-10-09T12:06:56.649Z"
+    }
+  ],
+  "super8Matches": [
+    {
+      "id": "mat-s8-fd3waltul",
+      "super8Id": "t-qw68nd3xp",
+      "stage": "Rodada 1",
+      "groupName": "Super 8",
+      "round": 1,
+      "matchNumber": 1,
+      "teamA": {
+        "player1Id": "ath-joao",
+        "player2Id": "ath-bktqtc8rs",
+        "player1Name": "João da Silva",
+        "player2Name": "Felipe de Melo Rodrigues"
+      },
+      "teamB": {
+        "player1Id": "ath-lxkaq0uqv",
+        "player2Id": "ath-zm0bhpk79",
+        "player1Name": "Radael Mistofóbico",
+        "player2Name": "Jubileu da Silva"
+      },
+      "scoreA": 2,
+      "scoreB": 4,
+      "score": "2 x 4",
+      "winnerTeam": "TEAM_B",
+      "date": "2026-10-09",
+      "time": "14:00",
+      "court": "Quadra 1",
+      "status": "FINALIZADA",
+      "games": 4,
+      "thaiBreak": false,
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T14:33:34.212Z"
+    },
+    {
+      "id": "mat-s8-w7fppigg7",
+      "super8Id": "t-qw68nd3xp",
+      "stage": "Rodada 1",
+      "groupName": "Super 8",
+      "round": 1,
+      "matchNumber": 2,
+      "teamA": {
+        "player1Id": "ath-maria",
+        "player2Id": "ath-pedro",
+        "player1Name": "Maria Oliveira",
+        "player2Name": "Pedro Santos"
+      },
+      "teamB": {
+        "player1Id": "ath-lucas",
+        "player2Id": "ath-carlos",
+        "player1Name": "Lucas Pereira",
+        "player2Name": "Carlos Souza"
+      },
+      "scoreA": 4,
+      "scoreB": 2,
+      "score": "4 x 2",
+      "winnerTeam": "TEAM_A",
+      "date": "2026-10-09",
+      "time": "14:00",
+      "court": "Quadra 2",
+      "status": "FINALIZADA",
+      "games": 4,
+      "thaiBreak": false,
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T17:57:39.562Z"
+    },
+    {
+      "id": "mat-s8-8ifv9vpw0",
+      "super8Id": "t-qw68nd3xp",
+      "stage": "Rodada 2",
+      "groupName": "Super 8",
+      "round": 2,
+      "matchNumber": 3,
+      "teamA": {
+        "player1Id": "ath-joao",
+        "player2Id": "ath-zm0bhpk79",
+        "player1Name": "João da Silva",
+        "player2Name": "Jubileu da Silva"
+      },
+      "teamB": {
+        "player1Id": "ath-bktqtc8rs",
+        "player2Id": "ath-pedro",
+        "player1Name": "Felipe de Melo Rodrigues",
+        "player2Name": "Pedro Santos"
+      },
+      "scoreA": 4,
+      "scoreB": 2,
+      "score": "4 x 2",
+      "winnerTeam": "TEAM_A",
+      "date": "2026-10-09",
+      "time": "14:40",
+      "court": "Quadra 1",
+      "status": "FINALIZADA",
+      "games": 4,
+      "thaiBreak": false,
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T17:57:59.738Z"
+    },
+    {
+      "id": "mat-s8-dekwwoanq",
+      "super8Id": "t-qw68nd3xp",
+      "stage": "Rodada 2",
+      "groupName": "Super 8",
+      "round": 2,
+      "matchNumber": 4,
+      "teamA": {
+        "player1Id": "ath-lxkaq0uqv",
+        "player2Id": "ath-carlos",
+        "player1Name": "Radael Mistofóbico",
+        "player2Name": "Carlos Souza"
+      },
+      "teamB": {
+        "player1Id": "ath-maria",
+        "player2Id": "ath-lucas",
+        "player1Name": "Maria Oliveira",
+        "player2Name": "Lucas Pereira"
+      },
+      "scoreA": 4,
+      "scoreB": 1,
+      "score": "4 x 1",
+      "winnerTeam": "TEAM_A",
+      "date": "2026-10-09",
+      "time": "14:40",
+      "court": "Quadra 2",
+      "status": "FINALIZADA",
+      "games": 4,
+      "thaiBreak": false,
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:00:57.177Z"
+    },
+    {
+      "id": "mat-s8-8sja5u0c7",
+      "super8Id": "t-qw68nd3xp",
+      "stage": "Rodada 3",
+      "groupName": "Super 8",
+      "round": 3,
+      "matchNumber": 5,
+      "teamA": {
+        "player1Id": "ath-joao",
+        "player2Id": "ath-pedro",
+        "player1Name": "João da Silva",
+        "player2Name": "Pedro Santos"
+      },
+      "teamB": {
+        "player1Id": "ath-zm0bhpk79",
+        "player2Id": "ath-carlos",
+        "player1Name": "Jubileu da Silva",
+        "player2Name": "Carlos Souza"
+      },
+      "scoreA": 4,
+      "scoreB": 2,
+      "score": "4 x 2",
+      "winnerTeam": "TEAM_A",
+      "date": "2026-10-09",
+      "time": "15:20",
+      "court": "Quadra 1",
+      "status": "FINALIZADA",
+      "games": 4,
+      "thaiBreak": false,
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:11:48.426Z"
+    },
+    {
+      "id": "mat-s8-afvbnjzqf",
+      "super8Id": "t-qw68nd3xp",
+      "stage": "Rodada 3",
+      "groupName": "Super 8",
+      "round": 3,
+      "matchNumber": 6,
+      "teamA": {
+        "player1Id": "ath-bktqtc8rs",
+        "player2Id": "ath-lucas",
+        "player1Name": "Felipe de Melo Rodrigues",
+        "player2Name": "Lucas Pereira"
+      },
+      "teamB": {
+        "player1Id": "ath-lxkaq0uqv",
+        "player2Id": "ath-maria",
+        "player1Name": "Radael Mistofóbico",
+        "player2Name": "Maria Oliveira"
+      },
+      "scoreA": 4,
+      "scoreB": 1,
+      "score": "4 x 1",
+      "winnerTeam": "TEAM_A",
+      "date": "2026-10-09",
+      "time": "15:20",
+      "court": "Quadra 2",
+      "status": "FINALIZADA",
+      "games": 4,
+      "thaiBreak": false,
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:12:06.440Z"
+    },
+    {
+      "id": "mat-s8-5q5y12090",
+      "super8Id": "t-qw68nd3xp",
+      "stage": "Rodada 4",
+      "groupName": "Super 8",
+      "round": 4,
+      "matchNumber": 7,
+      "teamA": {
+        "player1Id": "ath-joao",
+        "player2Id": "ath-carlos",
+        "player1Name": "João da Silva",
+        "player2Name": "Carlos Souza"
+      },
+      "teamB": {
+        "player1Id": "ath-pedro",
+        "player2Id": "ath-lucas",
+        "player1Name": "Pedro Santos",
+        "player2Name": "Lucas Pereira"
+      },
+      "scoreA": 4,
+      "scoreB": 3,
+      "score": "4 x 3",
+      "winnerTeam": "TEAM_A",
+      "date": "2026-10-09",
+      "time": "16:00",
+      "court": "Quadra 1",
+      "status": "FINALIZADA",
+      "games": 4,
+      "thaiBreak": false,
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:12:28.682Z"
+    },
+    {
+      "id": "mat-s8-kqcl5dq0b",
+      "super8Id": "t-qw68nd3xp",
+      "stage": "Rodada 4",
+      "groupName": "Super 8",
+      "round": 4,
+      "matchNumber": 8,
+      "teamA": {
+        "player1Id": "ath-zm0bhpk79",
+        "player2Id": "ath-maria",
+        "player1Name": "Jubileu da Silva",
+        "player2Name": "Maria Oliveira"
+      },
+      "teamB": {
+        "player1Id": "ath-bktqtc8rs",
+        "player2Id": "ath-lxkaq0uqv",
+        "player1Name": "Felipe de Melo Rodrigues",
+        "player2Name": "Radael Mistofóbico"
+      },
+      "scoreA": 4,
+      "scoreB": 2,
+      "score": "4 x 2",
+      "winnerTeam": "TEAM_A",
+      "date": "2026-10-09",
+      "time": "16:00",
+      "court": "Quadra 2",
+      "status": "FINALIZADA",
+      "games": 4,
+      "thaiBreak": false,
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:12:42.109Z"
+    },
+    {
+      "id": "mat-s8-52t4jigni",
+      "super8Id": "t-qw68nd3xp",
+      "stage": "Rodada 5",
+      "groupName": "Super 8",
+      "round": 5,
+      "matchNumber": 9,
+      "teamA": {
+        "player1Id": "ath-joao",
+        "player2Id": "ath-lucas",
+        "player1Name": "João da Silva",
+        "player2Name": "Lucas Pereira"
+      },
+      "teamB": {
+        "player1Id": "ath-carlos",
+        "player2Id": "ath-maria",
+        "player1Name": "Carlos Souza",
+        "player2Name": "Maria Oliveira"
+      },
+      "scoreA": 4,
+      "scoreB": 3,
+      "score": "4 x 3",
+      "winnerTeam": "TEAM_A",
+      "date": "2026-10-09",
+      "time": "16:40",
+      "court": "Quadra 1",
+      "status": "FINALIZADA",
+      "games": 4,
+      "thaiBreak": false,
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:13:34.297Z"
+    },
+    {
+      "id": "mat-s8-3jkeejjhi",
+      "super8Id": "t-qw68nd3xp",
+      "stage": "Rodada 5",
+      "groupName": "Super 8",
+      "round": 5,
+      "matchNumber": 10,
+      "teamA": {
+        "player1Id": "ath-pedro",
+        "player2Id": "ath-lxkaq0uqv",
+        "player1Name": "Pedro Santos",
+        "player2Name": "Radael Mistofóbico"
+      },
+      "teamB": {
+        "player1Id": "ath-zm0bhpk79",
+        "player2Id": "ath-bktqtc8rs",
+        "player1Name": "Jubileu da Silva",
+        "player2Name": "Felipe de Melo Rodrigues"
+      },
+      "scoreA": 4,
+      "scoreB": 2,
+      "score": "4 x 2",
+      "winnerTeam": "TEAM_A",
+      "date": "2026-10-09",
+      "time": "16:40",
+      "court": "Quadra 2",
+      "status": "FINALIZADA",
+      "games": 4,
+      "thaiBreak": false,
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:13:45.618Z"
+    },
+    {
+      "id": "mat-s8-qtjc20a5g",
+      "super8Id": "t-qw68nd3xp",
+      "stage": "Rodada 6",
+      "groupName": "Super 8",
+      "round": 6,
+      "matchNumber": 11,
+      "teamA": {
+        "player1Id": "ath-joao",
+        "player2Id": "ath-maria",
+        "player1Name": "João da Silva",
+        "player2Name": "Maria Oliveira"
+      },
+      "teamB": {
+        "player1Id": "ath-lucas",
+        "player2Id": "ath-lxkaq0uqv",
+        "player1Name": "Lucas Pereira",
+        "player2Name": "Radael Mistofóbico"
+      },
+      "scoreA": 4,
+      "scoreB": 1,
+      "score": "4 x 1",
+      "winnerTeam": "TEAM_A",
+      "date": "2026-10-09",
+      "time": "17:20",
+      "court": "Quadra 1",
+      "status": "FINALIZADA",
+      "games": 4,
+      "thaiBreak": false,
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:13:55.610Z"
+    },
+    {
+      "id": "mat-s8-c4q4ka2zr",
+      "super8Id": "t-qw68nd3xp",
+      "stage": "Rodada 6",
+      "groupName": "Super 8",
+      "round": 6,
+      "matchNumber": 12,
+      "teamA": {
+        "player1Id": "ath-carlos",
+        "player2Id": "ath-bktqtc8rs",
+        "player1Name": "Carlos Souza",
+        "player2Name": "Felipe de Melo Rodrigues"
+      },
+      "teamB": {
+        "player1Id": "ath-pedro",
+        "player2Id": "ath-zm0bhpk79",
+        "player1Name": "Pedro Santos",
+        "player2Name": "Jubileu da Silva"
+      },
+      "scoreA": 4,
+      "scoreB": 3,
+      "score": "4 x 3",
+      "winnerTeam": "TEAM_A",
+      "date": "2026-10-09",
+      "time": "17:20",
+      "court": "Quadra 2",
+      "status": "FINALIZADA",
+      "games": 4,
+      "thaiBreak": false,
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:14:05.004Z"
+    },
+    {
+      "id": "mat-s8-cdabu5quf",
+      "super8Id": "t-qw68nd3xp",
+      "stage": "Rodada 7",
+      "groupName": "Super 8",
+      "round": 7,
+      "matchNumber": 13,
+      "teamA": {
+        "player1Id": "ath-joao",
+        "player2Id": "ath-lxkaq0uqv",
+        "player1Name": "João da Silva",
+        "player2Name": "Radael Mistofóbico"
+      },
+      "teamB": {
+        "player1Id": "ath-maria",
+        "player2Id": "ath-bktqtc8rs",
+        "player1Name": "Maria Oliveira",
+        "player2Name": "Felipe de Melo Rodrigues"
+      },
+      "scoreA": 4,
+      "scoreB": 2,
+      "score": "4 x 2",
+      "winnerTeam": "TEAM_A",
+      "date": "2026-10-09",
+      "time": "18:00",
+      "court": "Quadra 1",
+      "status": "FINALIZADA",
+      "games": 4,
+      "thaiBreak": false,
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:14:16.447Z"
+    },
+    {
+      "id": "mat-s8-gpiwrcr7j",
+      "super8Id": "t-qw68nd3xp",
+      "stage": "Rodada 7",
+      "groupName": "Super 8",
+      "round": 7,
+      "matchNumber": 14,
+      "teamA": {
+        "player1Id": "ath-lucas",
+        "player2Id": "ath-zm0bhpk79",
+        "player1Name": "Lucas Pereira",
+        "player2Name": "Jubileu da Silva"
+      },
+      "teamB": {
+        "player1Id": "ath-carlos",
+        "player2Id": "ath-pedro",
+        "player1Name": "Carlos Souza",
+        "player2Name": "Pedro Santos"
+      },
+      "scoreA": 4,
+      "scoreB": 0,
+      "score": "4 x 0",
+      "winnerTeam": "TEAM_A",
+      "date": "2026-10-09",
+      "time": "18:00",
+      "court": "Quadra 2",
+      "status": "FINALIZADA",
+      "games": 4,
+      "thaiBreak": false,
+      "createdAt": "2026-10-09T12:07:54.961Z",
+      "updatedAt": "2026-10-09T18:14:42.859Z"
     }
   ]
 }

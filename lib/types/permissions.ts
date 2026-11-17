@@ -5,6 +5,7 @@ export type SystemScreen =
   | 'venues'
   | 'categories'
   | 'tournaments'
+  | 'super8'
   | 'registrations'
   | 'duos'
   | 'matches'
@@ -72,7 +73,8 @@ export const ALL_SYSTEM_SCREENS: { id: SystemScreen; label: string; description:
   { id: 'arenas', label: 'Arenas / Organizadores', description: 'Gestão de parceiros e administradores de arenas' },
   { id: 'venues', label: 'Locais Físicos (Arenas Físicas)', description: 'Gestão de quadras físicas e locais de jogos' },
   { id: 'categories', label: 'Categorias Padrão', description: 'Configuração de categorias e regras de pontuação' },
-  { id: 'tournaments', label: 'Torneios', description: 'Criação e edição de torneios' },
+  { id: 'tournaments', label: 'Torneios', description: 'Criação e edição de torneios de duplas' },
+  { id: 'super8', label: 'Super 8', description: 'Competições individuais Super 8, rodadas dinâmicas e ranking individual' },
   { id: 'registrations', label: 'Inscrições', description: 'Gerenciamento de inscrições de atletas' },
   { id: 'duos', label: 'Formação de Duplas', description: 'Sorteio e formação de duplas por categoria' },
   { id: 'matches', label: 'Jogos / Quadras', description: 'Chaveamento, quadras e horários' },
@@ -103,7 +105,7 @@ export const DEFAULT_SYSTEM_PROFILES: Profile[] = [
   {
     id: 'prof-organizador',
     name: 'Organizador',
-    description: 'Gerencia torneios, inscrições, duplas, jogos e quadras.',
+    description: 'Gerencia torneios, Super 8, inscrições, duplas, jogos e quadras.',
     isSystem: true,
     permissions: ALL_SYSTEM_SCREENS.map(s => {
       if (['arenas', 'venues', 'categories', 'profiles', 'users'].includes(s.id)) {
@@ -117,10 +119,10 @@ export const DEFAULT_SYSTEM_PROFILES: Profile[] = [
   {
     id: 'prof-mesario',
     name: 'Mesário / Árbitro',
-    description: 'Visualiza jogos, quadras e lança placares e resultados.',
+    description: 'Visualiza jogos, quadras, Super 8 e lança placares e resultados.',
     isSystem: true,
     permissions: ALL_SYSTEM_SCREENS.map(s => {
-      if (s.id === 'matches' || s.id === 'results' || s.id === 'bracket-tree') {
+      if (s.id === 'matches' || s.id === 'results' || s.id === 'bracket-tree' || s.id === 'super8') {
         return { screen: s.id, view: true, create: false, edit: true, delete: false };
       }
       if (s.id === 'dashboard') {
@@ -134,10 +136,10 @@ export const DEFAULT_SYSTEM_PROFILES: Profile[] = [
   {
     id: 'prof-visualizador',
     name: 'Visualizador de Relatórios',
-    description: 'Permissão apenas de visualização para relatórios, tabelas e resultados.',
+    description: 'Permissão apenas de visualização para relatórios, tabelas, Super 8 e resultados.',
     isSystem: false,
     permissions: ALL_SYSTEM_SCREENS.map(s => {
-      if (['reports', 'dashboard', 'bracket-tree', 'results'].includes(s.id)) {
+      if (['reports', 'dashboard', 'bracket-tree', 'results', 'super8'].includes(s.id)) {
         return { screen: s.id, view: true, create: false, edit: false, delete: false };
       }
       return { screen: s.id, view: false, create: false, edit: false, delete: false };

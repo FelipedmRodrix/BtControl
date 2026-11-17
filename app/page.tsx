@@ -44,16 +44,17 @@ import {
   Filter,
   CheckCircle2,
   Menu,
-  GitFork
+  GitFork,
+  Zap
 } from 'lucide-react';
-import { calculateSuper8Standings, Super8AthleteStanding } from '@/lib/services/super8Service';
 import { WorldCupBracket } from '@/components/WorldCupBracket';
 import { GroupStageView } from '@/components/GroupStageView';
 import { TournamentTreeBracket } from '@/components/TournamentTreeBracket';
 import { ProfilesManager } from '@/components/ProfilesManager';
 import { UsersManager } from '@/components/UsersManager';
+import { Super8Module } from '@/components/Super8Module';
 import type { ConventionalTournamentData } from '@/lib/services/conventionalTournamentService';
-import type { Profile } from '@/lib/types/permissions';
+import { type Profile, type SystemScreen, type PermissionAction, DEFAULT_SYSTEM_PROFILES } from '@/lib/types/permissions';
 
 // Type definitions
 interface Athlete {
@@ -138,7 +139,6 @@ interface Tournament {
   startDate: string;
   endDate: string;
   status: 'INSCRICOES_ABERTAS' | 'EM_ANDAMENTO' | 'FINALIZADO';
-  isDuo?: boolean;
   createdAt: string;
 }
 
@@ -147,7 +147,7 @@ interface Category {
   tournamentId?: string;
   masterCategoryId?: string;
   name?: string;
-  type: 'SUPER 8' | 'SUPER 8 DUPLAS' | 'MISTA' | 'MASCULINO' | 'FEMININO';
+  type: 'MISTA' | 'MASCULINO' | 'FEMININO';
   level: 'PRINCIPIANTE' | 'INICIANTE' | 'D' | 'C' | 'B' | 'A' | 'OPEN';
   price: number;
   maxParticipants?: number;
@@ -188,22 +188,8 @@ interface Match {
   groupName?: string;
   round?: number;
   matchNumber?: number;
-  format?: 'STANDARD' | 'SUPER_8';
-  teamA?: {
-    player1Id: string;
-    player2Id: string;
-    player1Name?: string;
-    player2Name?: string;
-  };
-  teamB?: {
-    player1Id: string;
-    player2Id: string;
-    player1Name?: string;
-    player2Name?: string;
-  };
   scoreA?: number;
   scoreB?: number;
-  winnerTeam?: 'TEAM_A' | 'TEAM_B';
   duo1?: string;
   duo2?: string;
   duo1Name?: string;
@@ -216,12 +202,11 @@ interface Match {
   status: 'PENDENTE' | 'FINALIZADA' | 'WO';
   score?: string;
   winnerDuo?: string;
-   winnerDuoId?: string;
-   isSuper8?: boolean;
-   isDraw?: boolean;
-   games?: number;
-   thaiBreak?: boolean;
-   tieBreaker?: string;
+  winnerDuoId?: string;
+  isDraw?: boolean;
+  games?: number;
+  thaiBreak?: boolean;
+  tieBreaker?: string;
 }
 
 // Standard Beach Tennis Category Matrix (Rule 9 and 10)
@@ -245,10 +230,7 @@ const STANDARD_CATEGORIES = [
   { type: 'MISTA' as const, level: 'C' as const },
   { type: 'MISTA' as const, level: 'B' as const },
   { type: 'MISTA' as const, level: 'A' as const },
-  { type: 'MISTA' as const, level: 'OPEN' as const },
-  
-  { type: 'SUPER 8' as const, level: 'OPEN' as const },
-  { type: 'SUPER 8 DUPLAS' as const, level: 'OPEN' as const }
+  { type: 'MISTA' as const, level: 'OPEN' as const }
 ];
 
 export default function Home() {
@@ -260,7 +242,7 @@ export default function Home() {
 
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'athletes' | 'arenas' | 'venues' | 'tournaments' | 'categories' | 'registrations' | 'duos' | 'matches' | 'results' | 'reports' | 'settings' | 'bracket-tree' | 'profiles' | 'users'
+    'dashboard' | 'athletes' | 'arenas' | 'venues' | 'tournaments' | 'categories' | 'registrations' | 'duos' | 'matches' | 'results' | 'reports' | 'settings' | 'bracket-tree' | 'profiles' | 'users' | 'super8'
   >('dashboard');
 
   // Sub-aba de Configurações
@@ -402,7 +384,6 @@ export default function Home() {
     startDate: '',
     endDate: '',
     status: 'INSCRICOES_ABERTAS' as 'INSCRICOES_ABERTAS' | 'EM_ANDAMENTO' | 'FINALIZADO',
-    isDuo: true,
     games: 6 as 4 | 6,
     thaiBreak: true
   });
@@ -411,7 +392,7 @@ export default function Home() {
   const [tourCategories, setTourCategories] = useState<{
     masterCategoryId?: string;
     name?: string;
-    type: 'SUPER 8' | 'SUPER 8 DUPLAS' | 'MISTA' | 'MASCULINO' | 'FEMININO';
+    type: 'MISTA' | 'MASCULINO' | 'FEMININO';
     level: 'PRINCIPIANTE' | 'INICIANTE' | 'D' | 'C' | 'B' | 'A' | 'OPEN';
     price: number;
     maxParticipants: number;
@@ -426,7 +407,7 @@ export default function Home() {
   const [categoryForm, setCategoryForm] = useState({
     name: '',
     tournamentId: 'GLOBAL',
-    type: 'MASCULINO' as 'SUPER 8' | 'SUPER 8 DUPLAS' | 'MISTA' | 'MASCULINO' | 'FEMININO',
+    type: 'MASCULINO' as 'MISTA' | 'MASCULINO' | 'FEMININO',
     level: 'C' as 'PRINCIPIANTE' | 'INICIANTE' | 'D' | 'C' | 'B' | 'A' | 'OPEN',
     price: 100,
      maxParticipants: 16,
@@ -474,9 +455,7 @@ export default function Home() {
     court: 'Quadra 1'
   });
 
-  const [filterSuper8Round, setFilterSuper8Round] = useState<'ALL' | number>('ALL');
   const [filterMatchCategory, setFilterMatchCategory] = useState<string>('ALL');
-  const [showSuper8Standings, setShowSuper8Standings] = useState(false);
 
   const [isResultModalOpen, setIsResultModalOpen] = useState(false);
   const [isWoModalOpen, setIsWoModalOpen] = useState(false);
@@ -538,8 +517,23 @@ export default function Home() {
   const [filterReportArenaId, setFilterReportArenaId] = useState<string>('ALL');
   const [filterReportCategory, setFilterReportCategory] = useState<string>('ALL');
 
+  const canPerform = (screen: SystemScreen, action: PermissionAction): boolean => {
+    if (!session) return false;
+    if (session.role === 'SUPER_ADMIN') return true;
+    const prof =
+      systemProfiles.find(p => p.id === session.profileId) ||
+      session.profile ||
+      DEFAULT_SYSTEM_PROFILES.find(p => p.id === session.profileId) ||
+      (session.role === 'ARENA_ADMIN'
+        ? DEFAULT_SYSTEM_PROFILES.find(p => p.id === 'prof-organizador')
+        : DEFAULT_SYSTEM_PROFILES.find(p => p.id === 'prof-visualizador'));
+    if (!prof) return session.role === 'ARENA_ADMIN';
+    const perm = prof.permissions.find(p => p.screen === screen);
+    return perm ? Boolean(perm[action]) : false;
+  };
+
   // Central Navigation Handler: Always resets tournament search and selection when clicking sidebar
-  const handleNavTab = (tab: 'dashboard' | 'athletes' | 'arenas' | 'venues' | 'categories' | 'tournaments' | 'registrations' | 'duos' | 'matches' | 'results' | 'reports' | 'settings' | 'bracket-tree') => {
+  const handleNavTab = (tab: 'dashboard' | 'athletes' | 'arenas' | 'venues' | 'categories' | 'tournaments' | 'registrations' | 'duos' | 'matches' | 'results' | 'reports' | 'settings' | 'bracket-tree' | 'super8') => {
     setActiveTab(tab);
     setIsMobileMenuOpen(false);
     if (tab === 'registrations') {
@@ -561,7 +555,6 @@ export default function Home() {
       setFilterMatchStatus('ALL');
       setFilterMatchArenaId('ALL');
       setFilterMatchCategory('ALL');
-      setFilterSuper8Round('ALL');
     } else if (tab === 'results') {
       setSelectedResultTournamentId('');
       setSearchResultTournamentTerm('');
@@ -575,11 +568,11 @@ export default function Home() {
       setFilterReportArenaId('ALL');
       setFilterReportCategory('ALL');
     } else if (tab === 'bracket-tree') {
-      const eligibleTours = tournaments.filter(t => t.isDuo !== false && !t.name.toLowerCase().includes('super 8') && !t.seriesName.toLowerCase().includes('super 8'));
+      const eligibleTours = tournaments;
       const activeTour = eligibleTours.find(t => t.id === selectedTreeTournamentId) || eligibleTours[0];
       if (activeTour) {
         setSelectedTreeTournamentId(activeTour.id);
-        const tourCats = categories.filter(c => c.tournamentId === activeTour.id && c.type !== 'SUPER 8' && c.type !== 'SUPER 8 DUPLAS');
+        const tourCats = categories.filter(c => c.tournamentId === activeTour.id);
         const activeCat = tourCats.find(c => c.id === selectedTreeCategoryId) || tourCats[0];
         if (activeCat) {
           setSelectedTreeCategoryId(activeCat.id);
@@ -1295,13 +1288,12 @@ export default function Home() {
       startDate: '',
       endDate: '',
       status: 'INSCRICOES_ABERTAS',
-      isDuo: true,
       games: 6,
       thaiBreak: true
     });
 
     // Carregar as categorias pré-cadastradas no sistema para seleção no torneio
-    const masterCats = categories.filter(c => !c.tournamentId || c.tournamentId === 'GLOBAL');
+    const masterCats = categories.filter(c => (!c.tournamentId || c.tournamentId === 'GLOBAL') && ['MASCULINO', 'FEMININO', 'MISTA'].includes(c.type));
     const availableCats = masterCats.length > 0 ? masterCats : STANDARD_CATEGORIES.map(std => ({
       id: `std-${std.type}-${std.level}`,
       name: `${std.type} ${std.level}`,
@@ -1343,13 +1335,12 @@ export default function Home() {
       startDate: t.startDate,
       endDate: t.endDate,
       status: t.status,
-      isDuo: t.isDuo !== undefined ? t.isDuo : true,
       games: tGames,
       thaiBreak: tThaiBreak
     });
 
     // Mapear categorias pré-cadastradas sincronizando com as ativadas para este torneio
-    const masterCats = categories.filter(c => !c.tournamentId || c.tournamentId === 'GLOBAL');
+    const masterCats = categories.filter(c => (!c.tournamentId || c.tournamentId === 'GLOBAL') && ['MASCULINO', 'FEMININO', 'MISTA'].includes(c.type));
     const availableCats = masterCats.length > 0 ? masterCats : STANDARD_CATEGORIES.map(std => ({
       id: `std-${std.type}-${std.level}`,
       name: `${std.type} ${std.level}`,
@@ -1534,7 +1525,7 @@ export default function Home() {
     if (!session || session.role !== 'SUPER_ADMIN') return;
     requestConfirmation(
       'Restaurar Categorias Oficiais',
-      'Deseja carregar todas as categorias oficiais padrão do Beach Tennis (Open, A, B, C, D, Iniciante, Principiante, Mistas e Super 8) no sistema?',
+      'Deseja carregar todas as categorias oficiais padrão do Beach Tennis (Open, A, B, C, D, Iniciante, Principiante e Mistas) no sistema?',
       async () => {
         setConfirmDialog(null);
         try {
@@ -1862,34 +1853,19 @@ export default function Home() {
   // Persisted Scoring & WO handlers
   const handleLaunchResult = (match: any) => {
     setSelectedMatch(match);
-    const isSuper8 = match.format === 'SUPER_8' || match.isSuper8 || !!match.teamA;
     const matchGames = match.games !== undefined ? match.games : 4;
     const matchThaiBreak = match.thaiBreak === true;
-    if (isSuper8) {
-      setResultForm({
-        score: '',
-        winnerDuoId: match.duo1Id || '',
-        scoreA: match.scoreA !== undefined ? match.scoreA : 0,
-        scoreB: match.scoreB !== undefined ? match.scoreB : 0,
-        winnerTeam: match.winnerTeam || 'TEAM_A',
-        games: matchGames,
-        thaiBreak: matchThaiBreak,
-        isDraw: false,
-        tieBreakerReason: match.tieBreaker || ''
-      });
-    } else {
-      setResultForm({
-        score: match.score || '',
-        winnerDuoId: match.duo1Id || '',
-        scoreA: 4,
-        scoreB: 2,
-        winnerTeam: 'TEAM_A',
-        games: matchGames,
-        thaiBreak: matchThaiBreak,
-        isDraw: false,
-        tieBreakerReason: ''
-      });
-    }
+    setResultForm({
+      score: match.score || '',
+      winnerDuoId: match.duo1Id || '',
+      scoreA: 4,
+      scoreB: 2,
+      winnerTeam: 'TEAM_A',
+      games: matchGames,
+      thaiBreak: matchThaiBreak,
+      isDraw: false,
+      tieBreakerReason: ''
+    });
     setIsResultModalOpen(true);
   };
 
@@ -1897,17 +1873,7 @@ export default function Home() {
     e.preventDefault();
     if (!selectedMatch) return;
     try {
-      const isSuper8 = selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || !!selectedMatch.teamA;
-      const matchGames = selectedMatch.games !== undefined ? selectedMatch.games : 4;
-      const payload = isSuper8 ? {
-        score: `${resultForm.scoreA} x ${resultForm.scoreB}`,
-        scoreA: resultForm.scoreA,
-        scoreB: resultForm.scoreB,
-        winnerTeam: resultForm.scoreA > resultForm.scoreB ? 'TEAM_A' : resultForm.scoreA < resultForm.scoreB ? 'TEAM_B' : resultForm.winnerTeam,
-        isDraw: false,
-        isWO: false,
-        tieBreaker: resultForm.tieBreakerReason
-      } : resultForm.isDraw ? {
+      const payload = resultForm.isDraw ? {
         score: resultForm.score,
         winnerDuoId: '',
         scoreA: resultForm.scoreA,
@@ -1956,10 +1922,9 @@ export default function Home() {
 
   const handleToggleWO = (match: any) => {
     setSelectedMatch(match);
-    const isSuper8 = match.format === 'SUPER_8' || match.isSuper8 || !!match.teamA;
     setWoForm({
       winnerDuoId: match.duo1Id || '',
-      winnerTeam: isSuper8 ? 'TEAM_A' : 'TEAM_A'
+      winnerTeam: 'TEAM_A'
     });
     setIsWoModalOpen(true);
   };
@@ -1968,11 +1933,7 @@ export default function Home() {
     e.preventDefault();
     if (!selectedMatch) return;
     try {
-      const isSuper8 = selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || !!selectedMatch.teamA;
-      const payload = isSuper8 ? {
-        winnerTeam: woForm.winnerTeam,
-        isWO: true
-      } : {
+      const payload = {
         winnerDuoId: woForm.winnerDuoId,
         isWO: true
       };
@@ -2388,6 +2349,31 @@ export default function Home() {
               </AnimatePresence>
             </div>
 
+            {/* MÓDULO INDEPENDENTE: SUPER 8 */}
+            {canPerform('super8', 'view') && (
+              <div className="pt-1">
+                <div className="border-t border-slate-200 my-2 pt-2">
+                  <span className="px-3.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Modalidade Individual</span>
+                </div>
+                <button
+                  onClick={() => { handleNavTab('super8'); handleCloseArenaManagement(); }}
+                  className={`w-full flex items-center justify-between py-2.5 px-3.5 rounded-xl font-semibold transition-all cursor-pointer ${
+                    activeTab === 'super8'
+                      ? 'bg-amber-50 text-amber-800 border border-amber-200 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Zap className={`w-4 h-4 shrink-0 ${activeTab === 'super8' ? 'text-amber-600' : 'text-amber-500'}`} />
+                    <span>Super 8</span>
+                  </div>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-mono font-bold">
+                    INDIV
+                  </span>
+                </button>
+              </div>
+            )}
+
             {/* GUIA CONFIGURAÇÕES (GERAL, USUÁRIOS E PERFIS) */}
             <div className="pt-1">
               <button 
@@ -2532,7 +2518,8 @@ export default function Home() {
                activeTab === 'arenas' ? 'Arenas' : 
                activeTab === 'venues' ? 'Locais' : 
                activeTab === 'categories' ? 'Categorias' : 
-               activeTab === 'bracket-tree' ? 'Mata-Mata' : activeTab}
+               activeTab === 'bracket-tree' ? 'Mata-Mata' :
+               activeTab === 'super8' ? 'Super 8' : activeTab}
             </span>
             <button 
               onClick={handleLogout}
@@ -2738,6 +2725,31 @@ export default function Home() {
                         </div>
                       )}
                     </div>
+
+                    {/* Módulo Independente Super 8 no Mobile */}
+                    {canPerform('super8', 'view') && (
+                      <div className="pt-1">
+                        <div className="border-t border-slate-200 my-2 pt-2">
+                          <span className="px-3.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Modalidade Individual</span>
+                        </div>
+                        <button
+                          onClick={() => { handleNavTab('super8'); handleCloseArenaManagement(); }}
+                          className={`w-full flex items-center justify-between py-2.5 px-3.5 rounded-xl font-semibold transition-all ${
+                            activeTab === 'super8'
+                              ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Zap className="w-4 h-4 text-amber-600" />
+                            <span>Super 8</span>
+                          </div>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-mono font-bold">
+                            INDIV
+                          </span>
+                        </button>
+                      </div>
+                    )}
 
                     {/* Configurações accordion no mobile */}
                     <div className="pt-1">
@@ -3445,7 +3457,7 @@ export default function Home() {
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     <span className="text-[10px] uppercase font-bold text-slate-500">Série: {t.seriesName}</span>
                                     <span className="text-[8px] font-black uppercase text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
-                                      {t.isDuo === false ? 'Individual' : 'Dupla'}
+                                      Duplas
                                     </span>
                                   </div>
                                   <h3 className="font-bold text-slate-900 text-base mt-1 group-hover:text-emerald-600 transition-colors">{t.name}</h3>
@@ -3626,7 +3638,6 @@ export default function Home() {
                             <option value="MASCULINO">Masculino</option>
                             <option value="FEMININO">Feminino</option>
                             <option value="MISTA">Mista</option>
-                            <option value="SUPER 8">Super 8</option>
                           </select>
 
                           {/* Filter by Level */}
@@ -3750,8 +3761,6 @@ export default function Home() {
                                       return 'bg-pink-500/15 text-pink-300 border-pink-500/30';
                                     case 'MISTA':
                                       return 'bg-purple-50 text-purple-700 border-purple-200';
-                                    case 'SUPER 8':
-                                      return 'bg-amber-50 text-amber-700 border-amber-200';
                                     default:
                                       return 'bg-slate-500/15 text-slate-700 border-slate-500/30';
                                   }
@@ -4016,12 +4025,8 @@ export default function Home() {
                                         <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                           🏟️ {arenaName}
                                         </span>
-                                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
-                                          t.isDuo 
-                                            ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                        }`}>
-                                          {t.isDuo ? 'Duplas' : 'Super 8 Indiv.'}
+                                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                          Duplas
                                         </span>
                                       </div>
                                     </div>
@@ -4135,12 +4140,8 @@ export default function Home() {
                                 <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                   🏟️ {currentArenaName}
                                 </span>
-                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
-                                  currentTour?.isDuo 
-                                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                }`}>
-                                  {currentTour?.isDuo ? 'Duplas' : 'Super 8 Individual'}
+                                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                  Duplas
                                 </span>
                               </div>
 
@@ -4567,12 +4568,8 @@ export default function Home() {
                                         <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                           🏟️ {arenaName}
                                         </span>
-                                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
-                                          t.isDuo 
-                                            ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                        }`}>
-                                          {t.isDuo ? 'Duplas' : 'Super 8 Indiv.'}
+                                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                          Duplas
                                         </span>
                                       </div>
                                     </div>
@@ -4589,7 +4586,7 @@ export default function Home() {
                                       <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
                                         <span className="text-slate-500 block text-[10px]">Duplas Formadas:</span>
                                         <strong className="text-slate-900 font-mono text-sm">
-                                          {t.isDuo ? tourDuos.length : 'N/A (Super 8)'}
+                                          {tourDuos.length}
                                         </strong>
                                       </div>
                                       <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
@@ -4655,12 +4652,8 @@ export default function Home() {
                                 <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                   🏟️ {currentArenaName}
                                 </span>
-                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
-                                  currentTour?.isDuo 
-                                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                }`}>
-                                  {currentTour?.isDuo ? 'Duplas' : 'Super 8 Individual'}
+                                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                  Duplas
                                 </span>
                               </div>
 
@@ -4689,14 +4682,12 @@ export default function Home() {
                                 ))}
                               </select>
 
-                              {currentTour?.isDuo !== false && (
-                                <button 
-                                  onClick={() => handleOpenDuoCreate(selectedDuoTournamentId)}
-                                  className="flex items-center gap-2 py-2.5 px-4 bg-emerald-600 text-white font-bold rounded-xl text-xs hover:bg-emerald-700 transition shadow-md shadow-emerald-600/10 cursor-pointer"
-                                >
-                                  <Plus className="w-4 h-4" /> Formar Dupla
-                                </button>
-                              )}
+                              <button 
+                                onClick={() => handleOpenDuoCreate(selectedDuoTournamentId)}
+                                className="flex items-center gap-2 py-2.5 px-4 bg-emerald-600 text-white font-bold rounded-xl text-xs hover:bg-emerald-700 transition shadow-md shadow-emerald-600/10 cursor-pointer"
+                              >
+                                <Plus className="w-4 h-4" /> Formar Dupla
+                              </button>
                             </div>
                           </div>
 
@@ -4759,16 +4750,6 @@ export default function Home() {
                             </div>
                           ) : null}
 
-                          {/* Se for Super 8, mostrar aviso esclarecedor */}
-                          {currentTour?.isDuo === false ? (
-                            <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-amber-700 text-xs flex items-center gap-3">
-                              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
-                              <div>
-                                <strong className="block text-sm text-slate-900">Torneio Super 8 (Individual)</strong>
-                                No formato Super 8 não existem duplas fixas cadastradas. As parcerias de duplas são formadas de maneira 100% dinâmica e temporária pelo sistema em cada uma das 7 rodadas. Para visualizar os jogos gerados com cada dupla temporária e o placar, acesse a aba <strong>Jogos / Quadras</strong>.
-                              </div>
-                            </div>
-                          ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {displayedDuos.length === 0 ? (
                                 <div className="col-span-full p-12 text-center text-slate-500 border border-slate-200 bg-slate-50 rounded-2xl space-y-3">
@@ -4806,7 +4787,6 @@ export default function Home() {
                                 ))
                               )}
                             </div>
-                          )}
                         </div>
                       );
                     })()
@@ -4969,12 +4949,8 @@ export default function Home() {
                                         <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                           🏟️ {arenaName}
                                         </span>
-                                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
-                                          t.isDuo 
-                                            ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                        }`}>
-                                          {t.isDuo ? 'Duplas' : 'Super 8 Indiv.'}
+                                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                          Duplas
                                         </span>
                                       </div>
                                     </div>
@@ -5007,7 +4983,6 @@ export default function Home() {
                                       onClick={() => {
                                         setSelectedMatchTournamentId(t.id);
                                         setFilterMatchCategory('ALL');
-                                        setFilterSuper8Round('ALL');
                                       }}
                                       className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
                                     >
@@ -5041,7 +5016,6 @@ export default function Home() {
                                   onClick={() => {
                                     setSelectedMatchTournamentId('');
                                     setFilterMatchCategory('ALL');
-                                    setFilterSuper8Round('ALL');
                                   }}
                                   className="inline-flex items-center gap-1.5 py-1 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition border border-slate-200 cursor-pointer"
                                 >
@@ -5053,12 +5027,8 @@ export default function Home() {
                                 <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                   🏟️ {currentArenaName}
                                 </span>
-                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
-                                  currentTour?.isDuo 
-                                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                }`}>
-                                  {currentTour?.isDuo ? 'Duplas' : 'Super 8 Individual'}
+                                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                  Duplas
                                 </span>
                               </div>
 
@@ -5077,7 +5047,6 @@ export default function Home() {
                                 onChange={(e) => {
                                   setSelectedMatchTournamentId(e.target.value);
                                   setFilterMatchCategory('ALL');
-                                  setFilterSuper8Round('ALL');
                                 }}
                                 className="bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-emerald-600 font-semibold"
                               >
@@ -5119,10 +5088,7 @@ export default function Home() {
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setFilterMatchCategory('ALL');
-                                    setFilterSuper8Round('ALL');
-                                  }}
+                                  onClick={() => setFilterMatchCategory('ALL')}
                                   className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                                     filterMatchCategory === 'ALL'
                                       ? 'bg-emerald-600 text-white shadow-sm'
@@ -5140,10 +5106,7 @@ export default function Home() {
                                     <button
                                       key={cat.id}
                                       type="button"
-                                      onClick={() => {
-                                        setFilterMatchCategory(cat.id);
-                                        setFilterSuper8Round('ALL');
-                                      }}
+                                      onClick={() => setFilterMatchCategory(cat.id)}
                                       className={`py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                                         filterMatchCategory === cat.id
                                           ? 'bg-emerald-600 text-white shadow-sm'
@@ -5169,298 +5132,40 @@ export default function Home() {
                             </div>
                           ) : null}
 
-                          {/* Toolbar de Rodadas Super 8 & Classificação */}
-                          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                              <div className="flex items-center gap-2.5 flex-wrap">
-                                <button 
-                                  type="button"
-                                  onClick={() => setShowSuper8Standings(!showSuper8Standings)}
-                                  className={`flex items-center gap-1.5 py-2 px-3.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
-                                    showSuper8Standings
-                                      ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
-                                      : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50'
-                                  }`}
-                                >
-                                  <Award className="w-3.5 h-3.5" />
-                                  <span>Classificação Individual Super 8</span>
-                                </button>
-                              </div>
-
-                              <span className="text-xs text-slate-500">
-                                Total de Jogos: <strong className="text-slate-900 font-mono">{
-                                  matches.filter(m => m.tournamentId === selectedMatchTournamentId && (filterMatchCategory === 'ALL' || m.categoryId === filterMatchCategory)).length
-                                }</strong>
-                              </span>
-                            </div>
-
-                    {/* Filter by Round for Super 8 */}
-                    {matches.some(m => m.format === 'SUPER_8' || m.isSuper8 || m.round) && (
-                      <div className="pt-2 border-t border-slate-200 flex items-center gap-1.5 overflow-x-auto pb-1">
-                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider shrink-0 mr-1">Filtrar Rodada:</span>
-                        {(['ALL', 1, 2, 3, 4, 5, 6, 7] as const).map(rnd => (
-                          <button
-                            key={`btn-rnd-${rnd}`}
-                            type="button"
-                            onClick={() => setFilterSuper8Round(rnd)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition border shrink-0 cursor-pointer ${
-                              filterSuper8Round === rnd
-                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                                : 'bg-slate-50 text-slate-500 border-slate-200 hover:text-slate-900'
-                            }`}
-                          >
-                            {rnd === 'ALL' ? 'Todas' : `R${rnd}`}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Super 8 Live Individual Standings Table */}
-                  <AnimatePresence>
-                    {showSuper8Standings && (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="bg-white border border-amber-200 rounded-2xl p-5 space-y-4 shadow-xl overflow-hidden"
-                      >
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 pb-3">
-                          <div>
-                            <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                              <Award className="w-5 h-5 text-amber-600" />
-                              Classificação Individual Oficial · Formato Super 8
-                            </h3>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              Pontuação atribuída individualmente a cada um dos 8 atletas pelas partidas de 4 games disputadas.
-                            </p>
+                          {/* Toolbar de Jogos */}
+                          <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                              <Activity className="w-4 h-4 text-emerald-600" />
+                              Partidas do Torneio de Duplas
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              Total de Jogos: <strong className="text-slate-900 font-mono">{
+                                matches.filter(m => m.tournamentId === selectedMatchTournamentId && (filterMatchCategory === 'ALL' || m.categoryId === filterMatchCategory)).length
+                              }</strong>
+                            </span>
                           </div>
-                          <span className="text-[10px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-mono font-bold">
-                            Critérios: Vitórias &gt; Saldo Games &gt; Games Pró
-                          </span>
-                        </div>
 
-                        {(() => {
-                          const s8Matches = matches.filter(m => {
-                            if (selectedMatchTournamentId && m.tournamentId !== selectedMatchTournamentId) return false;
-                            if (filterMatchCategory !== 'ALL' && m.categoryId !== filterMatchCategory) return false;
-                            return m.format === 'SUPER_8' || m.isSuper8 || !!m.teamA;
-                          });
+                          {/* Matches List */}
+                          <div className="space-y-4">
+                            {(() => {
+                              const displayedMatches = matches.filter(m => {
+                                if (m.tournamentId !== selectedMatchTournamentId) return false;
+                                if (filterMatchCategory !== 'ALL' && m.categoryId !== filterMatchCategory) return false;
+                                return true;
+                              });
 
-                          // Encontrar atletas participantes desses jogos ou inscritos
-                          const s8AthleteIds = new Set<string>();
-                          s8Matches.forEach(m => {
-                            if (m.teamA) {
-                              s8AthleteIds.add(m.teamA.player1Id);
-                              s8AthleteIds.add(m.teamA.player2Id);
-                            }
-                            if (m.teamB) {
-                              s8AthleteIds.add(m.teamB.player1Id);
-                              s8AthleteIds.add(m.teamB.player2Id);
-                            }
-                          });
+                              if (displayedMatches.length === 0) {
+                                return (
+                                  <div className="p-12 text-center text-slate-500 border border-slate-200 bg-slate-50 rounded-2xl space-y-3">
+                                    <Activity className="w-10 h-10 text-slate-600 mx-auto" />
+                                    <p className="font-semibold text-slate-700">Nenhum jogo encontrado com os filtros selecionados.</p>
+                                    <p className="text-xs text-slate-500">Utilize o gerador automático acima para criar os confrontos da chave ou agende manualmente.</p>
+                                  </div>
+                                );
+                              }
 
-                          const s8Athletes = athletes.filter(a => s8AthleteIds.has(a.id));
-                          const standings = calculateSuper8Standings(s8Matches as any, s8Athletes);
-
-                          return standings.length === 0 ? (
-                            <div className="p-8 text-center text-slate-500 text-xs">
-                              Nenhuma partida do Super 8 com resultado finalizado ainda. Lance os placares das partidas abaixo.
-                            </div>
-                          ) : (
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-left text-xs border-collapse">
-                                <thead>
-                                  <tr className="bg-slate-100 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
-                                    <th className="p-3">Posição</th>
-                                    <th className="p-3">Atleta</th>
-                                    <th className="p-3 text-center">Partidas (J)</th>
-                                    <th className="p-3 text-center text-emerald-600">Vitórias (V)</th>
-                                    <th className="p-3 text-center text-rose-600">Derrotas (D)</th>
-                                    <th className="p-3 text-center">Games Pró (GP)</th>
-                                    <th className="p-3 text-center">Games Contra (GC)</th>
-                                    <th className="p-3 text-center text-amber-600">Saldo (SG)</th>
-                                    <th className="p-3 text-right">Aprov. (%)</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-200">
-                                  {standings.map((st) => (
-                                    <tr key={st.athleteId} className="hover:bg-slate-50 transition">
-                                      <td className="p-3 font-mono font-bold text-sm">
-                                        {st.rank === 1 ? '🥇 1º' : st.rank === 2 ? '🥈 2º' : st.rank === 3 ? '🥉 3º' : `${st.rank}º`}
-                                      </td>
-                                      <td className="p-3 font-bold text-slate-900 text-sm">
-                                        {st.athleteName}
-                                      </td>
-                                      <td className="p-3 text-center font-mono text-slate-700">{st.played} / 7</td>
-                                      <td className="p-3 text-center font-mono font-bold text-emerald-600">{st.wins}</td>
-                                      <td className="p-3 text-center font-mono text-slate-500">{st.losses}</td>
-                                      <td className="p-3 text-center font-mono text-slate-700">{st.gamesFor}</td>
-                                      <td className="p-3 text-center font-mono text-slate-500">{st.gamesAgainst}</td>
-                                      <td className="p-3 text-center font-mono font-black text-amber-700">
-                                        {st.gameDiff > 0 ? `+${st.gameDiff}` : st.gameDiff}
-                                      </td>
-                                      <td className="p-3 text-right font-mono font-bold text-emerald-600">
-                                        {st.winRate}%
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          );
-                        })()}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Matches List */}
-                  <div className="space-y-4">
-                    {(() => {
-                      const displayedMatches = matches.filter(m => {
-                        if (m.tournamentId !== selectedMatchTournamentId) return false;
-                        if (filterMatchCategory !== 'ALL' && m.categoryId !== filterMatchCategory) return false;
-                        if (filterSuper8Round !== 'ALL' && m.round !== filterSuper8Round) return false;
-                        return true;
-                      });
-
-                      if (displayedMatches.length === 0) {
-                        return (
-                          <div className="p-12 text-center text-slate-500 border border-slate-200 bg-slate-50 rounded-2xl space-y-3">
-                            <Activity className="w-10 h-10 text-slate-600 mx-auto" />
-                            <p className="font-semibold text-slate-700">Nenhum jogo encontrado com os filtros selecionados.</p>
-                            <p className="text-xs text-slate-500">Utilize o gerador automático acima para criar os confrontos da chave ou agende manualmente.</p>
-                          </div>
-                        );
-                      }
-
-                      // Check if Super 8 matches
-                      const isSuper8List = displayedMatches.some(m => m.format === 'SUPER_8' || m.isSuper8 || m.round);
-
-                      if (isSuper8List) {
-                        // Group by round (1..7)
-                        const roundsMap = new Map<number, typeof displayedMatches>();
-                        displayedMatches.forEach(m => {
-                          const r = m.round || 1;
-                          if (!roundsMap.has(r)) roundsMap.set(r, []);
-                          roundsMap.get(r)!.push(m);
-                        });
-
-                        const sortedRounds = Array.from(roundsMap.keys()).sort((a, b) => a - b);
-
-                        return (
-                          <div className="space-y-6">
-                            {sortedRounds.map(rnd => {
-                              const rndMatches = roundsMap.get(rnd) || [];
+                              // Traditional rendering
                               return (
-                                <div key={`round-group-${rnd}`} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3.5">
-                                  <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-mono text-xs font-black uppercase text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-xl">
-                                        Rodada {rnd}
-                                      </span>
-                                      <span className="text-[11px] text-slate-500 font-medium">
-                                        Super 8 · 2 Partidas ({rndMatches.length} exibidas)
-                                      </span>
-                                    </div>
-                                    <span className="text-[10px] text-slate-500 font-mono">
-                                      Parcerias temporárias 1-7
-                                    </span>
-                                  </div>
-
-                                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                    {rndMatches.map(m => (
-                                      <div key={m.id} className="bg-white border border-slate-200 hover:border-slate-200 p-4 rounded-xl flex flex-col justify-between gap-3 transition shadow-sm">
-                                        <div>
-                                          <div className="flex items-center justify-between gap-2 mb-2">
-                                            <span className="text-[10px] font-bold text-amber-600 font-mono">
-                                              Jogo {m.matchNumber || m.stage}
-                                            </span>
-                                            <div className="flex items-center gap-1.5">
-                                              <button 
-                                                type="button"
-                                                onClick={() => handleOpenChangeCourt(m)}
-                                                className="text-[10px] text-emerald-600 font-mono bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded hover:bg-emerald-100 transition flex items-center gap-1"
-                                                title="Trocar quadra"
-                                              >
-                                                <MapPin className="w-3 h-3" /> {m.court}
-                                              </button>
-                                              <span className="text-[10px] font-mono text-slate-500">@ {m.time}</span>
-                                            </div>
-                                          </div>
-
-                                          {/* Matchup Team A vs Team B */}
-                                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
-                                            <div className="flex justify-between items-center text-xs">
-                                              <span className="font-bold text-slate-900 truncate">
-                                                {m.teamA ? `${m.teamA.player1Name} + ${m.teamA.player2Name}` : m.duo1Name}
-                                              </span>
-                                              <span className="font-mono text-sm font-black text-emerald-600 px-2 py-0.5 bg-slate-100 rounded">
-                                                {m.scoreA !== undefined ? m.scoreA : (m.score?.split('x')[0] || '-')}
-                                              </span>
-                                            </div>
-
-                                            <div className="flex items-center justify-center my-0.5">
-                                              <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">VS</span>
-                                            </div>
-
-                                            <div className="flex justify-between items-center text-xs">
-                                              <span className="font-bold text-slate-900 truncate">
-                                                {m.teamB ? `${m.teamB.player1Name} + ${m.teamB.player2Name}` : m.duo2Name}
-                                              </span>
-                                              <span className="font-mono text-sm font-black text-amber-600 px-2 py-0.5 bg-slate-100 rounded">
-                                                {m.scoreB !== undefined ? m.scoreB : (m.score?.split('x')[1] || '-')}
-                                              </span>
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        {/* Card Actions */}
-                                        <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-                                          <div>
-                                            <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                                              m.status === 'FINALIZADA' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 
-                                              m.status === 'WO' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 
-                                              'bg-slate-100 text-slate-500 border border-slate-200'
-                                            }`}>
-                                              {m.status === 'FINALIZADA' && m.score ? (m.isDraw ? `Empate ${m.score}` : m.score) : m.status}
-                                            </span>
-                                          </div>
-
-                                          <div className="flex items-center gap-1.5">
-                                            <button 
-                                              onClick={() => handleLaunchResult(m)} 
-                                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-1 rounded-lg text-xs transition shadow-sm cursor-pointer"
-                                            >
-                                              {m.status === 'FINALIZADA' ? 'Alterar' : 'Placar'}
-                                            </button>
-                                            <button 
-                                              onClick={() => handleToggleWO(m)} 
-                                              className="bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-600 font-bold px-2 py-1 rounded-lg text-xs border border-slate-200 transition cursor-pointer"
-                                            >
-                                              W.O.
-                                            </button>
-                                            <button 
-                                              onClick={() => handleDeleteMatch(m.id)}
-                                              className="p-1.5 text-slate-500 hover:text-rose-600 rounded-lg transition"
-                                              title="Excluir partida"
-                                            >
-                                              <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      }
-
-                      // Traditional rendering
-                      return (
                         <div className="space-y-3">
                           {displayedMatches.map(m => (
                             <div key={m.id} className="bg-white border border-slate-200 hover:border-slate-200 p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition shadow-sm hover:shadow-md">
@@ -5684,12 +5389,8 @@ export default function Home() {
                                         <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                           🏟️ {arenaName}
                                         </span>
-                                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
-                                          t.isDuo 
-                                            ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                        }`}>
-                                          {t.isDuo ? 'Duplas' : 'Super 8 Indiv.'}
+                                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                          Duplas
                                         </span>
                                       </div>
                                     </div>
@@ -5771,12 +5472,8 @@ export default function Home() {
                                 <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                   🏟️ {currentArenaName}
                                 </span>
-                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
-                                  currentTour?.isDuo 
-                                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                }`}>
-                                  {currentTour?.isDuo ? 'Duplas' : 'Super 8 Individual'}
+                                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                  Duplas
                                 </span>
                               </div>
 
@@ -5884,9 +5581,9 @@ export default function Home() {
                                       )}
                                     </div>
                                     <p className="text-sm font-bold text-slate-900 mt-1">
-                                      {m.teamA ? `${m.teamA.player1Name} + ${m.teamA.player2Name}` : m.duo1Name} 
+                                      {m.duo1Name} 
                                       <span className="text-amber-600 font-extrabold mx-2">vs</span> 
-                                      {m.teamB ? `${m.teamB.player1Name} + ${m.teamB.player2Name}` : m.duo2Name}
+                                      {m.duo2Name}
                                     </p>
                                     {m.score && (
                                       <p className="text-xs font-mono font-bold text-emerald-600 mt-1.5 flex items-center gap-1.5">
@@ -6095,12 +5792,8 @@ export default function Home() {
                                         <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                           🏟️ {arenaName}
                                         </span>
-                                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
-                                          t.isDuo 
-                                            ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                        }`}>
-                                          {t.isDuo ? 'Duplas' : 'Super 8 Indiv.'}
+                                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                          Duplas
                                         </span>
                                       </div>
                                     </div>
@@ -6181,12 +5874,8 @@ export default function Home() {
                                 <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                   🏟️ {currentArenaName}
                                 </span>
-                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded ${
-                                  currentTour?.isDuo 
-                                    ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                }`}>
-                                  {currentTour?.isDuo ? 'Duplas' : 'Super 8 Individual'}
+                                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                                  Duplas
                                 </span>
                               </div>
 
@@ -6278,75 +5967,6 @@ export default function Home() {
                               </div>
                             ) : (
                               displayedCategories.map(cat => {
-                                const isSuper8Cat = cat.type === 'SUPER 8' || currentTour?.isDuo === false;
-
-                                if (isSuper8Cat) {
-                                  const catMatches = matches.filter(m => m.categoryId === cat.id && m.tournamentId === currentTour?.id);
-                                  const catRegistrations = registrations.filter(r => r.categoryId === cat.id && r.tournamentId === currentTour?.id && r.status !== 'CANCELADA');
-                                  const regAthleteIds = new Set(catRegistrations.map(r => r.athleteId));
-                                  const catAthletes = athletes.filter(a => regAthleteIds.has(a.id));
-                                  const s8Standings = calculateSuper8Standings(catMatches as any, catAthletes);
-
-                                  return (
-                                    <div key={cat.id} className="bg-white border border-amber-200 rounded-3xl p-5 space-y-4 shadow-sm">
-                                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 pb-3">
-                                        <div>
-                                          <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider">Super 8 · Classificação Individual Oficial</span>
-                                          <h3 className="font-black text-slate-900 text-base mt-0.5">{cat.name || `${cat.type} ${cat.level}`}</h3>
-                                        </div>
-                                        <span className="text-[10px] px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-mono font-bold">
-                                          8 Atletas · 7 Rodadas · Partidas de 4 Games
-                                        </span>
-                                      </div>
-
-                                      {s8Standings.length === 0 ? (
-                                        <p className="text-xs text-slate-500 text-center py-6">Nenhum atleta inscrito ou jogos disputados nesta categoria.</p>
-                                      ) : (
-                                        <div className="overflow-x-auto">
-                                          <table className="w-full text-left text-xs">
-                                            <thead>
-                                              <tr className="border-b border-slate-200 text-[10px] text-slate-500 uppercase font-mono">
-                                                <th className="pb-2.5 pl-2">Posição</th>
-                                                <th className="pb-2.5">Atleta</th>
-                                                <th className="pb-2.5 text-center">Partidas</th>
-                                                <th className="pb-2.5 text-center text-emerald-600 font-bold">Vitórias</th>
-                                                <th className="pb-2.5 text-center text-rose-600">Derrotas</th>
-                                                <th className="pb-2.5 text-center">G. Feitos</th>
-                                                <th className="pb-2.5 text-center">G. Sofridos</th>
-                                                <th className="pb-2.5 text-center font-bold text-amber-700">Saldo Games</th>
-                                                <th className="pb-2.5 text-right pr-2">Aproveitamento</th>
-                                              </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-200 font-mono text-xs">
-                                              {s8Standings.map((item, index) => (
-                                                <tr key={item.athleteId} className={`hover:bg-slate-50 transition ${index === 0 ? 'bg-amber-50 font-bold text-slate-900' : 'text-slate-700'}`}>
-                                                  <td className="py-2.5 pl-2 font-bold text-amber-600">
-                                                    {index === 0 ? '🥇 1º Lugar' : index === 1 ? '🥈 2º Lugar' : index === 2 ? '🥉 3º Lugar' : `${index + 1}º`}
-                                                  </td>
-                                                  <td className="py-2.5 font-sans font-bold text-slate-900">
-                                                    {item.athleteName}
-                                                  </td>
-                                                  <td className="py-2.5 text-center text-slate-700">{item.played}</td>
-                                                  <td className="py-2.5 text-center text-emerald-600 font-bold">{item.wins}</td>
-                                                  <td className="py-2.5 text-center text-slate-500">{item.losses}</td>
-                                                  <td className="py-2.5 text-center text-slate-700">{item.gamesFor}</td>
-                                                  <td className="py-2.5 text-center text-slate-500">{item.gamesAgainst}</td>
-                                                  <td className={`py-2.5 text-center font-bold ${item.gameDiff > 0 ? 'text-emerald-600' : item.gameDiff < 0 ? 'text-rose-600' : 'text-slate-500'}`}>
-                                                    {item.gameDiff > 0 ? `+${item.gameDiff}` : item.gameDiff}
-                                                  </td>
-                                                  <td className="py-2.5 text-right pr-2 text-amber-700 font-bold">
-                                                    {item.winRate}%
-                                                  </td>
-                                                </tr>
-                                              ))}
-                                            </tbody>
-                                          </table>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                }
-
                                 // Traditional Duos leaderboard
                                 const catDuos = duos.filter(d => d.categoryId === cat.id && d.tournamentId === currentTour?.id);
                                 const leaderboard = catDuos.map(duo => {
@@ -6425,7 +6045,7 @@ export default function Home() {
                           Árvore Eliminatória
                         </span>
                         <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full font-bold">
-                          Exclusivo Mata-Mata (Sem Grupos / Sem Super 8)
+                          Exclusivo Mata-Mata (Sem Grupos)
                         </span>
                       </div>
                       <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
@@ -6455,22 +6075,15 @@ export default function Home() {
 
                   {/* Selector Bar: Torneio e Categoria */}
                   {(() => {
-                    // Filter tournaments: NO SUPER 8!
                     const eligibleTournaments = tournaments.filter(t => 
-                      t.isDuo !== false && 
-                      !t.name.toLowerCase().includes('super 8') && 
-                      !t.seriesName.toLowerCase().includes('super 8') &&
-                      (session.role === 'SUPER_ADMIN' || t.arenaId === session.arenaId)
+                      session.role === 'SUPER_ADMIN' || t.arenaId === session.arenaId
                     );
 
                     const activeTour = eligibleTournaments.find(t => t.id === selectedTreeTournamentId) || eligibleTournaments[0];
                     const activeTourId = activeTour?.id || '';
 
-                    // Filter categories: NO SUPER 8!
                     const eligibleCategories = categories.filter(c => 
-                      c.tournamentId === activeTourId && 
-                      c.type !== 'SUPER 8' && 
-                      c.type !== 'SUPER 8 DUPLAS'
+                      c.tournamentId === activeTourId
                     );
 
                     const activeCat = eligibleCategories.find(c => c.id === selectedTreeCategoryId) || eligibleCategories[0];
@@ -6503,7 +6116,7 @@ export default function Home() {
                                 onChange={(e) => {
                                   const tourId = e.target.value;
                                   setSelectedTreeTournamentId(tourId);
-                                  const tourCats = categories.filter(c => c.tournamentId === tourId && c.type !== 'SUPER 8' && c.type !== 'SUPER 8 DUPLAS');
+                                  const tourCats = categories.filter(c => c.tournamentId === tourId);
                                   const firstCat = tourCats[0];
                                   if (firstCat) {
                                     setSelectedTreeCategoryId(firstCat.id);
@@ -6608,6 +6221,39 @@ export default function Home() {
                     );
                   })()}
                 </motion.div>
+              )}
+
+              {/* VIEW: MÓDULO INDEPENDENTE SUPER 8 */}
+              {activeTab === 'super8' && canPerform('super8', 'view') && (
+                <Super8Module
+                  session={{
+                    id: session.id,
+                    username: session.username,
+                    role: session.role,
+                    arenaId: session.arenaId,
+                    name: session.name
+                  }}
+                  arenas={arenas}
+                  venues={venues}
+                  athletes={athletes}
+                  canCreate={canPerform('super8', 'create')}
+                  canEdit={canPerform('super8', 'edit')}
+                  canDelete={canPerform('super8', 'delete')}
+                  showSuccess={showSuccess}
+                  showError={showError}
+                  requestConfirmation={({ title, message, confirmLabel, onConfirm }) => {
+                    requestConfirmation(
+                      title,
+                      message,
+                      async () => {
+                        setConfirmDialog(null);
+                        await onConfirm();
+                      },
+                      confirmLabel || 'Confirmar'
+                    );
+                  }}
+                  onDataChanged={() => fetchData()}
+                />
               )}
 
               {/* VIEW 11: CONFIGURAÇÕES COM USUÁRIOS E PERFIS */}
@@ -7389,33 +7035,6 @@ export default function Home() {
                   </select>
                 </div>
 
-                <div className="flex flex-col gap-2 sm:col-span-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                  <span className="text-slate-700 font-semibold">Formato do Torneio</span>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input 
-                        type="radio" 
-                        name="isDuo" 
-                        checked={tourForm.isDuo === true}
-                        onChange={() => setTourForm({ ...tourForm, isDuo: true })}
-                        className="w-4 h-4 accent-emerald-600 cursor-pointer"
-                      />
-                      <span className="text-slate-800 font-medium">Torneio de Dupla (Padrão)</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input 
-                        type="radio" 
-                        name="isDuo" 
-                        checked={tourForm.isDuo === false}
-                        onChange={() => setTourForm({ ...tourForm, isDuo: false })}
-                        className="w-4 h-4 accent-emerald-600 cursor-pointer"
-                      />
-                      <span className="text-slate-800 font-medium">Torneio Individual</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Games & Thai Break Settings */}
                 <div className="flex flex-col gap-2 sm:col-span-2">
                   <span className="text-slate-700 font-semibold flex items-center gap-2">
                     <span className="text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">i</span>
@@ -7556,7 +7175,7 @@ export default function Home() {
                                 placeholder="Vagas"
                                 className="w-16 bg-white border border-slate-300 text-slate-800 text-xs py-1.5 px-2 rounded-lg font-mono text-center focus:outline-none focus:border-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed"
                               />
-                              <span className="text-slate-500 text-[10px] select-none lowercase">{tourForm.isDuo ? 'duplas' : 'indiv.'}</span>
+                              <span className="text-slate-500 text-[10px] select-none lowercase">duplas</span>
                             </div>
 
                             <div className="flex items-center gap-2">
@@ -7652,8 +7271,8 @@ export default function Home() {
                 {/* Tipo de Competição */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-slate-700 font-bold">Tipo de Competição *</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {(['MASCULINO', 'FEMININO', 'MISTA', 'SUPER 8'] as const).map(tipo => {
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['MASCULINO', 'FEMININO', 'MISTA'] as const).map(tipo => {
                       const selected = categoryForm.type === tipo;
                       return (
                         <button
@@ -7990,7 +7609,7 @@ export default function Home() {
                   className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600"
                 >
                   <option value="">Selecione o Torneio</option>
-                  {tournaments.filter(t => t.isDuo !== false).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
 
@@ -8113,7 +7732,7 @@ export default function Home() {
                     className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600"
                   >
                     <option value="">Selecione o Torneio</option>
-                    {tournaments.filter(t => t.isDuo !== false).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    {tournaments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 </div>
 
@@ -8241,9 +7860,6 @@ export default function Home() {
             <form onSubmit={handleGenerateMatches} className="p-6 space-y-4 text-xs">
               {(() => {
                 const tour = tournaments.find(t => t.id === genForm.tournamentId);
-                const cat = categories.find(c => c.id === genForm.categoryId);
-                const isSuper8 = tour?.isDuo === false || cat?.type === 'SUPER 8';
-                const enrolledCount = registrations.filter(r => r.tournamentId === genForm.tournamentId && r.categoryId === genForm.categoryId).length;
 
                 return (
                   <>
@@ -8257,7 +7873,7 @@ export default function Home() {
                         <option value="">Selecione o Torneio</option>
                         {tournaments.map(t => (
                           <option key={t.id} value={t.id}>
-                            {t.name} ({t.isDuo === false ? 'Individual' : 'Duplas'})
+                            {t.name}
                           </option>
                         ))}
                       </select>
@@ -8277,65 +7893,9 @@ export default function Home() {
                       </select>
                     </div>
 
-                    {isSuper8 ? (
-                      /* SUPER 8 SPECIFIC INTERFACE */
-                      <div className="bg-slate-50 border border-amber-200 p-4 rounded-2xl space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-mono uppercase font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                            Competição Individual · Super 8
-                          </span>
-                          <span className="text-[10px] text-emerald-600 font-semibold">
-                            Duplas Temporárias Automáticas
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                            <span className="text-[10px] text-slate-500 block font-medium">Tipo de Torneio</span>
-                            <strong className="text-slate-900">Individual</strong>
-                          </div>
-                          <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                            <span className="text-[10px] text-slate-500 block font-medium">Formato</span>
-                            <strong className="text-amber-600">Super 8</strong>
-                          </div>
-                          <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                            <span className="text-[10px] text-slate-500 block font-medium">Atletas Inscritos</span>
-                            <strong className={`font-mono text-sm ${enrolledCount === 8 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                              {enrolledCount} / 8 atletas
-                            </strong>
-                          </div>
-                          <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                            <span className="text-[10px] text-slate-500 block font-medium">Estrutura de Jogos</span>
-                            <strong className="text-slate-900 font-mono text-sm">7 rodadas · 14 jogos</strong>
-                          </div>
-                        </div>
-
-                        <p className="text-[10px] text-slate-500 leading-relaxed">
-                          No Super 8 não existe dupla fixa. O sistema formará as duplas automaticamente para que cada um dos 8 atletas jogue exatamente 7 partidas, com 7 parceiros diferentes ao longo das 7 rodadas.
-                        </p>
-
-                        {enrolledCount !== 8 ? (
-                          <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-[11px] flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                            <span>
-                              O formato Super 8 exige <strong>exatamente 8 atletas</strong> inscritos na categoria. Atualmente há <strong>{enrolledCount}</strong> inscrito(s).
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-[11px] flex items-center gap-2">
-                            <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                            <span>
-                              Validação OK! 8 atletas inscritos. Pronto para gerar a tabela de 14 confrontos.
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      /* TRADITIONAL DUO INTERFACE */
-                      <p className="text-slate-500 leading-relaxed text-[11px]">
-                        Esta ferramenta apagará as partidas pendentes e gerará novos jogos no formato <strong>Todos contra Todos (Round Robin)</strong> para as duplas cadastradas na categoria.
-                      </p>
-                    )}
+                    <p className="text-slate-500 leading-relaxed text-[11px]">
+                      Esta ferramenta apagará as partidas pendentes e gerará novos jogos no formato <strong>Todos contra Todos (Round Robin)</strong> para as duplas cadastradas na categoria.
+                    </p>
 
                     {tour && (
                       <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl space-y-1">
@@ -8365,10 +7925,9 @@ export default function Home() {
                       <button type="button" onClick={() => setIsGenModalOpen(false)} className="py-2 px-4 text-slate-500 hover:text-slate-900 transition cursor-pointer">Cancelar</button>
                       <button 
                         type="submit" 
-                        disabled={isSuper8 && enrolledCount !== 8}
-                        className="py-2.5 px-5 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black rounded-xl transition shadow-md shadow-amber-500/15 cursor-pointer"
+                        className="py-2.5 px-5 bg-amber-600 hover:bg-amber-700 text-white font-black rounded-xl transition shadow-md shadow-amber-500/15 cursor-pointer"
                       >
-                        {isSuper8 ? 'Gerar Jogos Super 8 (14 Partidas)' : 'Gerar Jogos Chaveados'}
+                        Gerar Jogos Chaveados
                       </button>
                     </div>
                   </>
@@ -8404,134 +7963,37 @@ export default function Home() {
                 <p className="text-[11px] text-slate-500 mt-0.5">{selectedMatch.court} @ {selectedMatch.time}</p>
               </div>
 
-              {selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || selectedMatch.teamA ? (
-                <div className="space-y-4">
-                  <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-center">
-                    <p className="text-amber-700 font-bold text-xs flex items-center justify-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                      Regra {resultForm.games === 6 ? (resultForm.thaiBreak ? 'Super 8: 6 Games + Thai Break' : 'Super 8: 6 Games') : 'Super 8: 4 Games'}
-                    </p>
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      {resultForm.games === 6 && resultForm.thaiBreak
-                        ? 'Válido: 6x0 a 6x4, 7x5 (no 5x5), 7x6 (Thai Break de 7 pontos). Empates: 0-0 a 6-6.'
-                        : resultForm.games === 6
-                          ? 'Válido: 6x0 a 6x4 (adversário 0-4). Empates: 0-0 a 5-5.'
-                          : 'Válido: 4x0 a 4x3 (adversário 0-3). Empates: 0-0 a 3-3.'}
-                    </p>
-                  </div>
+              {/* Traditional Duo Scoring */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-slate-700 font-semibold">Placar (Sets / Games)</label>
+                <input type="text" required placeholder="Ex: 6/4 6/3 ou 6/1 3/6 10/7" value={resultForm.score} onChange={(e) => setResultForm({ ...resultForm, score: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono text-center text-sm font-bold focus:border-emerald-600 focus:outline-none" />
+              </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-slate-700 font-semibold text-xs">Time A ({selectedMatch.duo1Name})</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max={resultForm.games === 6 ? (resultForm.thaiBreak ? 7 : 6) : 4}
-                        value={resultForm.scoreA}
-                        onChange={(e) => setResultForm({ ...resultForm, scoreA: parseInt(e.target.value) || 0 })}
-                        className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono text-center text-xl font-bold focus:border-emerald-600 focus:outline-none"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-slate-700 font-semibold text-xs">Time B ({selectedMatch.duo2Name})</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max={resultForm.games === 6 ? (resultForm.thaiBreak ? 7 : 6) : 4}
-                        value={resultForm.scoreB}
-                        onChange={(e) => setResultForm({ ...resultForm, scoreB: parseInt(e.target.value) || 0 })}
-                        className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono text-center text-xl font-bold focus:border-emerald-600 focus:outline-none"
-                      />
-                    </div>
-                  </div>
+              <div className="flex items-center gap-2.5 pt-1">
+                <input
+                  type="checkbox"
+                  id="isDraw"
+                  checked={resultForm.isDraw || false}
+                  onChange={(e) => setResultForm({ ...resultForm, isDraw: e.target.checked, winnerDuoId: e.target.checked ? '' : (resultForm.winnerDuoId || selectedMatch.duo1Id) })}
+                  className="w-4 h-4 accent-slate-400 cursor-pointer"
+                />
+                <label htmlFor="isDraw" className="text-slate-700 font-semibold cursor-pointer">
+                  Empate (ninguém vence)
+                </label>
+              </div>
 
-                  {resultForm.scoreA === resultForm.scoreB && resultForm.scoreA > 0 ? (
-                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl">
-                      <p className="text-amber-700 font-bold text-xs mb-2 flex items-center gap-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                        Empate detectado —resolvido pelo menor número de derrotas
-                      </p>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const res = await fetch(`/api/matches/${selectedMatch.id}/resolve-tie`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ scoreA: resultForm.scoreA, scoreB: resultForm.scoreB })
-                          });
-                          const data = await res.json();
-                          if (res.ok) {
-                            setResultForm({ ...resultForm, tieBreakerReason: data.tieBreaker, winnerTeam: data.winnerTeam });
-                          } else {
-                            showError(data.error || 'Erro ao resolver empate.');
-                          }
-                        }}
-                        className="w-full py-1.5 px-3 bg-amber-50 text-amber-700 font-bold rounded-lg text-xs hover:bg-amber-100 transition cursor-pointer"
-                      >
-                        Resolver Empate
-                      </button>
-                    </div>
-                  ) : resultForm.scoreA === resultForm.scoreB && resultForm.scoreA === 0 ? (
-                    <p className="text-xs text-slate-500 text-center">Insira os games para ambos os times.</p>
-                  ) : null}
-
-                  {resultForm.tieBreakerReason && (
-                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
-                      <p className="text-emerald-700 text-xs font-semibold">Vencedor: Time {resultForm.winnerTeam === 'TEAM_A' ? 'A' : 'B'}</p>
-                      <p className="text-emerald-600 text-[10px] font-mono mt-0.5">{resultForm.tieBreakerReason}</p>
-                    </div>
-                  )}
-
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
-                    <span className="text-slate-500">Placar:</span>
-                    <span className={`font-mono text-lg font-black px-3 py-1 rounded-lg ${
-                      resultForm.scoreA > resultForm.scoreB
-                        ? 'text-emerald-600 bg-emerald-50 border border-emerald-200'
-                        : resultForm.scoreA < resultForm.scoreB
-                        ? 'text-rose-600 bg-rose-50 border border-rose-200'
-                        : resultForm.scoreA === resultForm.scoreB && resultForm.scoreA > 0
-                        ? 'text-amber-600 bg-amber-50 border border-amber-200'
-                        : 'text-slate-500 bg-slate-100'
-                    }`}>
-                      {resultForm.scoreA} × {resultForm.scoreB}
-                    </span>
-                  </div>
+              {!resultForm.isDraw && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-slate-700 font-semibold">Dupla Vencedora</label>
+                  <select
+                    value={resultForm.winnerDuoId || selectedMatch.duo1Id}
+                    onChange={(e) => setResultForm({ ...resultForm, winnerDuoId: e.target.value })}
+                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600 font-semibold"
+                  >
+                    <option value={selectedMatch.duo1Id}>{selectedMatch.duo1Name}</option>
+                    <option value={selectedMatch.duo2Id}>{selectedMatch.duo2Name}</option>
+                  </select>
                 </div>
-              ) : (
-                /* Traditional Duo Scoring */
-                <>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-slate-700 font-semibold">Placar (Sets / Games)</label>
-                    <input type="text" required placeholder="Ex: 6/4 6/3 ou 6/1 3/6 10/7" value={resultForm.score} onChange={(e) => setResultForm({ ...resultForm, score: e.target.value })} className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 font-mono text-center text-sm font-bold focus:border-emerald-600 focus:outline-none" />
-                  </div>
-
-                  <div className="flex items-center gap-2.5 pt-1">
-                    <input
-                      type="checkbox"
-                      id="isDraw"
-                      checked={resultForm.isDraw || false}
-                      onChange={(e) => setResultForm({ ...resultForm, isDraw: e.target.checked, winnerDuoId: e.target.checked ? '' : (resultForm.winnerDuoId || selectedMatch.duo1Id) })}
-                      className="w-4 h-4 accent-slate-400 cursor-pointer"
-                    />
-                    <label htmlFor="isDraw" className="text-slate-700 font-semibold cursor-pointer">
-                      Empate (ninguém vence)
-                    </label>
-                  </div>
-
-                  {!resultForm.isDraw && (
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-slate-700 font-semibold">Dupla Vencedora</label>
-                      <select
-                        value={resultForm.winnerDuoId || selectedMatch.duo1Id}
-                        onChange={(e) => setResultForm({ ...resultForm, winnerDuoId: e.target.value })}
-                        className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-emerald-600 font-semibold"
-                      >
-                        <option value={selectedMatch.duo1Id}>{selectedMatch.duo1Name}</option>
-                        <option value={selectedMatch.duo2Id}>{selectedMatch.duo2Name}</option>
-                      </select>
-                    </div>
-                  )}
-                </>
               )}
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
@@ -8559,33 +8021,20 @@ export default function Home() {
                 <p className="text-[10px] text-rose-600 font-bold uppercase tracking-wider">{selectedMatch.categoryName}</p>
                 <p className="text-sm font-bold text-slate-900 mt-1">{selectedMatch.duo1Name} <span className="text-slate-500">vs</span> {selectedMatch.duo2Name}</p>
                 <p className="text-[10px] text-slate-500 mt-1">
-                  {selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || selectedMatch.teamA 
-                    ? 'A ausência será computada como W.O. (4x0).' 
-                    : 'A dupla ausente será derrotada por W.O. (6/0 6/0 oficial).'}
+                  A dupla ausente será derrotada por W.O. (6/0 6/0 oficial).
                 </p>
               </div>
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-slate-700 font-semibold">Quem compareceu à quadra (Vencedor)</label>
-                {selectedMatch.format === 'SUPER_8' || selectedMatch.isSuper8 || selectedMatch.teamA ? (
-                  <select 
-                    value={woForm.winnerTeam} 
-                    onChange={(e) => setWoForm({ ...woForm, winnerTeam: e.target.value as any })}
-                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-rose-500 font-semibold"
-                  >
-                    <option value="TEAM_A">{selectedMatch.duo1Name}</option>
-                    <option value="TEAM_B">{selectedMatch.duo2Name}</option>
-                  </select>
-                ) : (
-                  <select 
-                    value={woForm.winnerDuoId} 
-                    onChange={(e) => setWoForm({ ...woForm, winnerDuoId: e.target.value })}
-                    className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-rose-500 font-semibold"
-                  >
-                    <option value={selectedMatch.duo1Id}>{selectedMatch.duo1Name}</option>
-                    <option value={selectedMatch.duo2Id}>{selectedMatch.duo2Name}</option>
-                  </select>
-                )}
+                <select 
+                  value={woForm.winnerDuoId} 
+                  onChange={(e) => setWoForm({ ...woForm, winnerDuoId: e.target.value })}
+                  className="bg-white border border-slate-300 p-2.5 rounded-xl text-slate-800 focus:outline-none focus:border-rose-500 font-semibold"
+                >
+                  <option value={selectedMatch.duo1Id}>{selectedMatch.duo1Name}</option>
+                  <option value={selectedMatch.duo2Id}>{selectedMatch.duo2Name}</option>
+                </select>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
@@ -8914,7 +8363,7 @@ export default function Home() {
           type="button"
           onClick={() => setIsMobileMenuOpen(true)}
           className={`flex flex-col items-center justify-center min-w-[56px] py-1 px-1 rounded-xl transition ${
-            ['athletes', 'arenas', 'venues', 'categories', 'registrations', 'results', 'reports', 'settings'].includes(activeTab)
+            ['athletes', 'arenas', 'venues', 'categories', 'registrations', 'results', 'reports', 'settings', 'bracket-tree', 'super8', 'profiles', 'users'].includes(activeTab)
               ? 'text-emerald-600 font-bold'
               : 'text-slate-500 hover:text-slate-800'
           }`}

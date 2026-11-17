@@ -75,16 +75,12 @@ export const registrationService = {
       r => r.categoryId === data.categoryId && r.status !== 'CANCELADA'
     ).length;
     
-    const limit = tour.isDuo 
-      ? (cat.maxParticipants ? cat.maxParticipants * 2 : 32)
-      : (cat.maxParticipants ? cat.maxParticipants : 16);
+    const limit = cat.maxParticipants ? cat.maxParticipants * 2 : 32;
 
     if (activeRegsCount >= limit) {
-      return { 
-        success: false, 
-        error: tour.isDuo 
-          ? `O limite máximo de duplas (${cat.maxParticipants || 16} duplas) para esta categoria já foi atingido.` 
-          : `O limite máximo de atletas (${cat.maxParticipants || 16} atletas) para esta categoria já foi atingido.` 
+      return {
+        success: false,
+        error: `O limite máximo de duplas (${cat.maxParticipants || 16} duplas) para esta categoria já foi atingido.`
       };
     }
 

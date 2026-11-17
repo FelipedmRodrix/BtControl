@@ -63,6 +63,7 @@ export type SystemScreen =
   | 'venues'
   | 'categories'
   | 'tournaments'
+  | 'super8'
   | 'registrations'
   | 'duos'
   | 'matches'
@@ -122,7 +123,7 @@ export interface Tournament {
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   status: 'INSCRICOES_ABERTAS' | 'EM_ANDAMENTO' | 'FINALIZADO';
-  isDuo: boolean; // Flag to indicate if it's a duo (true) or individual (false) tournament
+  isDuo?: boolean; // Torneios tradicionais são sempre de duplas
   games?: number; // Default games per match: 4 or 6
   thaiBreak?: boolean; // Enable Thai Break for 6-game matches
   createdAt: string;
@@ -134,10 +135,10 @@ export interface Category {
   tournamentId?: string; // If 'GLOBAL' or not set, it's a pre-registered system master category
   masterCategoryId?: string; // Optional reference to template master category
   name?: string; // Ex: "Masculino C", "Feminino Open", "Mista B"
-  type: 'SUPER 8' | 'SUPER 8 DUPLAS' | 'MISTA' | 'MASCULINO' | 'FEMININO';
+  type: 'MISTA' | 'MASCULINO' | 'FEMININO';
   level: 'PRINCIPIANTE' | 'INICIANTE' | 'D' | 'C' | 'B' | 'A' | 'OPEN';
   price: number;
-  maxParticipants: number; // Max players or duos that can register
+  maxParticipants: number; // Max duos that can register
   status?: 'ATIVA' | 'INATIVA';
   description?: string;
   games?: number; // Games per match: 4 (default) or 6
@@ -204,6 +205,54 @@ export interface Match {
   updatedAt: string;
 }
 
+export interface Super8Event {
+  id: string;
+  name: string;
+  seriesName: string;
+  arenaId: string;
+  organizerId?: string;
+  venueId?: string;
+  venueName?: string;
+  courtsUsed: number;
+  startDate: string;
+  endDate: string;
+  status: 'INSCRICOES_ABERTAS' | 'EM_ANDAMENTO' | 'FINALIZADO';
+  categoryName: string;
+  level: 'PRINCIPIANTE' | 'INICIANTE' | 'D' | 'C' | 'B' | 'A' | 'OPEN';
+  price: number;
+  games: number; // 4 (default) or 6
+  thaiBreak: boolean;
+  athleteIds: string[]; // Ordered list of 1..8 participants
+  legacyTournamentId?: string;
+  legacyCategoryId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Super8Match {
+  id: string;
+  super8Id: string;
+  stage: string;
+  groupName?: string;
+  round: number; // 1 to 7
+  matchNumber: number; // 1 to 14
+  teamA: MatchTeam;
+  teamB: MatchTeam;
+  scoreA?: number;
+  scoreB?: number;
+  score?: string;
+  winnerTeam?: 'TEAM_A' | 'TEAM_B';
+  date: string;
+  time: string;
+  court: string;
+  status: 'PENDENTE' | 'FINALIZADA' | 'WO';
+  games: number;
+  thaiBreak: boolean;
+  tieBreaker?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface DBData {
   athletes: Athlete[];
   arenas: Arena[];
@@ -216,6 +265,8 @@ interface DBData {
   registrations: Registration[];
   duos: Duo[];
   matches: Match[];
+  super8Events: Super8Event[];
+  super8Matches: Super8Match[];
 }
 
 export const ALL_SYSTEM_SCREENS: { id: SystemScreen; label: string; description: string }[] = [
@@ -224,7 +275,8 @@ export const ALL_SYSTEM_SCREENS: { id: SystemScreen; label: string; description:
   { id: 'arenas', label: 'Organizadores', description: 'Gestão de organizadores / parceiros' },
   { id: 'venues', label: 'Arenas Físicas', description: 'Locais de jogos e estrutura de quadras' },
   { id: 'categories', label: 'Categorias', description: 'Categorias oficiais do sistema' },
-  { id: 'tournaments', label: 'Torneios', description: 'Criação e configuração de torneios' },
+  { id: 'tournaments', label: 'Torneios', description: 'Criação e configuração de torneios de duplas' },
+  { id: 'super8', label: 'Super 8', description: 'Competições individuais Super 8, rodadas dinâmicas e ranking individual' },
   { id: 'registrations', label: 'Inscrições', description: 'Inscrições de atletas em categorias' },
   { id: 'duos', label: 'Duplas', description: 'Formação de duplas por categoria' },
   { id: 'matches', label: 'Jogos / Quadras', description: 'Chaveamento, quadras e horários' },
@@ -255,7 +307,7 @@ export const DEFAULT_SYSTEM_PROFILES: Profile[] = [
   {
     id: 'prof-organizador',
     name: 'Organizador',
-    description: 'Gerencia torneios, inscrições, duplas, jogos e quadras.',
+    description: 'Gerencia torneios, Super 8, inscrições, duplas, jogos e quadras.',
     isSystem: true,
     permissions: ALL_SYSTEM_SCREENS.map(s => {
       if (['arenas', 'venues', 'categories', 'profiles', 'users'].includes(s.id)) {
@@ -269,10 +321,10 @@ export const DEFAULT_SYSTEM_PROFILES: Profile[] = [
   {
     id: 'prof-mesario',
     name: 'Mesário / Árbitro',
-    description: 'Visualiza jogos, quadras e lança placares e resultados.',
+    description: 'Visualiza jogos, quadras, Super 8 e lança placares e resultados.',
     isSystem: true,
     permissions: ALL_SYSTEM_SCREENS.map(s => {
-      if (s.id === 'matches' || s.id === 'results' || s.id === 'bracket-tree') {
+      if (s.id === 'matches' || s.id === 'results' || s.id === 'bracket-tree' || s.id === 'super8') {
         return { screen: s.id, view: true, create: false, edit: true, delete: false };
       }
       if (s.id === 'dashboard') {
@@ -286,10 +338,10 @@ export const DEFAULT_SYSTEM_PROFILES: Profile[] = [
   {
     id: 'prof-visualizador',
     name: 'Visualizador de Relatórios',
-    description: 'Permissão apenas de visualização para relatórios, tabelas e resultados.',
+    description: 'Permissão apenas de visualização para relatórios, tabelas, Super 8 e resultados.',
     isSystem: false,
     permissions: ALL_SYSTEM_SCREENS.map(s => {
-      if (['reports', 'dashboard', 'bracket-tree', 'results'].includes(s.id)) {
+      if (['reports', 'dashboard', 'bracket-tree', 'results', 'super8'].includes(s.id)) {
         return { screen: s.id, view: true, create: false, edit: false, delete: false };
       }
       return { screen: s.id, view: false, create: false, edit: false, delete: false };
@@ -331,11 +383,7 @@ export const DEFAULT_MASTER_CATEGORIES: Omit<Category, 'createdAt' | 'updatedAt'
   { id: 'cat-std-mis-b', name: 'Mista B', type: 'MISTA', level: 'B', price: 100, maxParticipants: 16, status: 'ATIVA', tournamentId: 'GLOBAL', description: 'Duplas Mistas Intermediárias' },
   { id: 'cat-std-mis-c', name: 'Mista C', type: 'MISTA', level: 'C', price: 100, maxParticipants: 16, status: 'ATIVA', tournamentId: 'GLOBAL', description: 'Duplas Mistas Básicas' },
   { id: 'cat-std-mis-d', name: 'Mista D', type: 'MISTA', level: 'D', price: 90, maxParticipants: 16, status: 'ATIVA', tournamentId: 'GLOBAL', description: 'Duplas Mistas Amadoras' },
-  { id: 'cat-std-mis-ini', name: 'Mista Iniciante', type: 'MISTA', level: 'INICIANTE', price: 80, maxParticipants: 16, status: 'ATIVA', tournamentId: 'GLOBAL', description: 'Duplas Mistas Iniciantes' },
-
-  // SUPER 8
-  { id: 'cat-std-sup8-open', name: 'Super 8 Open', type: 'SUPER 8', level: 'OPEN', price: 130, maxParticipants: 8, status: 'ATIVA', tournamentId: 'GLOBAL', description: 'Formato Super 8 individual com parceiros dinâmicos' },
-  { id: 'cat-std-sup8-duplas', name: 'Super 8 Duplas Formadas', type: 'SUPER 8 DUPLAS', level: 'OPEN', price: 130, maxParticipants: 8, status: 'ATIVA', tournamentId: 'GLOBAL', description: 'Formato Super 8 com duplas fixas já formadas' }
+  { id: 'cat-std-mis-ini', name: 'Mista Iniciante', type: 'MISTA', level: 'INICIANTE', price: 80, maxParticipants: 16, status: 'ATIVA', tournamentId: 'GLOBAL', description: 'Duplas Mistas Iniciantes' }
 ];
 
 // Default seeding data
@@ -638,22 +686,6 @@ const defaultData: DBData = {
   "profiles": DEFAULT_SYSTEM_PROFILES,
   "tournaments": [
     {
-      "id": "t-qw68nd3xp",
-      "name": "Super 8",
-      "arenaId": "arena-zne0sbge6",
-      "organizerId": "arena-zne0sbge6",
-      "venueId": "ven-kpptfkeak",
-      "venueName": "Toss",
-      "courtsUsed": 2,
-      "seriesName": "Super 8",
-      "startDate": "2027-01-01",
-      "endDate": "2027-02-02",
-      "status": "INSCRICOES_ABERTAS",
-      "isDuo": false,
-      "createdAt": "2026-10-09T12:06:56.649Z",
-      "updatedAt": "2026-10-09T12:06:56.649Z"
-    },
-    {
       "id": "t-l2kcowd6j",
       "name": "Edi\u00e7\u00e3o 2027",
       "arenaId": "arena-6a5h1o8wd",
@@ -932,32 +964,6 @@ const defaultData: DBData = {
       "updatedAt": "2026-10-08T15:36:13.657Z"
     },
     {
-      "id": "c-h5gyutri5",
-      "tournamentId": "GLOBAL",
-      "name": "SUPER 8 PRINCIPIANTE",
-      "type": "SUPER 8",
-      "level": "PRINCIPIANTE",
-      "price": 40,
-      "maxParticipants": 8,
-      "status": "ATIVA",
-      "description": "",
-      "createdAt": "2026-10-09T12:03:07.823Z",
-      "updatedAt": "2026-10-09T12:03:07.823Z"
-    },
-    {
-      "id": "c-3f8ay2wky",
-      "tournamentId": "t-qw68nd3xp",
-      "masterCategoryId": "c-h5gyutri5",
-      "name": "SUPER 8 PRINCIPIANTE",
-      "type": "SUPER 8",
-      "level": "PRINCIPIANTE",
-      "price": 40,
-      "maxParticipants": 8,
-      "status": "ATIVA",
-      "createdAt": "2026-10-09T12:06:56.649Z",
-      "updatedAt": "2026-10-09T12:06:56.649Z"
-    },
-    {
       "id": "c-asm6racfn",
       "tournamentId": "t-l2kcowd6j",
       "masterCategoryId": "cat-std-masc-d",
@@ -985,78 +991,6 @@ const defaultData: DBData = {
     }
   ],
   "registrations": [
-    {
-      "id": "reg-8wlqt4rrk",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-joao",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:17.124Z",
-      "updatedAt": "2026-10-09T12:07:17.124Z"
-    },
-    {
-      "id": "reg-br6hr9z1l",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-lxkaq0uqv",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:17.201Z",
-      "updatedAt": "2026-10-09T12:07:17.201Z"
-    },
-    {
-      "id": "reg-piinfwjx6",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-maria",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:17.209Z",
-      "updatedAt": "2026-10-09T12:07:17.209Z"
-    },
-    {
-      "id": "reg-tdemspb8a",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-lucas",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:17.263Z",
-      "updatedAt": "2026-10-09T12:07:17.263Z"
-    },
-    {
-      "id": "reg-6oe0iy0sv",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-carlos",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:17.288Z",
-      "updatedAt": "2026-10-09T12:07:17.288Z"
-    },
-    {
-      "id": "reg-26lf094cc",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-pedro",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:17.305Z",
-      "updatedAt": "2026-10-09T12:07:17.305Z"
-    },
-    {
-      "id": "reg-m7al7i5p9",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-zm0bhpk79",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:17.317Z",
-      "updatedAt": "2026-10-09T12:07:17.317Z"
-    },
-    {
-      "id": "reg-lli452982",
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
-      "athleteId": "ath-bktqtc8rs",
-      "status": "CONFIRMADA",
-      "createdAt": "2026-10-09T12:07:18.713Z",
-      "updatedAt": "2026-10-09T12:07:18.713Z"
-    },
     {
       "id": "reg-apeqmq7q0",
       "tournamentId": "t-l2kcowd6j",
@@ -1187,15 +1121,50 @@ const defaultData: DBData = {
       "updatedAt": "2026-10-09T12:45:13.349Z"
     }
   ],
-  "matches": [
+  "matches": [],
+  "super8Events": [
     {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
+      "id": "t-qw68nd3xp",
+      "name": "Super 8",
+      "seriesName": "Super 8",
+      "arenaId": "arena-zne0sbge6",
+      "organizerId": "arena-zne0sbge6",
+      "venueId": "ven-kpptfkeak",
+      "venueName": "Toss",
+      "courtsUsed": 2,
+      "startDate": "2027-01-01",
+      "endDate": "2027-02-02",
+      "status": "INSCRICOES_ABERTAS",
+      "categoryName": "SUPER 8 PRINCIPIANTE",
+      "level": "PRINCIPIANTE",
+      "price": 40,
+      "games": 4,
+      "thaiBreak": false,
+      "athleteIds": [
+        "ath-joao",
+        "ath-lxkaq0uqv",
+        "ath-maria",
+        "ath-lucas",
+        "ath-carlos",
+        "ath-pedro",
+        "ath-zm0bhpk79",
+        "ath-bktqtc8rs"
+      ],
+      "legacyTournamentId": "t-qw68nd3xp",
+      "legacyCategoryId": "c-3f8ay2wky",
+      "createdAt": "2026-10-09T12:06:56.649Z",
+      "updatedAt": "2026-10-09T12:06:56.649Z"
+    }
+  ],
+  "super8Matches": [
+    {
+      "super8Id": "t-qw68nd3xp",
       "stage": "Rodada 1",
       "groupName": "Super 8",
       "round": 1,
       "matchNumber": 1,
-      "format": "SUPER_8",
+      "games": 4,
+      "thaiBreak": false,
       "teamA": {
         "player1Id": "ath-joao",
         "player2Id": "ath-bktqtc8rs",
@@ -1217,13 +1186,13 @@ const defaultData: DBData = {
       "updatedAt": "2026-10-09T12:07:54.961Z"
     },
     {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
+      "super8Id": "t-qw68nd3xp",
       "stage": "Rodada 1",
       "groupName": "Super 8",
       "round": 1,
       "matchNumber": 2,
-      "format": "SUPER_8",
+      "games": 4,
+      "thaiBreak": false,
       "teamA": {
         "player1Id": "ath-maria",
         "player2Id": "ath-pedro",
@@ -1245,13 +1214,13 @@ const defaultData: DBData = {
       "updatedAt": "2026-10-09T12:07:54.961Z"
     },
     {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
+      "super8Id": "t-qw68nd3xp",
       "stage": "Rodada 2",
       "groupName": "Super 8",
       "round": 2,
       "matchNumber": 3,
-      "format": "SUPER_8",
+      "games": 4,
+      "thaiBreak": false,
       "teamA": {
         "player1Id": "ath-joao",
         "player2Id": "ath-zm0bhpk79",
@@ -1273,13 +1242,13 @@ const defaultData: DBData = {
       "updatedAt": "2026-10-09T12:07:54.961Z"
     },
     {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
+      "super8Id": "t-qw68nd3xp",
       "stage": "Rodada 2",
       "groupName": "Super 8",
       "round": 2,
       "matchNumber": 4,
-      "format": "SUPER_8",
+      "games": 4,
+      "thaiBreak": false,
       "teamA": {
         "player1Id": "ath-lxkaq0uqv",
         "player2Id": "ath-carlos",
@@ -1301,13 +1270,13 @@ const defaultData: DBData = {
       "updatedAt": "2026-10-09T12:07:54.961Z"
     },
     {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
+      "super8Id": "t-qw68nd3xp",
       "stage": "Rodada 3",
       "groupName": "Super 8",
       "round": 3,
       "matchNumber": 5,
-      "format": "SUPER_8",
+      "games": 4,
+      "thaiBreak": false,
       "teamA": {
         "player1Id": "ath-joao",
         "player2Id": "ath-pedro",
@@ -1329,13 +1298,13 @@ const defaultData: DBData = {
       "updatedAt": "2026-10-09T12:07:54.961Z"
     },
     {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
+      "super8Id": "t-qw68nd3xp",
       "stage": "Rodada 3",
       "groupName": "Super 8",
       "round": 3,
       "matchNumber": 6,
-      "format": "SUPER_8",
+      "games": 4,
+      "thaiBreak": false,
       "teamA": {
         "player1Id": "ath-bktqtc8rs",
         "player2Id": "ath-lucas",
@@ -1357,13 +1326,13 @@ const defaultData: DBData = {
       "updatedAt": "2026-10-09T12:07:54.961Z"
     },
     {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
+      "super8Id": "t-qw68nd3xp",
       "stage": "Rodada 4",
       "groupName": "Super 8",
       "round": 4,
       "matchNumber": 7,
-      "format": "SUPER_8",
+      "games": 4,
+      "thaiBreak": false,
       "teamA": {
         "player1Id": "ath-joao",
         "player2Id": "ath-carlos",
@@ -1385,13 +1354,13 @@ const defaultData: DBData = {
       "updatedAt": "2026-10-09T12:07:54.961Z"
     },
     {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
+      "super8Id": "t-qw68nd3xp",
       "stage": "Rodada 4",
       "groupName": "Super 8",
       "round": 4,
       "matchNumber": 8,
-      "format": "SUPER_8",
+      "games": 4,
+      "thaiBreak": false,
       "teamA": {
         "player1Id": "ath-zm0bhpk79",
         "player2Id": "ath-maria",
@@ -1413,13 +1382,13 @@ const defaultData: DBData = {
       "updatedAt": "2026-10-09T12:07:54.961Z"
     },
     {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
+      "super8Id": "t-qw68nd3xp",
       "stage": "Rodada 5",
       "groupName": "Super 8",
       "round": 5,
       "matchNumber": 9,
-      "format": "SUPER_8",
+      "games": 4,
+      "thaiBreak": false,
       "teamA": {
         "player1Id": "ath-joao",
         "player2Id": "ath-lucas",
@@ -1441,13 +1410,13 @@ const defaultData: DBData = {
       "updatedAt": "2026-10-09T12:07:54.961Z"
     },
     {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
+      "super8Id": "t-qw68nd3xp",
       "stage": "Rodada 5",
       "groupName": "Super 8",
       "round": 5,
       "matchNumber": 10,
-      "format": "SUPER_8",
+      "games": 4,
+      "thaiBreak": false,
       "teamA": {
         "player1Id": "ath-pedro",
         "player2Id": "ath-lxkaq0uqv",
@@ -1469,13 +1438,13 @@ const defaultData: DBData = {
       "updatedAt": "2026-10-09T12:07:54.961Z"
     },
     {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
+      "super8Id": "t-qw68nd3xp",
       "stage": "Rodada 6",
       "groupName": "Super 8",
       "round": 6,
       "matchNumber": 11,
-      "format": "SUPER_8",
+      "games": 4,
+      "thaiBreak": false,
       "teamA": {
         "player1Id": "ath-joao",
         "player2Id": "ath-maria",
@@ -1497,13 +1466,13 @@ const defaultData: DBData = {
       "updatedAt": "2026-10-09T12:07:54.961Z"
     },
     {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
+      "super8Id": "t-qw68nd3xp",
       "stage": "Rodada 6",
       "groupName": "Super 8",
       "round": 6,
       "matchNumber": 12,
-      "format": "SUPER_8",
+      "games": 4,
+      "thaiBreak": false,
       "teamA": {
         "player1Id": "ath-carlos",
         "player2Id": "ath-bktqtc8rs",
@@ -1525,13 +1494,13 @@ const defaultData: DBData = {
       "updatedAt": "2026-10-09T12:07:54.961Z"
     },
     {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
+      "super8Id": "t-qw68nd3xp",
       "stage": "Rodada 7",
       "groupName": "Super 8",
       "round": 7,
       "matchNumber": 13,
-      "format": "SUPER_8",
+      "games": 4,
+      "thaiBreak": false,
       "teamA": {
         "player1Id": "ath-joao",
         "player2Id": "ath-lxkaq0uqv",
@@ -1553,13 +1522,13 @@ const defaultData: DBData = {
       "updatedAt": "2026-10-09T12:07:54.961Z"
     },
     {
-      "tournamentId": "t-qw68nd3xp",
-      "categoryId": "c-3f8ay2wky",
+      "super8Id": "t-qw68nd3xp",
       "stage": "Rodada 7",
       "groupName": "Super 8",
       "round": 7,
       "matchNumber": 14,
-      "format": "SUPER_8",
+      "games": 4,
+      "thaiBreak": false,
       "teamA": {
         "player1Id": "ath-lucas",
         "player2Id": "ath-zm0bhpk79",
@@ -1670,6 +1639,414 @@ async function upsertToDb(data: DBData): Promise<void> {
   }
 }
 
+function normalizeAndMigrateDB(parsed: any): { data: DBData; needsUpdate: boolean } {
+  let needsUpdate = false;
+
+  if (!parsed.users || !Array.isArray(parsed.users)) {
+    parsed.users = defaultData.users;
+    needsUpdate = true;
+  }
+  if (!parsed.athletes || !Array.isArray(parsed.athletes)) {
+    parsed.athletes = defaultData.athletes;
+    needsUpdate = true;
+  }
+  if (!parsed.arenas || !Array.isArray(parsed.arenas)) {
+    parsed.arenas = [];
+    needsUpdate = true;
+  }
+  if (!parsed.arenaAthletes || !Array.isArray(parsed.arenaAthletes)) {
+    parsed.arenaAthletes = [];
+    needsUpdate = true;
+  }
+  if (!parsed.tournaments || !Array.isArray(parsed.tournaments)) {
+    parsed.tournaments = [];
+    needsUpdate = true;
+  }
+  if (!parsed.categories || !Array.isArray(parsed.categories)) {
+    parsed.categories = [];
+    needsUpdate = true;
+  }
+  if (!parsed.registrations || !Array.isArray(parsed.registrations)) {
+    parsed.registrations = [];
+    needsUpdate = true;
+  }
+  if (!parsed.duos || !Array.isArray(parsed.duos)) {
+    parsed.duos = [];
+    needsUpdate = true;
+  }
+  if (!parsed.matches || !Array.isArray(parsed.matches)) {
+    parsed.matches = [];
+    needsUpdate = true;
+  }
+  if (!parsed.venues || !Array.isArray(parsed.venues)) {
+    parsed.venues = [];
+    needsUpdate = true;
+  }
+  if (!parsed.super8Events || !Array.isArray(parsed.super8Events)) {
+    parsed.super8Events = [];
+    needsUpdate = true;
+  }
+  if (!parsed.super8Matches || !Array.isArray(parsed.super8Matches)) {
+    parsed.super8Matches = [];
+    needsUpdate = true;
+  }
+
+  // =========================================================================
+  // MIGRAÇÃO NÃO DESTRUTIVA: Separar Super 8 do módulo tradicional de Torneios
+  // =========================================================================
+  const migratedTournamentIds = new Set<string>();
+  const migratedCategoryIds = new Set<string>();
+
+  for (const t of parsed.tournaments) {
+    const tCats = parsed.categories.filter((c: any) => c.tournamentId === t.id);
+    const tMatches = parsed.matches.filter((m: any) => m.tournamentId === t.id);
+
+    const isLegacySuper8Tournament =
+      t.isDuo === false ||
+      (tCats.length > 0 && tCats.every((c: any) => c.type === 'SUPER 8' || c.type === 'SUPER 8 DUPLAS')) ||
+      (tCats.length === 0 && tMatches.length > 0 && tMatches.every((m: any) => m.format === 'SUPER_8'));
+
+    if (!isLegacySuper8Tournament) continue;
+
+    migratedTournamentIds.add(t.id);
+    tCats.forEach((c: any) => migratedCategoryIds.add(c.id));
+
+    const existingEvent = parsed.super8Events.find(
+      (e: any) => e.id === t.id || e.legacyTournamentId === t.id
+    );
+
+    const primaryCat = tCats[0];
+    const resolvedGames = (primaryCat?.games === 6 || t.games === 6) ? 6 : 4;
+    const resolvedThaiBreak = resolvedGames === 6 ? Boolean(primaryCat?.thaiBreak ?? t.thaiBreak ?? false) : false;
+
+    if (!existingEvent) {
+      const activeRegs = parsed.registrations.filter(
+        (r: any) => r.tournamentId === t.id && r.status !== 'CANCELADA'
+      );
+      const athleteIds: string[] = [];
+      const seenAthletes = new Set<string>();
+
+      for (const r of activeRegs) {
+        if (r.athleteId && !seenAthletes.has(r.athleteId)) {
+          seenAthletes.add(r.athleteId);
+          athleteIds.push(r.athleteId);
+        }
+      }
+      for (const m of tMatches) {
+        const players = [
+          m.teamA?.player1Id,
+          m.teamA?.player2Id,
+          m.teamB?.player1Id,
+          m.teamB?.player2Id
+        ];
+        for (const pId of players) {
+          if (pId && !seenAthletes.has(pId)) {
+            seenAthletes.add(pId);
+            athleteIds.push(pId);
+          }
+        }
+      }
+
+      parsed.super8Events.push({
+        id: t.id,
+        name: t.name || 'Super 8',
+        seriesName: t.seriesName || t.name || 'Super 8',
+        arenaId: t.arenaId || t.organizerId || '',
+        organizerId: t.organizerId || t.arenaId || '',
+        venueId: t.venueId,
+        venueName: t.venueName,
+        courtsUsed: typeof t.courtsUsed === 'number' && t.courtsUsed >= 1 ? t.courtsUsed : 2,
+        startDate: t.startDate,
+        endDate: t.endDate,
+        status: t.status || 'INSCRICOES_ABERTAS',
+        categoryName: primaryCat?.name || 'Super 8',
+        level: primaryCat?.level || 'PRINCIPIANTE',
+        price: typeof primaryCat?.price === 'number' ? primaryCat.price : 40,
+        games: resolvedGames,
+        thaiBreak: resolvedThaiBreak,
+        athleteIds,
+        legacyTournamentId: t.id,
+        legacyCategoryId: primaryCat?.id,
+        createdAt: t.createdAt || new Date().toISOString(),
+        updatedAt: t.updatedAt || new Date().toISOString()
+      });
+      needsUpdate = true;
+    }
+
+    for (const m of tMatches) {
+      if (m.teamA && m.teamB && !parsed.super8Matches.some((sm: any) => sm.id === m.id)) {
+        parsed.super8Matches.push({
+          id: m.id,
+          super8Id: existingEvent ? existingEvent.id : t.id,
+          stage: m.stage || `Rodada ${m.round || 1}`,
+          groupName: m.groupName || 'Super 8',
+          round: m.round || 1,
+          matchNumber: m.matchNumber || 1,
+          teamA: m.teamA,
+          teamB: m.teamB,
+          scoreA: m.scoreA,
+          scoreB: m.scoreB,
+          score: m.score,
+          winnerTeam: m.winnerTeam,
+          date: m.date,
+          time: m.time,
+          court: m.court || 'Quadra 1',
+          status: m.status || 'PENDENTE',
+          games: m.games !== undefined ? m.games : resolvedGames,
+          thaiBreak: m.thaiBreak !== undefined ? Boolean(m.thaiBreak) : resolvedThaiBreak,
+          tieBreaker: m.tieBreaker,
+          createdAt: m.createdAt || new Date().toISOString(),
+          updatedAt: m.updatedAt || new Date().toISOString()
+        });
+        needsUpdate = true;
+      }
+    }
+  }
+
+  // Migrar eventuais partidas órfãs marcadas como SUPER_8
+  for (const m of parsed.matches) {
+    if (m.format === 'SUPER_8' && m.teamA && m.teamB && !parsed.super8Matches.some((sm: any) => sm.id === m.id)) {
+      parsed.super8Matches.push({
+        id: m.id,
+        super8Id: m.tournamentId,
+        stage: m.stage || `Rodada ${m.round || 1}`,
+        groupName: m.groupName || 'Super 8',
+        round: m.round || 1,
+        matchNumber: m.matchNumber || 1,
+        teamA: m.teamA,
+        teamB: m.teamB,
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        score: m.score,
+        winnerTeam: m.winnerTeam,
+        date: m.date,
+        time: m.time,
+        court: m.court || 'Quadra 1',
+        status: m.status || 'PENDENTE',
+        games: m.games !== undefined ? m.games : 4,
+        thaiBreak: Boolean(m.thaiBreak),
+        tieBreaker: m.tieBreaker,
+        createdAt: m.createdAt || new Date().toISOString(),
+        updatedAt: m.updatedAt || new Date().toISOString()
+      });
+      needsUpdate = true;
+    }
+  }
+
+  // Remover apenas após confirmar persistência no novo domínio Super 8
+  const migratedEventIdsConfirmed = new Set(
+    parsed.super8Events.map((e: any) => e.legacyTournamentId || e.id)
+  );
+  const migratedMatchIdsConfirmed = new Set(parsed.super8Matches.map((sm: any) => sm.id));
+
+  if (migratedTournamentIds.size > 0) {
+    const beforeT = parsed.tournaments.length;
+    parsed.tournaments = parsed.tournaments.filter(
+      (t: any) => !(migratedTournamentIds.has(t.id) && migratedEventIdsConfirmed.has(t.id))
+    );
+    if (parsed.tournaments.length !== beforeT) needsUpdate = true;
+  }
+
+  const beforeC = parsed.categories.length;
+  parsed.categories = parsed.categories.filter(
+    (c: any) =>
+      !(c.tournamentId && migratedTournamentIds.has(c.tournamentId) && migratedEventIdsConfirmed.has(c.tournamentId)) &&
+      c.type !== 'SUPER 8' &&
+      c.type !== 'SUPER 8 DUPLAS'
+  );
+  if (parsed.categories.length !== beforeC) needsUpdate = true;
+
+  const beforeR = parsed.registrations.length;
+  parsed.registrations = parsed.registrations.filter(
+    (r: any) =>
+      !(migratedTournamentIds.has(r.tournamentId) && migratedEventIdsConfirmed.has(r.tournamentId)) &&
+      !migratedCategoryIds.has(r.categoryId)
+  );
+  if (parsed.registrations.length !== beforeR) needsUpdate = true;
+
+  const beforeM = parsed.matches.length;
+  parsed.matches = parsed.matches.filter((m: any) => !migratedMatchIdsConfirmed.has(m.id));
+  if (parsed.matches.length !== beforeM) needsUpdate = true;
+
+  // Dynamic field-level migrations for existing traditional tournaments
+  parsed.tournaments.forEach((t: any) => {
+    if (t.isDuo === undefined || t.isDuo === false) {
+      t.isDuo = true;
+      needsUpdate = true;
+    }
+    if (!t.venueId && parsed.venues && parsed.venues.length > 0) {
+      const defaultVenue = parsed.venues[0];
+      t.venueId = defaultVenue.id;
+      t.venueName = defaultVenue.name;
+      t.courtsUsed = Math.min(4, defaultVenue.courtsCount || 4);
+      needsUpdate = true;
+    }
+    if (t.courtsUsed === undefined) {
+      t.courtsUsed = 4;
+      needsUpdate = true;
+    }
+  });
+
+  if (parsed.categories.length === 0 || !parsed.categories.some((c: any) => !c.tournamentId || c.tournamentId === 'GLOBAL')) {
+    const now = new Date().toISOString();
+    DEFAULT_MASTER_CATEGORIES.forEach(std => {
+      const already = parsed.categories.some((c: any) => c.type === std.type && c.level === std.level && (!c.tournamentId || c.tournamentId === 'GLOBAL'));
+      if (!already) {
+        parsed.categories.push({
+          ...std,
+          createdAt: now,
+          updatedAt: now
+        });
+        needsUpdate = true;
+      }
+    });
+  }
+
+  parsed.categories.forEach((c: any) => {
+    if (c.maxParticipants === undefined) {
+      c.maxParticipants = 16;
+      needsUpdate = true;
+    }
+    if (!c.name) {
+      c.name = `${c.type} ${c.level}`;
+      needsUpdate = true;
+    }
+    if (!c.status) {
+      c.status = 'ATIVA';
+      needsUpdate = true;
+    }
+  });
+
+  if (!parsed.profiles || !Array.isArray(parsed.profiles) || parsed.profiles.length === 0) {
+    parsed.profiles = DEFAULT_SYSTEM_PROFILES;
+    needsUpdate = true;
+  } else {
+    // Garantir que todos os perfis do sistema existam
+    DEFAULT_SYSTEM_PROFILES.forEach(dp => {
+      if (!parsed.profiles.some((p: any) => p.id === dp.id)) {
+        parsed.profiles.push(dp);
+        needsUpdate = true;
+      }
+    });
+
+    // Garantir que perfis existentes tenham a permissão 'super8' sem sobrescrever customizações
+    parsed.profiles.forEach((p: any) => {
+      if (!Array.isArray(p.permissions)) {
+        p.permissions = [];
+      }
+      if (!p.permissions.some((perm: any) => perm.screen === 'super8')) {
+        if (p.id === 'prof-super-admin') {
+          p.permissions.push({ screen: 'super8', view: true, create: true, edit: true, delete: true });
+        } else if (p.id === 'prof-organizador') {
+          p.permissions.push({ screen: 'super8', view: true, create: true, edit: true, delete: false });
+        } else if (p.id === 'prof-mesario') {
+          p.permissions.push({ screen: 'super8', view: true, create: false, edit: true, delete: false });
+        } else if (p.id === 'prof-visualizador') {
+          p.permissions.push({ screen: 'super8', view: true, create: false, edit: false, delete: false });
+        } else {
+          const refPerm = p.permissions.find((perm: any) => perm.screen === 'tournaments') ||
+            p.permissions.find((perm: any) => perm.screen === 'matches');
+          p.permissions.push({
+            screen: 'super8',
+            view: Boolean(refPerm?.view),
+            create: Boolean(refPerm?.create),
+            edit: Boolean(refPerm?.edit),
+            delete: Boolean(refPerm?.delete)
+          });
+        }
+        needsUpdate = true;
+      }
+    });
+  }
+
+  // Migração de campos de usuários e vinculação padrão de perfil
+  parsed.users.forEach((u: any) => {
+    if (!u.status) {
+      u.status = 'ATIVO';
+      needsUpdate = true;
+    }
+    if (!u.profileId) {
+      if (u.role === 'SUPER_ADMIN') {
+        u.profileId = 'prof-super-admin';
+      } else if (u.role === 'ARENA_ADMIN') {
+        u.profileId = 'prof-organizador';
+      } else {
+        u.profileId = 'prof-organizador';
+      }
+      needsUpdate = true;
+    }
+    if (!u.source) {
+      u.source = u.role === 'SUPER_ADMIN' ? 'SISTEMA' : 'ORGANIZADOR';
+      needsUpdate = true;
+    }
+  });
+
+  // Sincronização automática de Atletas -> Usuários (sem duplicidade)
+  if (parsed.athletes && Array.isArray(parsed.athletes)) {
+    parsed.athletes.forEach((ath: any) => {
+      const cpfDigits = (ath.cpf || '').replace(/\D/g, '');
+      const usernameCandidate = cpfDigits || (ath.email ? ath.email.toLowerCase().trim() : `ath_${ath.id}`);
+      const userExists = parsed.users.some((u: any) =>
+        (u.athleteId && u.athleteId === ath.id) ||
+        (u.username && u.username.toLowerCase() === usernameCandidate.toLowerCase()) ||
+        (cpfDigits && u.username === cpfDigits)
+      );
+
+      if (!userExists) {
+        parsed.users.push({
+          id: `usr-ath-${ath.id}`,
+          username: usernameCandidate,
+          password: '123',
+          role: 'CUSTOM',
+          arenaId: null,
+          name: ath.name,
+          email: ath.email,
+          phone: ath.phone,
+          status: ath.status === 'INATIVO' ? 'INATIVO' : 'ATIVO',
+          profileId: 'prof-visualizador',
+          athleteId: ath.id,
+          source: 'ATLETA',
+          createdAt: ath.createdAt || new Date().toISOString(),
+          updatedAt: ath.updatedAt || new Date().toISOString()
+        });
+        needsUpdate = true;
+      }
+    });
+  }
+
+  // Sincronização automática de Organizadores/Arenas -> Usuários (sem duplicidade)
+  if (parsed.arenas && Array.isArray(parsed.arenas)) {
+    parsed.arenas.forEach((arena: any) => {
+      const adminUser = parsed.users.find((u: any) => u.arenaId === arena.id && u.role === 'ARENA_ADMIN');
+      if (!adminUser) {
+        const baseUser = arena.email ? arena.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '') : `org_${arena.id.substring(0, 6)}`;
+        const finalUser = baseUser.length >= 3 ? baseUser : `org_${arena.id.substring(0, 6)}`;
+
+        if (!parsed.users.some((u: any) => u.username.toLowerCase() === finalUser.toLowerCase())) {
+          parsed.users.push({
+            id: `usr-org-${arena.id}`,
+            username: finalUser,
+            password: '123',
+            role: 'ARENA_ADMIN',
+            arenaId: arena.id,
+            name: `${arena.name} Admin`,
+            email: arena.email,
+            phone: arena.phone,
+            status: arena.status === 'INATIVA' ? 'INATIVO' : 'ATIVO',
+            profileId: 'prof-organizador',
+            source: 'ORGANIZADOR',
+            createdAt: arena.createdAt || new Date().toISOString(),
+            updatedAt: arena.updatedAt || new Date().toISOString()
+          });
+          needsUpdate = true;
+        }
+      }
+    });
+  }
+
+  return { data: parsed as DBData, needsUpdate };
+}
+
 export async function ensureDbInitialized(): Promise<void> {
   if (isDbInitialized) return;
   if (dbInitPromise) {
@@ -1684,7 +2061,11 @@ export async function ensureDbInitialized(): Promise<void> {
     await initPostgresTable();
     const loaded = await loadFromDb();
     if (loaded) {
-      memoryCache = loaded;
+      const { data: migrated, needsUpdate } = normalizeAndMigrateDB(loaded);
+      memoryCache = migrated;
+      if (needsUpdate) {
+        await upsertToDb(migrated);
+      }
       console.log('[ArenaBT] Dados carregados com sucesso do PostgreSQL.');
     } else {
       await upsertToDb(memoryCache || defaultData);
@@ -1724,212 +2105,15 @@ export function readDB(): DBData {
     const raw = fs.readFileSync(dbPath, 'utf-8');
     const parsed = JSON.parse(raw);
 
-    let needsUpdate = false;
-
-    if (!parsed.users || !Array.isArray(parsed.users)) {
-      parsed.users = defaultData.users;
-      needsUpdate = true;
-    }
-
-    if (!parsed.athletes || !Array.isArray(parsed.athletes)) {
-      parsed.athletes = defaultData.athletes;
-      needsUpdate = true;
-    }
-
-    if (!parsed.arenas || !Array.isArray(parsed.arenas)) {
-      parsed.arenas = [];
-      needsUpdate = true;
-    }
-
-    if (!parsed.arenaAthletes || !Array.isArray(parsed.arenaAthletes)) {
-      parsed.arenaAthletes = [];
-      needsUpdate = true;
-    }
-
-    if (!parsed.tournaments || !Array.isArray(parsed.tournaments)) {
-      parsed.tournaments = [];
-      needsUpdate = true;
-    }
-
-    if (!parsed.categories || !Array.isArray(parsed.categories)) {
-      parsed.categories = [];
-      needsUpdate = true;
-    }
-
-    if (!parsed.registrations || !Array.isArray(parsed.registrations)) {
-      parsed.registrations = [];
-      needsUpdate = true;
-    }
-
-    if (!parsed.duos || !Array.isArray(parsed.duos)) {
-      parsed.duos = [];
-      needsUpdate = true;
-    }
-
-    if (!parsed.matches || !Array.isArray(parsed.matches)) {
-      parsed.matches = [];
-      needsUpdate = true;
-    }
-
-    if (!parsed.venues || !Array.isArray(parsed.venues)) {
-      parsed.venues = [];
-      needsUpdate = true;
-    }
-
-    // Dynamic field-level migrations for existing data
-    parsed.tournaments.forEach((t: any) => {
-      if (t.isDuo === undefined) {
-        t.isDuo = true;
-        needsUpdate = true;
-      }
-      if (!t.venueId && parsed.venues && parsed.venues.length > 0) {
-        const defaultVenue = parsed.venues[0];
-        t.venueId = defaultVenue.id;
-        t.venueName = defaultVenue.name;
-        t.courtsUsed = Math.min(4, defaultVenue.courtsCount || 4);
-        needsUpdate = true;
-      }
-      if (t.courtsUsed === undefined) {
-        t.courtsUsed = 4;
-        needsUpdate = true;
-      }
-    });
-
-    if (parsed.categories.length === 0 || !parsed.categories.some((c: any) => !c.tournamentId || c.tournamentId === 'GLOBAL')) {
-      const now = new Date().toISOString();
-      DEFAULT_MASTER_CATEGORIES.forEach(std => {
-        const already = parsed.categories.some((c: any) => c.type === std.type && c.level === std.level && (!c.tournamentId || c.tournamentId === 'GLOBAL'));
-        if (!already) {
-          parsed.categories.push({
-            ...std,
-            createdAt: now,
-            updatedAt: now
-          });
-          needsUpdate = true;
-        }
-      });
-    }
-
-    parsed.categories.forEach((c: any) => {
-      if (c.maxParticipants === undefined) {
-        c.maxParticipants = 16;
-        needsUpdate = true;
-      }
-      if (!c.name) {
-        c.name = `${c.type} ${c.level}`;
-        needsUpdate = true;
-      }
-      if (!c.status) {
-        c.status = 'ATIVA';
-        needsUpdate = true;
-      }
-    });
-
-    if (!parsed.profiles || !Array.isArray(parsed.profiles) || parsed.profiles.length === 0) {
-      parsed.profiles = DEFAULT_SYSTEM_PROFILES;
-      needsUpdate = true;
-    } else {
-      // Garantir que todos os perfis do sistema existam
-      DEFAULT_SYSTEM_PROFILES.forEach(dp => {
-        if (!parsed.profiles.some((p: any) => p.id === dp.id)) {
-          parsed.profiles.push(dp);
-          needsUpdate = true;
-        }
-      });
-    }
-
-    // Migração de campos de usuários e vinculação padrão de perfil
-    parsed.users.forEach((u: any) => {
-      if (!u.status) {
-        u.status = 'ATIVO';
-        needsUpdate = true;
-      }
-      if (!u.profileId) {
-        if (u.role === 'SUPER_ADMIN') {
-          u.profileId = 'prof-super-admin';
-        } else if (u.role === 'ARENA_ADMIN') {
-          u.profileId = 'prof-organizador';
-        } else {
-          u.profileId = 'prof-organizador';
-        }
-        needsUpdate = true;
-      }
-      if (!u.source) {
-        u.source = u.role === 'SUPER_ADMIN' ? 'SISTEMA' : 'ORGANIZADOR';
-        needsUpdate = true;
-      }
-    });
-
-    // Sincronização automática de Atletas -> Usuários (sem duplicidade)
-    if (parsed.athletes && Array.isArray(parsed.athletes)) {
-      parsed.athletes.forEach((ath: any) => {
-        const cpfDigits = (ath.cpf || '').replace(/\D/g, '');
-        const usernameCandidate = cpfDigits || (ath.email ? ath.email.toLowerCase().trim() : `ath_${ath.id}`);
-        const userExists = parsed.users.some((u: any) => 
-          (u.athleteId && u.athleteId === ath.id) ||
-          (u.username && u.username.toLowerCase() === usernameCandidate.toLowerCase()) ||
-          (cpfDigits && u.username === cpfDigits)
-        );
-
-        if (!userExists) {
-          parsed.users.push({
-            id: `usr-ath-${ath.id}`,
-            username: usernameCandidate,
-            password: '123', // Senha inicial padrão configurável
-            role: 'CUSTOM',
-            arenaId: null,
-            name: ath.name,
-            email: ath.email,
-            phone: ath.phone,
-            status: ath.status === 'INATIVO' ? 'INATIVO' : 'ATIVO',
-            profileId: 'prof-visualizador',
-            athleteId: ath.id,
-            source: 'ATLETA',
-            createdAt: ath.createdAt || new Date().toISOString(),
-            updatedAt: ath.updatedAt || new Date().toISOString()
-          });
-          needsUpdate = true;
-        }
-      });
-    }
-
-    // Sincronização automática de Organizadores/Arenas -> Usuários (sem duplicidade)
-    if (parsed.arenas && Array.isArray(parsed.arenas)) {
-      parsed.arenas.forEach((arena: any) => {
-        const adminUser = parsed.users.find((u: any) => u.arenaId === arena.id && u.role === 'ARENA_ADMIN');
-        if (!adminUser) {
-          const baseUser = arena.email ? arena.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '') : `org_${arena.id.substring(0, 6)}`;
-          const finalUser = baseUser.length >= 3 ? baseUser : `org_${arena.id.substring(0, 6)}`;
-          
-          if (!parsed.users.some((u: any) => u.username.toLowerCase() === finalUser.toLowerCase())) {
-            parsed.users.push({
-              id: `usr-org-${arena.id}`,
-              username: finalUser,
-              password: '123',
-              role: 'ARENA_ADMIN',
-              arenaId: arena.id,
-              name: `${arena.name} Admin`,
-              email: arena.email,
-              phone: arena.phone,
-              status: arena.status === 'INATIVA' ? 'INATIVO' : 'ATIVO',
-              profileId: 'prof-organizador',
-              source: 'ORGANIZADOR',
-              createdAt: arena.createdAt || new Date().toISOString(),
-              updatedAt: arena.updatedAt || new Date().toISOString()
-            });
-            needsUpdate = true;
-          }
-        }
-      });
-    }
+    const { data, needsUpdate } = normalizeAndMigrateDB(parsed);
 
     if (needsUpdate) {
-      writeDB(parsed);
+      writeDB(data);
     } else {
-      memoryCache = parsed;
+      memoryCache = data;
     }
 
-    return parsed;
+    return data;
   } catch (error) {
     console.error("Error reading db file, falling back to cache:", error);
     if (memoryCache) {

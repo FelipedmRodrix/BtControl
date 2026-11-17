@@ -1,7 +1,7 @@
 import { readDB, writeDB, Tournament, Category } from '../db/store';
 
 export interface CategoryInput {
-  type: 'SUPER 8' | 'MISTA' | 'MASCULINO' | 'FEMININO';
+  type: 'MISTA' | 'MASCULINO' | 'FEMININO';
   level: 'PRINCIPIANTE' | 'INICIANTE' | 'D' | 'C' | 'B' | 'A' | 'OPEN';
   price: number;
   maxParticipants?: number;
@@ -96,7 +96,7 @@ export const tournamentService = {
       startDate: data.startDate,
       endDate: data.endDate,
       status: data.status || 'INSCRICOES_ABERTAS',
-      isDuo: data.isDuo !== undefined ? data.isDuo : true,
+      isDuo: true,
       games: data.games && (data.games === 4 || data.games === 6) ? data.games : 6,
       thaiBreak: (data.games === 4) ? false : (data.thaiBreak === true),
       createdAt: new Date().toISOString(),
@@ -105,9 +105,11 @@ export const tournamentService = {
 
     db.tournaments.push(newTournament);
 
-    // Synchronize enabled categories (Requested Feature!)
+    // Synchronize enabled categories (traditional duo categories only)
     if (data.enabledCategories && Array.isArray(data.enabledCategories)) {
-      const activeCategories = data.enabledCategories.filter(c => c.enabled);
+      const activeCategories = data.enabledCategories.filter(
+        c => c.enabled && (c.type as string) !== 'SUPER 8' && (c.type as string) !== 'SUPER 8 DUPLAS'
+      );
       const tourGames = newTournament.games || 6;
       const tourThaiBreak = tourGames === 6 ? (newTournament.thaiBreak === true) : false;
       
@@ -211,9 +213,9 @@ export const tournamentService = {
     if (data.startDate !== undefined) db.tournaments[index].startDate = data.startDate;
     if (data.endDate !== undefined) db.tournaments[index].endDate = data.endDate;
     if (data.status !== undefined) db.tournaments[index].status = data.status;
-    if (data.isDuo !== undefined) db.tournaments[index].isDuo = data.isDuo;
+    db.tournaments[index].isDuo = true;
 
-    // Synchronize enabled categories (Requested Feature!)
+    // Synchronize enabled categories (traditional duo categories only)
     if (data.enabledCategories && Array.isArray(data.enabledCategories)) {
       // 1. Remove existing categories for this tournament first
       db.categories = db.categories.filter(c => c.tournamentId !== id);
@@ -222,7 +224,9 @@ export const tournamentService = {
       const tourThaiBreak = tourGames === 6 ? ((db.tournaments[index] as any).thaiBreak === true) : false;
 
       // 2. Add currently checked ones
-      const activeCategories = data.enabledCategories.filter(c => c.enabled);
+      const activeCategories = data.enabledCategories.filter(
+        c => c.enabled && (c.type as string) !== 'SUPER 8' && (c.type as string) !== 'SUPER 8 DUPLAS'
+      );
       activeCategories.forEach(c => {
         const newCat: Category = {
           id: 'c-' + Math.random().toString(36).substring(2, 11),

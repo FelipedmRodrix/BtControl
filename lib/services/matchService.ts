@@ -1,5 +1,4 @@
-import { readDB, writeDB, Match, Duo } from '../db/store';
-import { SUPER_8_ROUNDS_TEMPLATE, validateSuper8Schedule, validateSuper8Score, calculateSuper8Standings, resolveSuper8Tie } from './super8Service';
+import { readDB, writeDB, Match } from '../db/store';
 import { conventionalTournamentService } from './conventionalTournamentService';
 
 export const matchService = {
@@ -9,42 +8,6 @@ export const matchService = {
     let enriched = db.matches.map(m => {
       const category = db.categories.find(c => c.id === m.categoryId);
       const tournament = db.tournaments.find(t => t.id === m.tournamentId);
-
-      // Super 8 resolution
-      if (m.format === 'SUPER_8' || m.teamA || m.teamB) {
-        const teamA = m.teamA;
-        const teamB = m.teamB;
-        const a1 = teamA ? db.athletes.find(a => a.id === teamA.player1Id) : null;
-        const a2 = teamA ? db.athletes.find(a => a.id === teamA.player2Id) : null;
-        const b1 = teamB ? db.athletes.find(a => a.id === teamB.player1Id) : null;
-        const b2 = teamB ? db.athletes.find(a => a.id === teamB.player2Id) : null;
-
-        const teamAName = `${a1?.name || 'Atleta 1'} + ${a2?.name || 'Atleta 2'}`;
-        const teamBName = `${b1?.name || 'Atleta 3'} + ${b2?.name || 'Atleta 4'}`;
-
-        return {
-          ...m,
-          games: m.games !== undefined ? m.games : (category?.games || 4),
-          thaiBreak: m.thaiBreak !== undefined ? m.thaiBreak : (category?.thaiBreak || false),
-          duo1Name: teamAName,
-          duo2Name: teamBName,
-          teamA: teamA ? {
-            ...teamA,
-            player1Name: a1?.name || 'Atleta 1',
-            player2Name: a2?.name || 'Atleta 2'
-          } : undefined,
-          teamB: teamB ? {
-            ...teamB,
-            player1Name: b1?.name || 'Atleta 3',
-            player2Name: b2?.name || 'Atleta 4'
-          } : undefined,
-          categoryName: category ? (category.name || `${category.type} - ${category.level}`) : 'Super 8',
-          tournamentName: tournament?.name || 'Torneio Desconhecido',
-          arenaId: tournament?.arenaId || '',
-          isSuper8: true,
-          tieBreaker: m.tieBreaker
-        };
-      }
 
       // Traditional duo match
       const d1 = db.duos.find(d => d.id === m.duo1Id);
@@ -83,22 +46,6 @@ export const matchService = {
 
   create(data: Omit<Match, 'id' | 'status' | 'createdAt' | 'updatedAt'>): { success: boolean; data?: Match; error?: string } {
     const db = readDB();
-
-    if (data.format === 'SUPER_8' || data.teamA) {
-      if (!data.teamA || !data.teamB) {
-        return { success: false, error: 'Ambos os times devem ser informados no Super 8.' };
-      }
-      const newMatch: Match = {
-        ...data,
-        id: 'mat-' + Math.random().toString(36).substring(2, 11),
-        status: 'PENDENTE',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      db.matches.push(newMatch);
-      writeDB(db);
-      return { success: true, data: newMatch };
-    }
 
     if (data.duo1Id === data.duo2Id) {
       return { success: false, error: 'As duas duplas de um jogo devem ser diferentes.' };
@@ -144,94 +91,6 @@ export const matchService = {
     }
 
     const m = db.matches[index];
-
-    // Se a partida for do formato Super 8
-    if (m.format === 'SUPER_8' || m.teamA) {
-      let sA = scoreA;
-      let sB = scoreB;
-
-      if ((sA === undefined || sB === undefined) && score) {
-        const parts = score.match(/(\d+)\s*[xX/-]\s*(\d+)/);
-        if (parts) {
-          sA = parseInt(parts[1], 10);
-          sB = parseInt(parts[2], 10);
-        }
-      }
-
-      const matchGames = m.games !== undefined ? m.games : 4;
-      const matchThaiBreak = m.thaiBreak === true;
-      if (sA !== undefined && sB !== undefined) {
-        const validation = validateSuper8Score(sA, sB, matchGames, matchThaiBreak);
-        if (!validation.valid) {
-          return { success: false, error: validation.error };
-        }
-
-        db.matches[index].scoreA = sA;
-        db.matches[index].scoreB = sB;
-        db.matches[index].score = `${sA} x ${sB}`;
-
-        if (sA === sB && validation.isTie) {
-          if (tieBreaker) {
-            db.matches[index].winnerTeam = winnerTeam || 'TEAM_A';
-            db.matches[index].tieBreaker = tieBreaker;
-          } else {
-            const tieResult = resolveSuper8Tie(
-              db.matches[index],
-              db.matches,
-              db.athletes.filter(a => {
-                const ids = [
-                  m.teamA?.player1Id, m.teamA?.player2Id,
-                  m.teamB?.player1Id, m.teamB?.player2Id
-                ];
-                return ids.includes(a.id);
-              })
-            );
-            if (tieResult) {
-              db.matches[index].winnerTeam = tieResult.winnerTeam;
-              db.matches[index].tieBreaker = tieResult.reason;
-            } else {
-              db.matches[index].winnerTeam = winnerTeam || 'TEAM_A';
-            }
-          }
-        } else {
-          db.matches[index].winnerTeam = sA > sB ? 'TEAM_A' : 'TEAM_B';
-        }
-      } else {
-        db.matches[index].score = score;
-        if (winnerTeam) {
-          db.matches[index].winnerTeam = winnerTeam;
-        }
-      }
-
-      db.matches[index].status = 'FINALIZADA';
-      db.matches[index].updatedAt = new Date().toISOString();
-      const freedCourt = db.matches[index].court;
-      writeDB(db);
-
-      // Encontrar próximo jogo pendente que pode ser iniciado na quadra liberada
-      const nextPendingMatch = db.matches.find(nextM => 
-        nextM.id !== id && 
-        nextM.tournamentId === m.tournamentId && 
-        nextM.status === 'PENDENTE' &&
-        (!nextM.court || nextM.court === freedCourt || nextM.court.startsWith('Quadra'))
-      );
-
-      return { 
-        success: true, 
-        tieBreaker: db.matches[index].tieBreaker,
-        freedCourt,
-        nextMatchSuggestion: nextPendingMatch ? {
-          id: nextPendingMatch.id,
-          stage: nextPendingMatch.stage,
-          groupName: nextPendingMatch.groupName,
-          categoryName: db.categories.find(c => c.id === nextPendingMatch.categoryId)?.name || 'Categoria',
-          duo1Name: nextPendingMatch.teamA ? `${db.athletes.find(a => a.id === nextPendingMatch.teamA?.player1Id)?.name || 'Atleta 1'} / ${db.athletes.find(a => a.id === nextPendingMatch.teamA?.player2Id)?.name || 'Atleta 2'}` : (db.duos.find(d => d.id === nextPendingMatch.duo1Id)?.player1Id ? `${db.athletes.find(a => a.id === db.duos.find(d => d.id === nextPendingMatch.duo1Id)?.player1Id)?.name || 'Atleta A'} / ${db.athletes.find(a => a.id === db.duos.find(d => d.id === nextPendingMatch.duo1Id)?.player2Id)?.name || 'Atleta B'}` : 'Dupla 1'),
-          duo2Name: nextPendingMatch.teamB ? `${db.athletes.find(a => a.id === nextPendingMatch.teamB?.player1Id)?.name || 'Atleta 3'} / ${db.athletes.find(a => a.id === nextPendingMatch.teamB?.player2Id)?.name || 'Atleta 4'}` : (db.duos.find(d => d.id === nextPendingMatch.duo2Id)?.player1Id ? `${db.athletes.find(a => a.id === db.duos.find(d => d.id === nextPendingMatch.duo2Id)?.player1Id)?.name || 'Atleta C'} / ${db.athletes.find(a => a.id === db.duos.find(d => d.id === nextPendingMatch.duo2Id)?.player2Id)?.name || 'Atleta D'}` : 'Dupla 2'),
-          court: freedCourt,
-          time: nextPendingMatch.time
-        } : null
-      };
-    }
 
     // Partida tradicional de duplas
     if (winnerDuoId && winnerDuoId !== m.duo1Id && winnerDuoId !== m.duo2Id) {
@@ -342,20 +201,6 @@ export const matchService = {
 
     const m = db.matches[index];
 
-    // Se Super 8
-    if (m.format === 'SUPER_8' || m.teamA) {
-      const selectedWinner = winnerTeam || (winnerDuoId === 'TEAM_A' || winnerDuoId === 'teamA' ? 'TEAM_A' : 'TEAM_B');
-      const woGames = db.matches[index].games !== undefined ? db.matches[index].games : 4;
-      db.matches[index].score = selectedWinner === 'TEAM_A' ? `W.O. (${woGames}x0)` : `W.O. (0x${woGames})`;
-      db.matches[index].scoreA = selectedWinner === 'TEAM_A' ? woGames : 0;
-      db.matches[index].scoreB = selectedWinner === 'TEAM_A' ? 0 : woGames;
-      db.matches[index].winnerTeam = selectedWinner;
-      db.matches[index].status = 'WO';
-      db.matches[index].updatedAt = new Date().toISOString();
-      writeDB(db);
-      return { success: true };
-    }
-
     // Tradicional
     if (winnerDuoId && winnerDuoId !== m.duo1Id && winnerDuoId !== m.duo2Id) {
       return { success: false, error: 'A dupla vencedora do WO deve fazer parte do jogo.' };
@@ -419,106 +264,8 @@ export const matchService = {
       return { success: false, error: 'Categoria não encontrada.' };
     }
 
-    const availableCourts = tournament.courtsUsed && tournament.courtsUsed >= 1 ? tournament.courtsUsed : 4;
     const courtPrefix = court && !court.includes('Quadra') ? court : 'Quadra';
     const matchDate = date || new Date().toISOString().split('T')[0];
-
-    // Verificar se o formato é SUPER 8 (torneio individual isDuo === false OU categoria type === 'SUPER 8')
-    const isSuper8 = tournament.isDuo === false || category.type === 'SUPER 8';
-
-    if (isSuper8) {
-      // 1. Obter atletas inscritos na categoria
-      const registrations = db.registrations.filter(r => r.categoryId === categoryId && r.tournamentId === tournamentId);
-      
-      // Validação obrigatória da regra Super 8: exatamente 8 atletas
-      if (registrations.length !== 8) {
-        return {
-          success: false,
-          error: `O formato Super 8 exige exatamente 8 atletas inscritos na categoria. Atualmente existem ${registrations.length} inscritos confirmados.`
-        };
-      }
-
-      const athleteIds = registrations.map(r => r.athleteId);
-      const athleteMap = new Map(db.athletes.map(a => [a.id, a]));
-
-      // 2. Gerar as 14 partidas distribuídas nas 7 rodadas conforme gabarito oficial Super 8
-      const generatedMatches: Omit<Match, 'id' | 'createdAt' | 'updatedAt'>[] = [];
-
-      SUPER_8_ROUNDS_TEMPLATE.forEach(tpl => {
-        const p1Id = athleteIds[tpl.teamA[0] - 1];
-        const p2Id = athleteIds[tpl.teamA[1] - 1];
-        const p3Id = athleteIds[tpl.teamB[0] - 1];
-        const p4Id = athleteIds[tpl.teamB[1] - 1];
-
-        // Determinar quadra e horário
-        // Cada rodada tem 2 jogos. Se tiver 2 ou mais quadras, jogam simultaneamente.
-        const matchInRound = (tpl.matchNumber % 2 === 1) ? 1 : 2;
-        const courtNumber = ((matchInRound - 1) % availableCourts) + 1;
-        const courtName = `${courtPrefix} ${courtNumber}`;
-
-        // Intervalo de 40 min por rodada a partir das 14:00
-        const startHour = 14;
-        const totalMinutes = (tpl.round - 1) * 40;
-        const hour = startHour + Math.floor(totalMinutes / 60);
-        const minutes = totalMinutes % 60;
-        const matchTime = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-
-        generatedMatches.push({
-          tournamentId,
-          categoryId,
-          stage: `Rodada ${tpl.round}`,
-          groupName: 'Super 8',
-          round: tpl.round,
-          matchNumber: tpl.matchNumber,
-          format: 'SUPER_8',
-          games: category.games || 4,
-          thaiBreak: category.thaiBreak || false,
-          teamA: {
-            player1Id: p1Id,
-            player2Id: p2Id,
-            player1Name: athleteMap.get(p1Id)?.name || `Atleta ${tpl.teamA[0]}`,
-            player2Name: athleteMap.get(p2Id)?.name || `Atleta ${tpl.teamA[1]}`
-          },
-          teamB: {
-            player1Id: p3Id,
-            player2Id: p4Id,
-            player1Name: athleteMap.get(p3Id)?.name || `Atleta ${tpl.teamB[0]}`,
-            player2Name: athleteMap.get(p4Id)?.name || `Atleta ${tpl.teamB[1]}`
-          },
-          date: matchDate,
-          time: matchTime,
-          court: courtName,
-          status: 'PENDENTE'
-        });
-      });
-
-      // 3. Validação rigorosa antes de salvar no banco
-      const valResult = validateSuper8Schedule(generatedMatches, athleteIds);
-      if (!valResult.valid) {
-        return {
-          success: false,
-          error: `Falha na validação das regras do Super 8: ${valResult.error}`
-        };
-      }
-
-      // 4. Remover partidas pendentes anteriores desta categoria neste torneio
-      db.matches = db.matches.filter(m => !(m.categoryId === categoryId && m.tournamentId === tournamentId && m.status === 'PENDENTE'));
-
-      // 5. Salvar as novas partidas
-      const now = new Date().toISOString();
-      generatedMatches.forEach(m => {
-        const newMatch: Match = {
-          ...m,
-          id: 'mat-s8-' + Math.random().toString(36).substring(2, 11),
-          createdAt: now,
-          updatedAt: now
-        };
-        db.matches.push(newMatch);
-      });
-
-      writeDB(db);
-      return { success: true, count: 14, format: 'SUPER_8' };
-    }
 
     // Formato de Jogos Convencionais (Fase de Grupos balanceada + Eliminatórias)
     return conventionalTournamentService.generateGroupStage(tournamentId, categoryId, matchDate, courtPrefix);
@@ -535,15 +282,5 @@ export const matchService = {
 
   getConventionalData(tournamentId: string, categoryId: string) {
     return conventionalTournamentService.getTournamentData(tournamentId, categoryId);
-  },
-
-  getSuper8Standings(tournamentId: string, categoryId: string) {
-    const db = readDB();
-    const tournamentMatches = db.matches.filter(m => m.tournamentId === tournamentId && m.categoryId === categoryId);
-    const registrations = db.registrations.filter(r => r.tournamentId === tournamentId && r.categoryId === categoryId);
-    const registeredAthleteIds = new Set(registrations.map(r => r.athleteId));
-    const athletes = db.athletes.filter(a => registeredAthleteIds.has(a.id));
-
-    return calculateSuper8Standings(tournamentMatches, athletes);
   }
 };

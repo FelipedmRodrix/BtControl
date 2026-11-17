@@ -1,5 +1,20 @@
-import { Match, Athlete } from '../db/store';
-import { readDB } from '../db/store';
+import type { MatchTeam } from '../db/store';
+
+export interface Super8MatchLike {
+  id?: string;
+  round?: number;
+  matchNumber?: number;
+  stage?: string;
+  teamA?: MatchTeam;
+  teamB?: MatchTeam;
+  scoreA?: number;
+  scoreB?: number;
+  score?: string;
+  winnerTeam?: 'TEAM_A' | 'TEAM_B';
+  status?: string;
+  games?: number;
+  thaiBreak?: boolean;
+}
 
 export interface Super8MatchSchedule {
   round: number; // 1 to 7
@@ -59,7 +74,7 @@ export interface Super8ValidationResult {
  * 8. Cada rodada possui exatamente 2 partidas
  */
 export function validateSuper8Schedule(
-  matches: Omit<Match, 'id' | 'createdAt' | 'updatedAt'>[],
+  matches: Super8MatchLike[],
   athleteIds: string[]
 ): Super8ValidationResult {
   // 1. Existem exatamente 8 atletas
@@ -270,8 +285,8 @@ function validateTieScore(score: number, games: number, thaiBreak: boolean): boo
 }
 
 export function resolveSuper8Tie(
-  match: Match,
-  allMatches: Match[],
+  match: Super8MatchLike,
+  allMatches: Super8MatchLike[],
   athletes: { id: string; name: string }[]
 ): { winnerTeam: 'TEAM_A' | 'TEAM_B'; reason: string } | null {
   if (!match.teamA || !match.teamB) return null;
@@ -347,7 +362,7 @@ export interface Super8AthleteStanding {
  * 4. Menos games sofridos (GS)
  */
 export function calculateSuper8Standings(
-  matches: (Match | any)[],
+  matches: Super8MatchLike[],
   athletes: { id: string; name: string; [key: string]: any }[],
   games: number = 4
 ): Super8AthleteStanding[] {
@@ -395,12 +410,13 @@ export function calculateSuper8Standings(
     }
 
     if (m.status === 'WO') {
+      const woGames = m.games || games || 4;
       if (m.winnerTeam === 'TEAM_A') {
-        scoreA = 4;
+        scoreA = woGames;
         scoreB = 0;
       } else if (m.winnerTeam === 'TEAM_B') {
         scoreA = 0;
-        scoreB = 4;
+        scoreB = woGames;
       }
     }
 
