@@ -291,18 +291,78 @@ export function Super8Module({
     [authHeaders, showError]
   );
 
-  useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
+  const selectEventForDetail = (id: string) => {
+    setSelectedEventId(id);
+    setLoadingDetail(true);
+    setFreedCourtNotice(null);
+    setRoundFilter('ALL');
+    setMatchStatusFilter('ALL');
+  };
 
   useEffect(() => {
-    if (selectedEventId) {
-      fetchEventDetail(selectedEventId);
-      setFreedCourtNotice(null);
-      setRoundFilter('ALL');
-      setMatchStatusFilter('ALL');
+    let cancelled = false;
+    async function loadInitialEvents() {
+      try {
+        const qs = session.role === 'ARENA_ADMIN' && session.arenaId ? `?arenaId=${encodeURIComponent(session.arenaId)}` : '';
+        const res = await fetch(`/api/super8${qs}`, { headers: authHeaders() });
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          showError(data.error || 'Erro ao carregar eventos Super 8.');
+          setEvents([]);
+        } else {
+          setEvents(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        if (!cancelled) {
+          showError('Falha de conexão ao carregar módulo Super 8.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingList(false);
+        }
+      }
     }
-  }, [selectedEventId, fetchEventDetail]);
+    loadInitialEvents();
+    return () => {
+      cancelled = true;
+    };
+  }, [authHeaders, session.arenaId, session.role, showError]);
+
+  useEffect(() => {
+    if (!selectedEventId) return;
+    let cancelled = false;
+    async function loadDetail() {
+      try {
+        const res = await fetch(`/api/super8/${selectedEventId}`, { headers: authHeaders() });
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) {
+          showError(data.error || 'Erro ao carregar detalhes do Super 8.');
+          return;
+        }
+        setDetailEvent(data.event);
+        setDetailAthletes(data.athletes || []);
+        setDetailMatches(data.matches || []);
+        setDetailStandings(data.standings || []);
+        if (data.event?.startDate) {
+          setGenDate(data.event.startDate);
+        }
+      } catch {
+        if (!cancelled) {
+          showError('Falha ao carregar dados do Super 8.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingDetail(false);
+        }
+      }
+    }
+    loadDetail();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEventId, authHeaders, showError]);
 
   const openCreateModal = () => {
     const defaultArenaId =
@@ -934,7 +994,7 @@ export function Super8Module({
                       <button
                         type="button"
                         onClick={() => {
-                          setSelectedEventId(ev.id);
+                          selectEventForDetail(ev.id);
                           setDetailTab('matches');
                         }}
                         className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
@@ -1024,7 +1084,7 @@ export function Super8Module({
                 {events.length > 1 && (
                   <select
                     value={selectedEventId}
-                    onChange={e => setSelectedEventId(e.target.value)}
+                    onChange={e => selectEventForDetail(e.target.value)}
                     className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:border-emerald-500"
                   >
                     {events.map(ev => (

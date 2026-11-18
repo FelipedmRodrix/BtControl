@@ -64,6 +64,7 @@ export type SystemScreen =
   | 'categories'
   | 'tournaments'
   | 'super8'
+  | 'super8-standings'
   | 'registrations'
   | 'duos'
   | 'matches'
@@ -277,6 +278,7 @@ export const ALL_SYSTEM_SCREENS: { id: SystemScreen; label: string; description:
   { id: 'categories', label: 'Categorias', description: 'Categorias oficiais do sistema' },
   { id: 'tournaments', label: 'Torneios', description: 'Criação e configuração de torneios de duplas' },
   { id: 'super8', label: 'Super 8', description: 'Competições individuais Super 8, rodadas dinâmicas e ranking individual' },
+  { id: 'super8-standings', label: 'Classificação Individual', description: 'Acompanhamento de pontuação individual, jogos Super 8 e link direto para atletas' },
   { id: 'registrations', label: 'Inscrições', description: 'Inscrições de atletas em categorias' },
   { id: 'duos', label: 'Duplas', description: 'Formação de duplas por categoria' },
   { id: 'matches', label: 'Jogos / Quadras', description: 'Chaveamento, quadras e horários' },
@@ -327,7 +329,7 @@ export const DEFAULT_SYSTEM_PROFILES: Profile[] = [
       if (s.id === 'matches' || s.id === 'results' || s.id === 'bracket-tree' || s.id === 'super8') {
         return { screen: s.id, view: true, create: false, edit: true, delete: false };
       }
-      if (s.id === 'dashboard') {
+      if (s.id === 'dashboard' || s.id === 'super8-standings') {
         return { screen: s.id, view: true, create: false, edit: false, delete: false };
       }
       return { screen: s.id, view: false, create: false, edit: false, delete: false };
@@ -341,7 +343,7 @@ export const DEFAULT_SYSTEM_PROFILES: Profile[] = [
     description: 'Permissão apenas de visualização para relatórios, tabelas, Super 8 e resultados.',
     isSystem: false,
     permissions: ALL_SYSTEM_SCREENS.map(s => {
-      if (['reports', 'dashboard', 'bracket-tree', 'results', 'super8'].includes(s.id)) {
+      if (['reports', 'dashboard', 'bracket-tree', 'results', 'super8', 'super8-standings'].includes(s.id)) {
         return { screen: s.id, view: true, create: false, edit: false, delete: false };
       }
       return { screen: s.id, view: false, create: false, edit: false, delete: false };
@@ -1952,6 +1954,26 @@ function normalizeAndMigrateDB(parsed: any): { data: DBData; needsUpdate: boolea
             create: Boolean(refPerm?.create),
             edit: Boolean(refPerm?.edit),
             delete: Boolean(refPerm?.delete)
+          });
+        }
+        needsUpdate = true;
+      }
+      if (!p.permissions.some((perm: any) => perm.screen === 'super8-standings')) {
+        if (p.id === 'prof-super-admin') {
+          p.permissions.push({ screen: 'super8-standings', view: true, create: true, edit: true, delete: true });
+        } else if (p.id === 'prof-organizador') {
+          p.permissions.push({ screen: 'super8-standings', view: true, create: true, edit: true, delete: false });
+        } else if (p.id === 'prof-mesario' || p.id === 'prof-visualizador') {
+          p.permissions.push({ screen: 'super8-standings', view: true, create: false, edit: false, delete: false });
+        } else {
+          const refPerm = p.permissions.find((perm: any) => perm.screen === 'super8') ||
+            p.permissions.find((perm: any) => perm.screen === 'reports');
+          p.permissions.push({
+            screen: 'super8-standings',
+            view: Boolean(refPerm?.view),
+            create: false,
+            edit: false,
+            delete: false
           });
         }
         needsUpdate = true;

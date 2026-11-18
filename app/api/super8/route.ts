@@ -6,7 +6,11 @@ import { super8ManagerService } from '@/lib/services/super8ManagerService';
 export async function GET(req: NextRequest) {
   try {
     await ensureDbInitialized();
-    const auth = checkApiPermission(req, 'super8', 'view');
+    const authSuper8 = checkApiPermission(req, 'super8', 'view');
+    const authStandings = authSuper8.authorized
+      ? authSuper8
+      : checkApiPermission(req, 'super8-standings', 'view');
+    const auth = authSuper8.authorized ? authSuper8 : authStandings;
     if (!auth.authorized) {
       return NextResponse.json({ error: auth.error }, { status: 403 });
     }

@@ -53,6 +53,7 @@ import { TournamentTreeBracket } from '@/components/TournamentTreeBracket';
 import { ProfilesManager } from '@/components/ProfilesManager';
 import { UsersManager } from '@/components/UsersManager';
 import { Super8Module } from '@/components/Super8Module';
+import { Super8IndividualStandingsModule } from '@/components/Super8IndividualStandingsModule';
 import type { ConventionalTournamentData } from '@/lib/services/conventionalTournamentService';
 import { type Profile, type SystemScreen, type PermissionAction, DEFAULT_SYSTEM_PROFILES } from '@/lib/types/permissions';
 
@@ -242,7 +243,7 @@ export default function Home() {
 
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'athletes' | 'arenas' | 'venues' | 'tournaments' | 'categories' | 'registrations' | 'duos' | 'matches' | 'results' | 'reports' | 'settings' | 'bracket-tree' | 'profiles' | 'users' | 'super8'
+    'dashboard' | 'athletes' | 'arenas' | 'venues' | 'tournaments' | 'categories' | 'registrations' | 'duos' | 'matches' | 'results' | 'reports' | 'settings' | 'bracket-tree' | 'profiles' | 'users' | 'super8' | 'super8-standings'
   >('dashboard');
 
   // Sub-aba de Configurações
@@ -533,7 +534,7 @@ export default function Home() {
   };
 
   // Central Navigation Handler: Always resets tournament search and selection when clicking sidebar
-  const handleNavTab = (tab: 'dashboard' | 'athletes' | 'arenas' | 'venues' | 'categories' | 'tournaments' | 'registrations' | 'duos' | 'matches' | 'results' | 'reports' | 'settings' | 'bracket-tree' | 'super8') => {
+  const handleNavTab = (tab: 'dashboard' | 'athletes' | 'arenas' | 'venues' | 'categories' | 'tournaments' | 'registrations' | 'duos' | 'matches' | 'results' | 'reports' | 'settings' | 'bracket-tree' | 'super8' | 'super8-standings') => {
     setActiveTab(tab);
     setIsMobileMenuOpen(false);
     if (tab === 'registrations') {
@@ -785,7 +786,6 @@ export default function Home() {
 
   useEffect(() => {
     if (session) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2349,28 +2349,45 @@ export default function Home() {
               </AnimatePresence>
             </div>
 
-            {/* MÓDULO INDEPENDENTE: SUPER 8 */}
-            {canPerform('super8', 'view') && (
-              <div className="pt-1">
+            {/* MÓDULO INDEPENDENTE: SUPER 8 & CLASSIFICAÇÃO INDIVIDUAL */}
+            {(canPerform('super8', 'view') || canPerform('super8-standings', 'view')) && (
+              <div className="pt-1 space-y-1">
                 <div className="border-t border-slate-200 my-2 pt-2">
                   <span className="px-3.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Modalidade Individual</span>
                 </div>
-                <button
-                  onClick={() => { handleNavTab('super8'); handleCloseArenaManagement(); }}
-                  className={`w-full flex items-center justify-between py-2.5 px-3.5 rounded-xl font-semibold transition-all cursor-pointer ${
-                    activeTab === 'super8'
-                      ? 'bg-amber-50 text-amber-800 border border-amber-200 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Zap className={`w-4 h-4 shrink-0 ${activeTab === 'super8' ? 'text-amber-600' : 'text-amber-500'}`} />
-                    <span>Super 8</span>
-                  </div>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-mono font-bold">
-                    INDIV
-                  </span>
-                </button>
+                {canPerform('super8', 'view') && (
+                  <button
+                    onClick={() => { handleNavTab('super8'); handleCloseArenaManagement(); }}
+                    className={`w-full flex items-center justify-between py-2.5 px-3.5 rounded-xl font-semibold transition-all cursor-pointer ${
+                      activeTab === 'super8'
+                        ? 'bg-amber-50 text-amber-800 border border-amber-200 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Zap className={`w-4 h-4 shrink-0 ${activeTab === 'super8' ? 'text-amber-600' : 'text-amber-500'}`} />
+                      <span>Super 8</span>
+                    </div>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-mono font-bold">
+                      INDIV
+                    </span>
+                  </button>
+                )}
+                {canPerform('super8-standings', 'view') && (
+                  <button
+                    onClick={() => { handleNavTab('super8-standings'); handleCloseArenaManagement(); }}
+                    className={`w-full flex items-center justify-between py-2.5 px-3.5 rounded-xl font-semibold transition-all cursor-pointer ${
+                      activeTab === 'super8-standings'
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Trophy className={`w-4 h-4 shrink-0 ${activeTab === 'super8-standings' ? 'text-emerald-600' : 'text-amber-500'}`} />
+                      <span className="truncate">Classificação Individual</span>
+                    </div>
+                  </button>
+                )}
               </div>
             )}
 
@@ -2519,7 +2536,8 @@ export default function Home() {
                activeTab === 'venues' ? 'Locais' : 
                activeTab === 'categories' ? 'Categorias' : 
                activeTab === 'bracket-tree' ? 'Mata-Mata' :
-               activeTab === 'super8' ? 'Super 8' : activeTab}
+               activeTab === 'super8' ? 'Super 8' :
+               activeTab === 'super8-standings' ? 'Classificação Individual' : activeTab}
             </span>
             <button 
               onClick={handleLogout}
@@ -2726,28 +2744,45 @@ export default function Home() {
                       )}
                     </div>
 
-                    {/* Módulo Independente Super 8 no Mobile */}
-                    {canPerform('super8', 'view') && (
-                      <div className="pt-1">
+                    {/* Módulo Independente Super 8 e Classificação Individual no Mobile */}
+                    {(canPerform('super8', 'view') || canPerform('super8-standings', 'view')) && (
+                      <div className="pt-1 space-y-1">
                         <div className="border-t border-slate-200 my-2 pt-2">
                           <span className="px-3.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Modalidade Individual</span>
                         </div>
-                        <button
-                          onClick={() => { handleNavTab('super8'); handleCloseArenaManagement(); }}
-                          className={`w-full flex items-center justify-between py-2.5 px-3.5 rounded-xl font-semibold transition-all ${
-                            activeTab === 'super8'
-                              ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <Zap className="w-4 h-4 text-amber-600" />
-                            <span>Super 8</span>
-                          </div>
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-mono font-bold">
-                            INDIV
-                          </span>
-                        </button>
+                        {canPerform('super8', 'view') && (
+                          <button
+                            onClick={() => { handleNavTab('super8'); handleCloseArenaManagement(); }}
+                            className={`w-full flex items-center justify-between py-2.5 px-3.5 rounded-xl font-semibold transition-all ${
+                              activeTab === 'super8'
+                                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Zap className="w-4 h-4 text-amber-600" />
+                              <span>Super 8</span>
+                            </div>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-mono font-bold">
+                              INDIV
+                            </span>
+                          </button>
+                        )}
+                        {canPerform('super8-standings', 'view') && (
+                          <button
+                            onClick={() => { handleNavTab('super8-standings'); handleCloseArenaManagement(); }}
+                            className={`w-full flex items-center justify-between py-2.5 px-3.5 rounded-xl font-semibold transition-all ${
+                              activeTab === 'super8-standings'
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Trophy className="w-4 h-4 text-amber-600" />
+                              <span>Classificação Individual</span>
+                            </div>
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -6256,6 +6291,23 @@ export default function Home() {
                 />
               )}
 
+              {/* VIEW: MÓDULO CLASSIFICAÇÃO INDIVIDUAL SUPER 8 */}
+              {activeTab === 'super8-standings' && canPerform('super8-standings', 'view') && (
+                <Super8IndividualStandingsModule
+                  mode="module"
+                  session={{
+                    id: session.id,
+                    username: session.username,
+                    role: session.role,
+                    arenaId: session.arenaId,
+                    name: session.name
+                  }}
+                  arenas={arenas}
+                  showSuccess={showSuccess}
+                  showError={showError}
+                />
+              )}
+
               {/* VIEW 11: CONFIGURAÇÕES COM USUÁRIOS E PERFIS */}
               {(activeTab === 'settings' || activeTab === 'profiles' || activeTab === 'users') && (
                 <motion.div key="settings_view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -8363,7 +8415,7 @@ export default function Home() {
           type="button"
           onClick={() => setIsMobileMenuOpen(true)}
           className={`flex flex-col items-center justify-center min-w-[56px] py-1 px-1 rounded-xl transition ${
-            ['athletes', 'arenas', 'venues', 'categories', 'registrations', 'results', 'reports', 'settings', 'bracket-tree', 'super8', 'profiles', 'users'].includes(activeTab)
+            ['athletes', 'arenas', 'venues', 'categories', 'registrations', 'results', 'reports', 'settings', 'bracket-tree', 'super8', 'super8-standings', 'profiles', 'users'].includes(activeTab)
               ? 'text-emerald-600 font-bold'
               : 'text-slate-500 hover:text-slate-800'
           }`}
